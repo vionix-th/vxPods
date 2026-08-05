@@ -22,7 +22,9 @@ Scope: Static client-side browser application
 - `fetch`, `AbortController`, File API, Web Audio API, Web Workers where processing would block UI, `localStorage`, IndexedDB, and Service Worker APIs.
 - Vitest for unit/integration tests.
 - Playwright for browser and accessibility-flow tests.
-- MP3 encoding uses one isolated dependency for portable output across supported browsers.
+- MP3 encoding uses one isolated dependency for portable output across supported browsers:
+  `@breezystack/lamejs` (maintained lamejs fork), wrapped by `src/audio/mp3-encoder.js`
+  and runnable inside `src/workers/audio-worker.js`.
 
 Changes to technology baseline require an approved architecture decision.
 
@@ -57,6 +59,9 @@ src/
     dialog.js
     error-message.js
     progress.js
+    fields.js
+    provider-select.js
+    source-input.js
   features/
     providers/
       provider-form.js
@@ -78,6 +83,9 @@ src/
     audio-assembler.js
     mp3-encoder.js
     wav-writer.js
+    segmenter.js
+  utils/
+    download.js
   workers/
     audio-worker.js
   styles/

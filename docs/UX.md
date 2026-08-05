@@ -15,24 +15,29 @@ Single application shell:
 
 ```text
 Header
-  Vionix/vxPods identity
+  Topbar: "A Vionix Consulting product" + vionix.cloud/GitHub links
+  Branding: Vionix vxPods identity (two-tone, links to vionix.cloud)
   Online/offline status
   Provider settings
 
-Primary mode switch
+Hero band (light background, brand kicker)
+  Product statement + local-first data-flow summary
+
+Primary mode switch (pill buttons, active = brand fill)
   Text to Speech
   Podcast
 
 Active workflow
+  Step cards with uppercase kicker pills (Step 1..n)
   Source
   Settings
   Generate
   Progress/result
 
 Footer
-  Local-data statement
-  Clear local data
-  License/repository links when available
+  Brand band: Vionix vxPods sitename, local-data statement, Clear local data
+  Vionix links (vionix.cloud, case studies, GitHub)
+  Copyright/license line
 ```
 
 Mode changes preserve current input in each mode for current browser session.
@@ -195,6 +200,7 @@ Core tokens:
 ```css
 :root {
   --color-brand: #106eea;
+  --color-brand-dark: #0b56b3; /* AA-safe small text on soft pill tints */
   --color-bg: #ffffff;
   --color-bg-subtle: #f5f9ff;
   --color-surface: #ffffff;
@@ -202,7 +208,10 @@ Core tokens:
   --color-heading: #222222;
   --color-on-brand: #ffffff;
   --radius-card: 14px;
-  --shadow-card: 0 12px 28px rgb(0 0 0 / 0.07);
+  --radius-control: 6px;
+  --radius-pill: 999px; /* primary CTAs, kickers, mode switch */
+  --shadow-card: 0 0 25px 0 rgb(0 0 0 / 0.1);
+  --shadow-cta: 0 8px 18px rgb(16 110 234 / 0.28);
 }
 ```
 
