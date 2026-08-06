@@ -4,7 +4,12 @@
  */
 
 import { AppError } from '../../services/errors.js';
-import { loadSettings, saveSettings } from '../../storage/local-settings.js';
+import {
+  loadSettings,
+  restoreSettingsBackup as restoreSettingsBackupDocument,
+  saveSettings,
+  validateSettingsBackup as validateSettingsBackupDocument,
+} from '../../storage/local-settings.js';
 import {
   DEFAULT_CHAT_MODELS,
   DEFAULT_TTS_MODELS,
@@ -119,6 +124,27 @@ function validationError(message) {
  */
 export function listProviders() {
   return loadSettings().providers;
+}
+
+/** @returns {import('../../storage/local-settings.js').SettingsDocument} */
+export function exportSettingsBackup() {
+  return loadSettings();
+}
+
+/** @param {unknown} backup */
+export function validateSettingsBackup(backup) {
+  return validateSettingsBackupDocument(backup);
+}
+
+/**
+ * Fully replace settings from an exported backup. Existing settings are not
+ * changed unless the complete input validates and persists successfully.
+ * @param {unknown} backup
+ */
+export function restoreSettingsBackup(backup) {
+  const restored = restoreSettingsBackupDocument(backup);
+  notifyProviders();
+  return restored;
 }
 
 /** @type {Set<() => void>} */

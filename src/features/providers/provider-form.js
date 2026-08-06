@@ -8,13 +8,17 @@ import { renderError, clearError, notify } from '../../components/error-message.
 import { testChatConnection } from '../../services/chat-completions-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
+import { downloadJson } from '../../utils/download.js';
 import { renderPromptTemplateSettings } from '../podcast/prompt-template-form.js';
 import {
   PROVIDER_PRESETS,
   addProvider,
   deleteProvider,
+  exportSettingsBackup,
   listProviders,
+  restoreSettingsBackup,
   updateProvider,
+  validateSettingsBackup,
 } from './provider-store.js';
 import {
   DEFAULT_CHAT_MODELS,
@@ -106,7 +110,54 @@ function renderManager(body, options) {
   templatesButton.textContent = 'Prompt templates';
   templatesButton.addEventListener('click', () => options.openPromptTemplates?.());
 
-  body.append(explainer, list, addButton, templatesButton);
+  const backupActions = document.createElement('div');
+  backupActions.className = 'action-row';
+  const exportButton = document.createElement('button');
+  exportButton.type = 'button';
+  exportButton.className = 'button button-secondary';
+  exportButton.textContent = 'Export settings';
+  exportButton.addEventListener('click', () => {
+    downloadJson(exportSettingsBackup(), 'vxpods-settings.json');
+    notify({
+      type: 'warning',
+      title: 'Sensitive export created',
+      message: 'Settings export includes unencrypted API keys. Store it securely and do not share it.',
+    });
+  });
+  const restoreButton = document.createElement('button');
+  restoreButton.type = 'button';
+  restoreButton.className = 'button button-secondary';
+  restoreButton.textContent = 'Restore settings';
+  const restoreInput = document.createElement('input');
+  restoreInput.type = 'file';
+  restoreInput.accept = '.json,application/json';
+  restoreInput.hidden = true;
+  const restoreError = document.createElement('div');
+  restoreButton.addEventListener('click', () => restoreInput.click());
+  restoreInput.addEventListener('change', async () => {
+    const file = restoreInput.files?.[0];
+    restoreInput.value = '';
+    if (!file) return;
+    try {
+      const backup = await file.text();
+      const settings = validateSettingsBackup(backup);
+      const confirmed = await confirmDialog({
+        title: 'Restore settings',
+        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, and prompt templates. Existing settings will be lost.',
+        confirmLabel: 'Replace all settings',
+      });
+      if (!confirmed) return;
+      restoreSettingsBackup(settings);
+      options.onChange?.();
+      notify({ type: 'success', title: 'Settings restored', message: 'Saved settings were fully replaced.' });
+      renderManager(body, options);
+    } catch (err) {
+      renderError(restoreError, toAppError(err));
+    }
+  });
+  backupActions.append(exportButton, restoreButton, restoreInput);
+
+  body.append(explainer, list, addButton, templatesButton, backupActions);
 }
 
 /**

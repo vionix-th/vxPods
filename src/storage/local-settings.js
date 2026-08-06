@@ -91,6 +91,51 @@ export function saveSettings(doc, storage = globalThis.localStorage) {
 }
 
 /**
+ * Parse, migrate, and validate a settings backup without changing storage.
+ * @param {unknown} backup
+ * @returns {SettingsDocument}
+ */
+export function validateSettingsBackup(backup) {
+  let raw = backup;
+  if (typeof backup === 'string') {
+    try {
+      raw = JSON.parse(backup);
+    } catch {
+      throw validationError('Settings file is not valid JSON.');
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw validationError('Settings file must contain a settings object.');
+  }
+  let document = /** @type {Record<string, unknown>} */ ({ ...raw });
+  let version = Number(document.schemaVersion);
+  if (!Number.isInteger(version) || version < 1 || version > SETTINGS_SCHEMA_VERSION) {
+    throw validationError('Settings file has an unsupported schema version.');
+  }
+  if (!Array.isArray(document.providers) || document.providers.some((provider) => !isValidProviderRecord(provider))) {
+    throw validationError('Settings file contains an invalid provider configuration.');
+  }
+  while (version < SETTINGS_SCHEMA_VERSION) {
+    document = MIGRATIONS[version](document);
+    version += 1;
+  }
+  return validateDocument(document);
+}
+
+/**
+ * Fully replace local settings from a validated backup.
+ * Invalid input never changes existing settings.
+ * @param {unknown} backup
+ * @param {Storage} [storage]
+ * @returns {SettingsDocument}
+ */
+export function restoreSettingsBackup(backup, storage = globalThis.localStorage) {
+  const settings = validateSettingsBackup(backup);
+  saveSettings(settings, storage);
+  return settings;
+}
+
+/**
  * Remove the settings document entirely.
  * @param {Storage} [storage]
  */
@@ -272,6 +317,16 @@ function normalizeStorageError(err) {
     retryable: false,
     status: undefined,
     cause: err,
+  });
+}
+
+/** @param {string} message */
+function validationError(message) {
+  return new AppError({
+    kind: 'validation',
+    message,
+    retryable: false,
+    status: undefined,
   });
 }
 

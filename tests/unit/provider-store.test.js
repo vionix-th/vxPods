@@ -7,7 +7,9 @@ import {
   deleteProvider,
   selectProvider,
   getSelectedProviderId,
+  exportSettingsBackup,
   listProviders,
+  restoreSettingsBackup,
 } from '../../src/features/providers/provider-store.js';
 
 beforeEach(() => {
@@ -108,6 +110,42 @@ describe('provider CRUD', () => {
 
   it('persists across loads (reload behavior)', () => {
     addProvider(input);
+    expect(listProviders()).toHaveLength(1);
+  });
+
+  it('exports every local setting and restores as a full replacement', () => {
+    const original = addProvider({
+      ...input,
+      chatModels: ['custom-chat'],
+      ttsModels: ['custom-tts'],
+      voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
+    });
+    selectProvider('chat', original.id);
+    const backup = exportSettingsBackup();
+    backup.promptTemplates = {
+      scriptUser:
+        'Write {{formatDescription}} for {{audience}} in a {{tone}} tone. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+    };
+    addProvider({ ...input, name: 'Temporary' });
+
+    restoreSettingsBackup(JSON.stringify(backup));
+
+    expect(listProviders()).toHaveLength(1);
+    expect(listProviders()[0].apiKey).toBe('sk-1');
+    expect(listProviders()[0]).toMatchObject({
+      chatModels: ['custom-chat'],
+      ttsModels: ['custom-tts'],
+      voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
+    });
+    expect(getSelectedProviderId('chat')).toBe(original.id);
+    expect(exportSettingsBackup().promptTemplates.scriptUser).toBe(
+      'Write {{formatDescription}} for {{audience}} in a {{tone}} tone. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+    );
+  });
+
+  it('rejects invalid backups without replacing current settings', () => {
+    addProvider(input);
+    expect(() => restoreSettingsBackup('{not json')).toThrowError(/valid JSON/);
     expect(listProviders()).toHaveLength(1);
   });
 

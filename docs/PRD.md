@@ -75,6 +75,8 @@ Acceptance:
 - Deleting a configuration removes it and clears any selection that references it.
 - A malformed URL or empty key cannot be saved.
 - A provider-required action with no saved configuration opens provider creation; saving selects the new configuration for that action and resumes it.
+- Users can export every browser-local setting as JSON, including plaintext API keys, provider model/voice lists, selections, and prompt templates.
+- Restoring a settings JSON file validates it first, then fully replaces all existing settings after confirmation; restore never merges records.
 
 ### FR-2 Source input
 

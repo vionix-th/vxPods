@@ -164,6 +164,8 @@ Chat and TTS selectors elsewhere display saved configuration name plus endpoint 
 
 When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required Chat or TTS slot and resumes the action.
 
+Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates selected JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, and prompt templates without merging.
+
 Prompt templates are available from Settings. Each script-generation and repair message layer has its own keyboard-operable tab/page and is read-only until explicitly unlocked. A preview toggle replaces template editing with a full-width rendered view of final script system and user messages using current Podcast source and settings; unsaved editor changes are included and the user may refresh inputs explicitly. Returning to editing restores the selected template page. Saving modified instructions requires confirmation. Each template and all templates together can restore bundled defaults. Missing required runtime placeholders prevent save and identify exact missing placeholder.
 
 ## 7. Responsive behavior
