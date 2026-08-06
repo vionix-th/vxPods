@@ -127,6 +127,21 @@ describe('podcast script generation', () => {
     expect(JSON.stringify(json)).not.toContain('apiKey');
     expect(Object.keys(json)).not.toContain('segmentStates');
   });
+
+  it('imports a canonical script after schema validation', () => {
+    const controller = createPodcastController();
+    const imported = controller.importScript(JSON.stringify(validScript));
+    expect(imported).toEqual(validScript);
+    expect(controller.store.get()).toMatchObject({ status: 'ready', script: validScript });
+  });
+
+  it('rejects invalid script imports without changing the current script', async () => {
+    const controller = createPodcastController({ chat: chatReturning(validScript) });
+    await controller.generateScript('source text', prefs, chatProvider);
+    const original = controller.store.get().script;
+    expect(() => controller.importScript('{not json')).toThrowError(/not valid JSON/);
+    expect(controller.store.get().script).toEqual(original);
+  });
 });
 
 describe('podcast rendering', () => {

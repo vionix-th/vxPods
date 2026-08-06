@@ -90,7 +90,7 @@ Conversation displays exactly two speaker cards. Solo displays one. Defaults let
 ### Step 3: Generate script
 
 - Summary names selected Chat provider/model.
-- Primary action: “Generate script”.
+- Actions: “Generate script” and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a Chat provider. Replacing an existing script or unfinished render requires confirmation.
 - Status explains “Writing and validating JSON script”.
 - Invalid output offers “Repair script” once; then “Generate again”.
 
@@ -101,7 +101,7 @@ After validation:
 - Show title, speakers, and segment count.
 - Default view presents ordered editable speaker turns.
 - “Edit script” enables segment text editing.
-- “Download JSON” exports canonical script.
+- “Download JSON” exports canonical script; the same file can be imported from Step 3.
 - Primary action: “Render audio”.
 
 Review is optional: users may render immediately. Raw JSON editing is excluded from R1 because it creates avoidable schema errors. JSON remains download format.

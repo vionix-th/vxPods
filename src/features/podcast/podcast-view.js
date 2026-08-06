@@ -215,12 +215,23 @@ export function createPodcastView({ controller, isOnline }) {
   generateScriptButton.type = 'button';
   generateScriptButton.className = 'button button-primary';
   generateScriptButton.textContent = 'Generate script';
+  const importScriptButton = document.createElement('button');
+  importScriptButton.type = 'button';
+  importScriptButton.className = 'button button-secondary';
+  importScriptButton.textContent = 'Import script JSON';
+  const importScriptInput = document.createElement('input');
+  importScriptInput.type = 'file';
+  importScriptInput.accept = '.json,application/json';
+  importScriptInput.hidden = true;
+  const scriptActions = document.createElement('div');
+  scriptActions.className = 'action-row';
+  scriptActions.append(generateScriptButton, importScriptButton, importScriptInput);
   const scriptStatus = document.createElement('p');
   scriptStatus.className = 'help-text';
   scriptStatus.setAttribute('aria-live', 'polite');
   const scriptErrorRegion = document.createElement('div');
   scriptErrorRegion.className = 'error-region';
-  scriptCard.append(scriptSummary, generateScriptButton, scriptStatus);
+  scriptCard.append(scriptSummary, scriptActions, scriptStatus);
 
   // ---------- Step 4: review & edit
   const reviewCard = document.createElement('section');
@@ -473,6 +484,34 @@ export function createPodcastView({ controller, isOnline }) {
       refresh: chatProviderSelect.refresh,
       onReady: (provider) => controller.generateScript(source.getText(), readPrefs(), provider),
     });
+  });
+
+  importScriptButton.addEventListener('click', () => importScriptInput.click());
+  importScriptInput.addEventListener('change', async () => {
+    const file = importScriptInput.files?.[0];
+    importScriptInput.value = '';
+    if (!file) return;
+    clearError(scriptErrorRegion);
+    try {
+      const importedScript = controller.validateImportedScript(await file.text());
+      const hasScript = Boolean(controller.store.get().script);
+      const recoverableJob = await controller.getRecoverableJob();
+      if (hasScript || recoverableJob) {
+        const confirmed = await confirmDialog({
+          title: 'Replace current script',
+          message: 'Importing a script replaces the current script and discards any unfinished render.',
+          confirmLabel: 'Replace script',
+        });
+        if (!confirmed) return;
+        await controller.discardRender();
+      }
+      controller.importScript(importedScript);
+      exitEditMode();
+      setJsonMode(false);
+      notify({ type: 'success', title: 'Script imported', message: 'Review the validated script or render audio.' });
+    } catch (err) {
+      renderError(scriptErrorRegion, err, { onDismiss: () => {} });
+    }
   });
 
   // ---------- Review: structured editor

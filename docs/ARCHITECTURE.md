@@ -264,6 +264,7 @@ Validation rules:
 - Segment order is array order.
 - Unknown properties may be discarded during normalization; required properties may not be inferred except deterministic IDs.
 - Exported script JSON contains canonical fields shown above.
+- Imported script JSON is parsed and validated against the same canonical schema before replacing in-memory workflow state.
 
 Model output enters as untrusted text, passes JSON isolation and schema validation, then renders through text APIs.
 

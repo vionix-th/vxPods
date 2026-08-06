@@ -38,6 +38,7 @@ R1 must let users:
 - Preview generated audio.
 - Export final audio as WAV or MP3.
 - Export podcast scripts as JSON.
+- Import a validated podcast script JSON file for review and rendering.
 - After the application shell has loaded once, use non-generation features offline.
 
 Requirements below define complete R1 feature surface. Additional product capabilities require a later scoped change.
@@ -143,10 +144,12 @@ Users may override prompt wording after an explicit warning; generated scripts s
 - Script review/edit is available but skippable.
 - Script JSON can be downloaded before or after audio rendering.
 - Exported JSON excludes provider credentials and internal recovery metadata.
+- Users can import canonical script JSON without a Chat provider. The file is validated before replacing workflow state; replacing an existing script or unfinished render requires confirmation.
 
 Acceptance:
 
 - TTS rendering becomes available after script validation succeeds.
+- Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
 - Script order and speaker assignments remain stable during rendering.
 

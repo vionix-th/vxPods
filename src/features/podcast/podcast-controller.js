@@ -211,6 +211,55 @@ export function createPodcastController(deps = {}) {
   }
 
   /**
+   * Validate a canonical script exported by vxPods without changing state.
+   * @param {string | object} raw
+   * @returns {import('./podcast-script.js').PodcastScript}
+   */
+  function validateImportedScript(raw) {
+    let parsed = raw;
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new AppError({
+          kind: 'schema',
+          message: 'Script file is not valid JSON.',
+          retryable: false,
+          status: undefined,
+        });
+      }
+    }
+    const result = validateScript(parsed);
+    if (!result.valid) {
+      throw new AppError({
+        kind: 'schema',
+        message: `Script file failed validation: ${result.errors[0]}`,
+        retryable: false,
+        status: undefined,
+        cause: { errors: result.errors },
+      });
+    }
+    return result.script;
+  }
+
+  /**
+   * Replace the active script with a previously validated imported script.
+   * @param {string | object} raw
+   * @returns {import('./podcast-script.js').PodcastScript}
+   */
+  function importScript(raw) {
+    const script = validateImportedScript(raw);
+    store.set({
+      status: 'ready',
+      script,
+      error: null,
+      validationErrors: [],
+      repairAvailable: false,
+    });
+    return script;
+  }
+
+  /**
    * Create a new recoverable render job and start rendering.
    * Caller confirms replacement of any existing recoverable job first.
    *
@@ -539,6 +588,8 @@ export function createPodcastController(deps = {}) {
     generateScript,
     repairScript,
     applyEditedScript,
+    validateImportedScript,
+    importScript,
     startRender,
     resumeRender,
     retrySegment,
