@@ -20,23 +20,22 @@ Header
   Online/offline status
   Provider settings
 
-Hero band (light background, brand kicker)
-  Product statement + local-first data-flow summary
+Hero band (light background)
+  Product description + brief workflow orientation
 
 Primary mode switch (pill buttons, active = brand fill)
   Text to Speech
   Podcast
 
 Active workflow
-  Step cards with uppercase kicker pills (Step 1..n)
+  Cards with concise titles; podcast stepper communicates workflow position
   Source
   Settings
   Generate
   Progress/result
 
 Footer
-  Brand band: Vionix vxPods sitename, local-data statement, Clear local data
-  Vionix links (vionix.cloud, case studies, GitHub)
+  Brand band: Vionix vxPods sitename, local-data/privacy statement, right-aligned Clear local data action
   Copyright/license line
 ```
 
@@ -83,12 +82,10 @@ Same input behavior as Text to Speech. Supporting copy: “vxPods uses this sour
 Essential controls:
 
 - Format: Solo or Conversation.
-- Approximate duration.
 - Tone.
 - Audience.
-- Chat model.
-- Speaker cards with name, role, and assigned voice.
-- TTS model and TTS provider.
+- Chat and TTS providers.
+- Advanced settings disclosure: chat/TTS model identifiers and speaker cards with name, role, and assigned voice. Values display editable defaults and accept provider-supported custom identifiers.
 
 Conversation displays exactly two speaker cards. Solo displays one. Defaults let users continue with every required field populated.
 
@@ -253,10 +250,11 @@ Application adaptation:
 - Labeled title, predictable close action, trapped modal focus, Escape support when safe, and focus restoration.
 - Destructive confirmation dialogs require explicit button choice.
 
-### Toasts and errors
+### Notifications
 
-- Toasts only confirm low-risk completed actions.
-- Workflow failures remain visible inline until resolved or dismissed.
+- Errors, warnings, and informational outcomes display in a global toast stack rather than inline workflow blocks.
+- Every toast has an explicit close control.
+- Errors remain visible until dismissed. Warnings and informational notifications auto-close after six seconds and pause while hovered or focused.
 - Error copy includes what failed and next useful action.
 - User-facing UI presents normalized error category and action.
 

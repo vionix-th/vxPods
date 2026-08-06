@@ -6,7 +6,7 @@ import { createSourceInput } from '../../components/source-input.js';
 import { createProviderSelect } from '../../components/provider-select.js';
 import { selectField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
-import { renderError, clearError } from '../../components/error-message.js';
+import { renderError, clearError, notify } from '../../components/error-message.js';
 import { downloadBlob } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 
@@ -26,7 +26,6 @@ export function createTtsView({ controller, isOnline }) {
   root.className = 'workflow tts-workflow';
 
   const source = createSourceInput({
-    kicker: 'Step 1',
     title: 'Source',
     help: 'Paste text or import a UTF-8 .txt or .md file.',
   });
@@ -34,7 +33,7 @@ export function createTtsView({ controller, isOnline }) {
   // --- Voice settings card
   const settingsCard = document.createElement('section');
   settingsCard.className = 'card';
-  settingsCard.append(cardHeader('Step 2', 'Voice settings'));
+  settingsCard.append(cardHeader('Voice settings'));
 
   const providerSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
   const modelField = selectField({
@@ -97,7 +96,7 @@ export function createTtsView({ controller, isOnline }) {
   const resultCard = document.createElement('section');
   resultCard.className = 'card';
   resultCard.hidden = true;
-  resultCard.append(cardHeader('Step 3', 'Result'));
+  resultCard.append(cardHeader('Result'));
   const resultMeta = document.createElement('p');
   resultMeta.className = 'help-text';
   const audio = document.createElement('audio');
@@ -116,10 +115,11 @@ export function createTtsView({ controller, isOnline }) {
   downloadRow.append(downloadButton, againButton);
   resultCard.append(resultMeta, audio, downloadRow);
 
-  root.append(source.element, settingsCard, actionRow, offlineNote, progress.element, errorRegion, resultCard);
+  root.append(source.element, settingsCard, actionRow, offlineNote, progress.element, resultCard);
 
   /** @type {string | null} */
   let audioUrl = null;
+  let previousStatus = 'idle';
 
   function readSettings() {
     const provider = providerSelect.getSelected();
@@ -195,6 +195,9 @@ export function createTtsView({ controller, isOnline }) {
 
     if (state.status === 'cancelled') {
       progress.announce('Cancelled. Completed chunks are kept.');
+      if (previousStatus !== 'cancelled') {
+        notify({ type: 'warning', title: 'Generation cancelled', message: 'Completed chunks are kept.' });
+      }
       const done = state.chunks.filter((c) => c.status === 'completed').length;
       if (done > 0 && done < state.chunks.length) {
         renderPartialFailure();
@@ -223,7 +226,11 @@ export function createTtsView({ controller, isOnline }) {
       audioUrl = URL.createObjectURL(state.output.wav);
       audio.src = audioUrl;
       downloadButton.textContent = `Download ${String(formatField.input.value).toUpperCase()}`;
+      if (previousStatus !== 'ready') {
+        notify({ type: 'success', title: 'Speech ready', message: 'Audio is ready to preview or download.' });
+      }
     }
+    previousStatus = state.status;
   });
 
   function renderPartialFailure() {

@@ -50,7 +50,7 @@ Primary jobs:
 
 - “Read this text aloud so I can listen to it.”
 - “Turn this essay or summary into an understandable conversation.”
-- “Let me control tone, length, speakers, and voices before rendering.”
+- “Let me control tone, speakers, and voices before rendering.”
 - “Let me recover a long render if the page closes or a request fails.”
 - “Let me download audio and retain the structured script.”
 
@@ -110,7 +110,6 @@ Acceptance:
 Users can configure:
 
 - Format: solo narration or two-speaker conversation.
-- Target duration or approximate length.
 - Tone.
 - Intended audience.
 - One or two speaker names and roles.
@@ -194,7 +193,7 @@ Errors must distinguish:
 - Audio assembly or encoding failure.
 - User cancellation.
 
-Errors remain near the affected control or workflow step, preserve completed work, and provide a next action where one exists.
+Errors appear in a global, dismissible notification stack, preserve completed work, and provide a next action where one exists. Errors persist until dismissed; warnings and informational notifications close automatically.
 
 ## 6. UX requirements
 

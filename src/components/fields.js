@@ -12,22 +12,18 @@ function nextId() {
 }
 
 /**
- * Card heading in the Vionix section-title language: small uppercase kicker
- * pill above a Montserrat title.
- * @param {string} kicker e.g. 'Step 1'
+ * Card heading. Workflow position is shown by the podcast stepper, so cards
+ * use one concise title rather than repeating it in a kicker.
  * @param {string} title
  * @param {'h1'|'h2'|'h3'} [level]
  * @returns {DocumentFragment}
  */
-export function cardHeader(kicker, title, level = 'h2') {
+export function cardHeader(title, level = 'h2') {
   const fragment = document.createDocumentFragment();
-  const kickerEl = document.createElement('span');
-  kickerEl.className = 'card-kicker';
-  kickerEl.textContent = kicker;
   const titleEl = document.createElement(level);
   titleEl.className = 'card-title';
   titleEl.textContent = title;
-  fragment.append(kickerEl, titleEl);
+  fragment.append(titleEl);
   return fragment;
 }
 

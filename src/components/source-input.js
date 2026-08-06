@@ -4,6 +4,7 @@
  */
 
 import { AppError } from '../services/errors.js';
+import { renderError, clearError as clearNotificationError } from './error-message.js';
 import { cardHeader } from './fields.js';
 
 const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
@@ -18,16 +19,15 @@ const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
 
 /**
  * @param {Object} args
- * @param {string} args.kicker small uppercase pill label
  * @param {string} args.title card heading text
  * @param {string} [args.help]
  * @returns {SourceInputHandle}
  */
-export function createSourceInput({ kicker, title, help }) {
+export function createSourceInput({ title, help }) {
   const wrapper = document.createElement('section');
   wrapper.className = 'source-input card';
 
-  wrapper.append(cardHeader(kicker, title));
+  wrapper.append(cardHeader(title));
 
   const id = `source-${Math.random().toString(36).slice(2, 8)}`;
   const textareaLabel = document.createElement('label');
@@ -82,9 +82,7 @@ export function createSourceInput({ kicker, title, help }) {
   count.setAttribute('aria-live', 'off');
 
   const errorRegion = document.createElement('div');
-  errorRegion.className = 'error-region';
-
-  wrapper.append(textareaLabel, fileMeta, textarea, count, actions, errorRegion, fileInput);
+  wrapper.append(textareaLabel, fileMeta, textarea, count, actions, fileInput);
 
   function updateCount() {
     const n = textarea.value.length;
@@ -150,16 +148,11 @@ export function createSourceInput({ kicker, title, help }) {
 
   /** @param {AppError} err */
   function showImportError(err) {
-    errorRegion.replaceChildren();
-    const el = document.createElement('p');
-    el.className = 'error-text';
-    el.setAttribute('role', 'alert');
-    el.textContent = err.message;
-    errorRegion.append(el);
+    renderError(errorRegion, err);
   }
 
   function clearImportError() {
-    errorRegion.replaceChildren();
+    clearNotificationError(errorRegion);
   }
 
   return {

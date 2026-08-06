@@ -291,7 +291,7 @@ Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 - Require source-grounded output.
 - Constrain factual claims to supplied source.
 - Ask for natural, speech-ready plain text.
-- Express duration as approximate target.
+- Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
 One explicit repair request may submit validation errors and prior output to the selected Chat Completions endpoint. Further attempts require user action.

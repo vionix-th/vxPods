@@ -137,19 +137,6 @@
   margin: 0 auto;
 }
 
-.hero-kicker {
-  display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--color-brand-dark);
-  background: var(--color-brand-soft);
-  border-radius: var(--radius-pill);
-  padding: 6px 18px;
-  margin: 0 0 var(--space-3);
-}
-
 .app-hero h1 {
   font-size: 2.1rem;
   font-weight: 700;
@@ -232,13 +219,13 @@
   max-width: 1080px;
   margin: 0 auto;
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-5) var(--space-7);
+  align-items: center;
+  gap: var(--space-5);
   justify-content: space-between;
 }
 
 .footer-brand {
-  max-width: 46ch;
+  max-width: 58ch;
 }
 
 .footer-brand-row {
@@ -265,30 +252,14 @@
   color: var(--color-brand-dark);
 }
 
-.footer-band a {
-  color: var(--color-brand-dark);
-}
-
-.footer-band a:hover {
-  color: var(--color-brand);
-}
-
 .footer-band p {
   font-size: 0.9rem;
   color: var(--color-text-soft);
-  margin-bottom: var(--space-2);
+  margin: 0;
 }
 
-.footer-links {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  font-size: 0.92rem;
-}
-
-.footer-links h2 {
-  font-size: 0.95rem;
-  margin-bottom: var(--space-1);
+.footer-actions {
+  flex: 0 0 auto;
 }
 
 .footer-copyright {
@@ -322,7 +293,6 @@
   }
 
   .tts-workflow .action-row,
-  .tts-workflow .error-region,
   .tts-workflow .progress,
   .tts-workflow > .help-text {
     grid-column: 1 / -1;
@@ -369,6 +339,18 @@
 
   .card {
     padding: var(--space-4);
+  }
+
+  .footer-band-inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notification-stack {
+    top: auto;
+    right: var(--space-3);
+    bottom: var(--space-3);
+    width: calc(100vw - 2 * var(--space-3));
   }
 
   /* Provider dialog becomes a full-height sheet */

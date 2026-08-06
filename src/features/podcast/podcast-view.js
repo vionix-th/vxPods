@@ -10,7 +10,7 @@ import { createSourceInput } from '../../components/source-input.js';
 import { createProviderSelect } from '../../components/provider-select.js';
 import { selectField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
-import { renderError, clearError } from '../../components/error-message.js';
+import { renderError, clearError, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
 import { openProviderSettings } from '../providers/provider-form.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
@@ -89,7 +89,6 @@ export function createPodcastView({ controller, isOnline }) {
 
   // ---------- Step 1: source
   const source = createSourceInput({
-    kicker: 'Step 1 · Source',
     title: 'Add source',
     help: 'vxPods uses this source to write a factual, conversational script.',
   });
@@ -97,14 +96,13 @@ export function createPodcastView({ controller, isOnline }) {
   // ---------- Step 2: preferences
   const prefsCard = document.createElement('section');
   prefsCard.className = 'card';
-  prefsCard.append(cardHeader('Step 2 · Shape', 'Shape podcast'));
+  prefsCard.append(cardHeader('Podcast settings'));
 
   const formatField = selectField({
     label: 'Format',
     options: ['conversation', 'solo'],
     value: 'conversation',
   });
-  const durationField = textField({ label: 'Approximate duration (minutes)', value: '5' });
   const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
   const chatProviderSelect = createProviderSelect({ slot: 'chat', label: 'Chat provider' });
@@ -125,16 +123,28 @@ export function createPodcastView({ controller, isOnline }) {
   const speakersContainer = document.createElement('div');
   speakersContainer.className = 'speakers';
 
+  const advancedSettings = document.createElement('details');
+  advancedSettings.className = 'advanced-settings';
+  const advancedSummary = document.createElement('summary');
+  advancedSummary.textContent = 'Advanced settings';
+  const advancedHelp = document.createElement('p');
+  advancedHelp.className = 'help-text';
+  advancedHelp.textContent = 'Default model and voice values are editable. Choose identifiers supported by selected provider.';
+  advancedSettings.append(
+    advancedSummary,
+    advancedHelp,
+    chatModelField.wrapper,
+    ttsModelField.wrapper,
+    speakersContainer,
+  );
+
   prefsCard.append(
     formatField.wrapper,
-    durationField.wrapper,
     toneField.wrapper,
     audienceField.wrapper,
     chatProviderSelect.element,
-    chatModelField.wrapper,
     ttsProviderSelect.element,
-    ttsModelField.wrapper,
-    speakersContainer,
+    advancedSettings,
   );
 
   /** @type {{ name: HTMLInputElement, role: HTMLInputElement, voice: HTMLInputElement }[]} */
@@ -184,7 +194,7 @@ export function createPodcastView({ controller, isOnline }) {
   // ---------- Step 3: script generation
   const scriptCard = document.createElement('section');
   scriptCard.className = 'card';
-  scriptCard.append(cardHeader('Step 3 · Script', 'Generate script'));
+  scriptCard.append(cardHeader('Generate script'));
   const scriptSummary = document.createElement('p');
   scriptSummary.className = 'help-text';
   const generateScriptButton = document.createElement('button');
@@ -196,14 +206,14 @@ export function createPodcastView({ controller, isOnline }) {
   scriptStatus.setAttribute('aria-live', 'polite');
   const scriptErrorRegion = document.createElement('div');
   scriptErrorRegion.className = 'error-region';
-  scriptCard.append(scriptSummary, generateScriptButton, scriptStatus, scriptErrorRegion);
+  scriptCard.append(scriptSummary, generateScriptButton, scriptStatus);
 
   // ---------- Step 4: review & edit
   const reviewCard = document.createElement('section');
   reviewCard.className = 'card';
   reviewCard.hidden = true;
   reviewCard.tabIndex = -1;
-  reviewCard.append(cardHeader('Step 4 · Review', 'Review or edit script'));
+  reviewCard.append(cardHeader('Review or edit script'));
   const reviewMeta = document.createElement('p');
   reviewMeta.className = 'help-text';
 
@@ -259,7 +269,7 @@ export function createPodcastView({ controller, isOnline }) {
   jsonActions.append(editJsonButton, applyJsonButton, discardJsonButton);
   const jsonErrorRegion = document.createElement('div');
   jsonErrorRegion.className = 'error-region';
-  jsonPane.append(jsonView, jsonEditArea, jsonErrorRegion, jsonActions);
+  jsonPane.append(jsonView, jsonEditArea, jsonActions);
 
   // review actions
   const reviewActions = document.createElement('div');
@@ -289,7 +299,7 @@ export function createPodcastView({ controller, isOnline }) {
   reviewActions.append(renderButton, editButton, cancelEditButton, addTurnButton, downloadJsonButton);
   const reviewErrorRegion = document.createElement('div');
   reviewErrorRegion.className = 'error-region';
-  reviewCard.append(reviewMeta, viewToggle, structuredPane, jsonPane, reviewErrorRegion, reviewActions);
+  reviewCard.append(reviewMeta, viewToggle, structuredPane, jsonPane, reviewActions);
 
   /**
    * Edit draft: local mutable copy while editing; applied on save.
@@ -306,7 +316,7 @@ export function createPodcastView({ controller, isOnline }) {
   renderCard.className = 'card';
   renderCard.hidden = true;
   renderCard.tabIndex = -1;
-  renderCard.append(cardHeader('Step 5 · Render', 'Render audio'));
+  renderCard.append(cardHeader('Render audio'));
   const renderNote = document.createElement('p');
   renderNote.className = 'help-text';
   renderNote.textContent = 'Completed audio is preserved locally and can resume after a reload.';
@@ -332,7 +342,6 @@ export function createPodcastView({ controller, isOnline }) {
     renderCounts,
     currentSegment,
     failedList,
-    renderErrorRegion,
     renderActions,
   );
 
@@ -341,7 +350,7 @@ export function createPodcastView({ controller, isOnline }) {
   exportCard.className = 'card';
   exportCard.hidden = true;
   exportCard.tabIndex = -1;
-  exportCard.append(cardHeader('Step 6 · Export', 'Preview and export'));
+  exportCard.append(cardHeader('Preview and export'));
   const audio = document.createElement('audio');
   audio.controls = true;
   audio.className = 'audio-player';
@@ -367,7 +376,7 @@ export function createPodcastView({ controller, isOnline }) {
   exportActions.append(downloadWavButton, downloadMp3Button, downloadScriptButton, startOverButton);
   const exportErrorRegion = document.createElement('div');
   exportErrorRegion.className = 'error-region';
-  exportCard.append(audio, exportErrorRegion, exportActions);
+  exportCard.append(audio, exportActions);
 
   root.append(recoveryCard, stepper, source.element, prefsCard, scriptCard, reviewCard, renderCard, exportCard);
 
@@ -380,6 +389,8 @@ export function createPodcastView({ controller, isOnline }) {
 
   /** @type {string | null} */
   let audioUrl = null;
+  let previousScriptStatus = 'idle';
+  let previousRenderStatus = 'idle';
   /** @type {HTMLButtonElement | null} */
   let resumeButton = null;
 
@@ -416,10 +427,8 @@ export function createPodcastView({ controller, isOnline }) {
   // ---------- Preferences behavior
 
   function readPrefs() {
-    const minutes = Number(durationField.input.value);
     return {
       format: /** @type {'solo'|'conversation'} */ (formatField.input.value),
-      targetMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 5,
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: readSpeakers(),
@@ -837,6 +846,9 @@ export function createPodcastView({ controller, isOnline }) {
       if (!editing()) renderSegmentsReadOnly(state.script);
       if (jsonMode && !jsonEditing) renderJsonView();
       if (wasHidden) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (previousScriptStatus !== 'ready') {
+        notify({ type: 'success', title: 'Script ready', message: 'Review it or render audio.' });
+      }
     }
 
     const renderActive = state.renderStatus !== 'idle';
@@ -886,6 +898,9 @@ export function createPodcastView({ controller, isOnline }) {
     }
     if (state.renderStatus === 'cancelled') {
       progress.announce('Render cancelled. Completed segments are saved locally.');
+      if (previousRenderStatus !== 'cancelled') {
+        notify({ type: 'warning', title: 'Render cancelled', message: 'Completed audio stays available locally.' });
+      }
     }
     if (state.renderStatus === 'failed' && state.renderError) {
       progress.announce(`Render failed: ${state.renderError.message}`);
@@ -899,9 +914,14 @@ export function createPodcastView({ controller, isOnline }) {
       audioUrl = URL.createObjectURL(state.output.wav);
       audio.src = audioUrl;
       if (wasHidden) exportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (previousRenderStatus !== 'ready') {
+        notify({ type: 'success', title: 'Audio ready', message: 'Preview it or download WAV or MP3.' });
+      }
     }
 
     syncStepper(state);
+    previousScriptStatus = state.status;
+    previousRenderStatus = state.renderStatus;
   });
 
   // ---------- Recovery
@@ -911,7 +931,7 @@ export function createPodcastView({ controller, isOnline }) {
     if (!job || job.status === 'ready') return;
     recoveryCard.hidden = false;
     recoveryCard.replaceChildren();
-    recoveryCard.append(cardHeader('Recovery', 'Unfinished podcast render'));
+    recoveryCard.append(cardHeader('Unfinished podcast render'));
 
     const meta = document.createElement('p');
     meta.className = 'help-text';
@@ -971,7 +991,7 @@ export function createPodcastView({ controller, isOnline }) {
       recoveryCard.hidden = true;
     });
 
-    recoveryCard.append(meta, recoveryError, actions);
+    recoveryCard.append(meta, actions);
   }
 
   /**

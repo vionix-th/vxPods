@@ -4,7 +4,7 @@
  */
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
-import { renderError, clearError } from '../../components/error-message.js';
+import { renderError, clearError, notify } from '../../components/error-message.js';
 import { testChatConnection } from '../../services/chat-completions-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
@@ -242,7 +242,7 @@ function renderForm(body, options, existing) {
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, status, errorRegion, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, status, actions);
   body.append(form);
 
   function currentPreset() {
@@ -280,6 +280,11 @@ function renderForm(body, options, existing) {
         await testSpeechConnection(provider, DEFAULT_TTS_MODEL, DEFAULT_VOICE);
       }
       status.textContent = `${kind === 'chat' ? 'Chat' : 'Speech'} endpoint reachable.`;
+      notify({
+        type: 'success',
+        title: 'Connection verified',
+        message: `${kind === 'chat' ? 'Chat' : 'Speech'} endpoint is reachable.`,
+      });
     } catch (err) {
       status.textContent = '';
       renderError(errorRegion, toAppError(err));
@@ -299,6 +304,11 @@ function renderForm(body, options, existing) {
         addProvider(readForm());
       }
       options.onChange?.();
+      notify({
+        type: 'success',
+        title: 'Provider saved',
+        message: 'Configuration is ready to use.',
+      });
       renderManager(body, options);
     } catch (err) {
       renderError(errorRegion, toAppError(err));

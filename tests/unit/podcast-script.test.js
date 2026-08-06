@@ -11,7 +11,6 @@ import {
 
 const prefs = {
   format: 'conversation',
-  targetMinutes: 5,
   tone: 'conversational',
   audience: 'general',
   speakers: [
@@ -49,6 +48,7 @@ describe('buildScriptPrompt', () => {
     expect(messages[1].content).toContain('SOURCE>>>');
     expect(messages[1].content).toContain('speaker-1');
     expect(messages[1].content).toContain('alloy');
+    expect(messages[1].content).not.toContain('Approximate duration');
   });
 });
 

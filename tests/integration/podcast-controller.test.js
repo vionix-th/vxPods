@@ -17,7 +17,6 @@ const ttsProvider = {
 
 const prefs = {
   format: 'conversation',
-  targetMinutes: 3,
   tone: 'conversational',
   audience: 'general',
   speakers: [

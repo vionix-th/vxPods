@@ -1,6 +1,6 @@
 /**
- * Provider selector: saved configurations for one slot (chat or tts),
- * with direct access to provider management.
+ * Provider selector: saved configurations for one slot (chat or tts).
+ * Provider management is available from the persistent app header.
  */
 
 import {
@@ -9,7 +9,6 @@ import {
   getSelectedProviderId,
   subscribeProviders,
 } from '../features/providers/provider-store.js';
-import { openProviderSettings } from '../features/providers/provider-form.js';
 
 /**
  * @typedef {Object} ProviderSelectHandle
@@ -33,22 +32,9 @@ export function createProviderSelect({ slot, label }) {
   labelEl.setAttribute('for', id);
   labelEl.textContent = label;
 
-  const row = document.createElement('div');
-  row.className = 'provider-select-row';
-
   const select = document.createElement('select');
   select.id = id;
-
-  const manage = document.createElement('button');
-  manage.type = 'button';
-  manage.className = 'button button-secondary button-small';
-  manage.textContent = 'Manage providers';
-  manage.addEventListener('click', () => {
-    openProviderSettings({ onChange: refresh });
-  });
-
-  row.append(select, manage);
-  wrapper.append(labelEl, row);
+  wrapper.append(labelEl, select);
 
   function refresh() {
     const providers = listProviders();

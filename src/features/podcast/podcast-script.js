@@ -10,7 +10,6 @@ export const MAX_PAUSE_MS = 5000;
 /**
  * @typedef {Object} PodcastPreferences
  * @property {'solo'|'conversation'} format
- * @property {number} targetMinutes approximate duration
  * @property {string} tone
  * @property {string} audience
  * @property {{ name: string, role: string, voice: string }[]} speakers 1 or 2
@@ -62,7 +61,6 @@ export function buildScriptPrompt(source, prefs) {
   ].join('\n');
   const user = [
     `Write ${formatText}.`,
-    `Approximate duration: ${prefs.targetMinutes} minutes.`,
     `Tone: ${prefs.tone}. Audience: ${prefs.audience}.`,
     `Speakers (use these exactly): ${speakerList}.`,
     `Speaker ids: ${prefs.speakers.map((_, i) => `speaker-${i + 1}`).join(', ')}.`,

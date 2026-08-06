@@ -14,6 +14,7 @@ import { createModeSwitch } from './routes.js';
 import { openProviderSettings } from '../features/providers/provider-form.js';
 import { confirmDialog } from '../components/dialog.js';
 import { icon } from '../components/icon.js';
+import { notify } from '../components/error-message.js';
 
 /**
  * @param {HTMLElement} root
@@ -40,6 +41,12 @@ export async function bootstrap(root) {
   }
   window.addEventListener('online', renderOnlineState);
   window.addEventListener('offline', renderOnlineState);
+  window.addEventListener('online', () =>
+    notify({ type: 'success', title: 'Back online', message: 'Generation is available again.' }),
+  );
+  window.addEventListener('offline', () =>
+    notify({ type: 'warning', title: 'Offline', message: 'Generation is unavailable until connection returns.' }),
+  );
   renderOnlineState();
 
   // Provider settings button
@@ -176,9 +183,6 @@ function buildShell() {
   hero.className = 'app-hero';
   const heroInner = document.createElement('div');
   heroInner.className = 'hero-inner';
-  const heroKicker = document.createElement('span');
-  heroKicker.className = 'hero-kicker';
-  heroKicker.textContent = 'Audio workbench';
   const heroHeading = document.createElement('h1');
   heroHeading.append('Turn reading into ');
   const accent = document.createElement('span');
@@ -188,8 +192,8 @@ function buildShell() {
   const heroSub = document.createElement('p');
   heroSub.className = 'hero-sub';
   heroSub.textContent =
-    'Paste text and generate speech, or reshape it into a two-speaker podcast. Requests go directly from this browser to the provider you choose — keys and unfinished renders stay on this device.';
-  heroInner.append(heroKicker, heroHeading, heroSub);
+    'vxPods turns written material into audio for listening away from your screen. Paste or import text, then choose direct narration or a two-speaker podcast. For podcasts, review script before generating and exporting audio.';
+  heroInner.append(heroHeading, heroSub);
   hero.append(heroInner);
 
   // Mode switch
@@ -229,37 +233,19 @@ function buildShell() {
   footerBrandRow.append(footerLogo, sitename);
   const localData = document.createElement('p');
   localData.textContent =
-    'Provider configurations, keys, and unfinished renders are saved in this browser only.';
+    'Provider settings and unfinished work stay in this browser. Generation requests go directly to the provider you select.';
   const clearButton = document.createElement('button');
   clearButton.id = 'clear-data-button';
   clearButton.type = 'button';
   clearButton.className = 'button button-secondary button-small';
   clearButton.textContent = 'Clear local data';
-  footerBrand.append(footerBrandRow, localData, clearButton);
+  footerBrand.append(footerBrandRow, localData);
 
-  const footerLinks = document.createElement('div');
-  footerLinks.className = 'footer-links';
-  const linksHeading = document.createElement('h2');
-  linksHeading.textContent = 'Vionix';
-  const linkSite = document.createElement('a');
-  linkSite.href = 'https://vionix.cloud';
-  linkSite.target = '_blank';
-  linkSite.rel = 'noopener noreferrer';
-  linkSite.textContent = 'vionix.cloud';
-  const linkCases = document.createElement('a');
-  linkCases.href = 'https://vionix.cloud/case-studies.html';
-  linkCases.target = '_blank';
-  linkCases.rel = 'noopener noreferrer';
-  linkCases.textContent = 'Case studies';
-  const linkGithub = document.createElement('a');
-  linkGithub.href = 'https://github.com/vionix-th';
-  linkGithub.target = '_blank';
-  linkGithub.rel = 'noopener noreferrer';
-  linkGithub.className = 'icon-link';
-  linkGithub.append(icon('github', 15), ' GitHub');
-  footerLinks.append(linksHeading, linkSite, linkCases, linkGithub);
+  const footerActions = document.createElement('div');
+  footerActions.className = 'footer-actions';
+  footerActions.append(clearButton);
 
-  bandInner.append(footerBrand, footerLinks);
+  bandInner.append(footerBrand, footerActions);
   band.append(bandInner);
 
   const copyright = document.createElement('div');
