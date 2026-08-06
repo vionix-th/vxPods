@@ -64,6 +64,23 @@ describe('local-settings', () => {
     expect(loaded.promptTemplates).toEqual({});
   });
 
+  it('removes deprecated duration instructions from v2 script templates', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...defaultSettings(),
+        schemaVersion: 2,
+        promptTemplates: {
+          scriptUser: 'Write {{formatDescription}}.\nApproximate duration: {{durationMinutes}} minutes.\nTone: {{tone}}. Audience: {{audience}}.\n{{speakers}} {{speakerIds}} {{voices}} {{source}}',
+        },
+      }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
+    expect(loaded.promptTemplates.scriptUser).not.toContain('durationMinutes');
+    expect(loaded.promptTemplates.scriptUser).toContain('{{source}}');
+  });
+
   it('drops an invalid template override without discarding valid overrides', () => {
     const doc = defaultSettings();
     doc.promptTemplates = {

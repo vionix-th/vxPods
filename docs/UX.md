@@ -99,7 +99,7 @@ Conversation displays exactly two speaker cards. Solo displays one. Defaults let
 
 After validation:
 
-- Show title, speakers, segment count, and approximate spoken length.
+- Show title, speakers, and segment count.
 - Default view presents ordered editable speaker turns.
 - “Edit script” enables segment text editing.
 - “Download JSON” exports canonical script.

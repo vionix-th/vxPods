@@ -5,7 +5,6 @@ import {
   normalizeScript,
   buildScriptPrompt,
   buildRepairMessages,
-  estimateDurationSeconds,
   exportableScript,
 } from '../../src/features/podcast/podcast-script.js';
 import {
@@ -16,7 +15,6 @@ import {
 
 const prefs = {
   format: 'conversation',
-  targetMinutes: 5,
   tone: 'conversational',
   audience: 'general',
   speakers: [
@@ -54,12 +52,12 @@ describe('buildScriptPrompt', () => {
     expect(messages[1].content).toContain('SOURCE>>>');
     expect(messages[1].content).toContain('speaker-1');
     expect(messages[1].content).toContain('alloy');
-    expect(messages[1].content).toContain('Approximate duration: 5 minutes.');
+    expect(messages[1].content).not.toContain('Approximate duration');
   });
 
   it('uses a valid local template override without persisting source text', () => {
     const messages = buildScriptPrompt('SOURCE TEXT HERE', prefs, {
-      scriptUser: 'Custom {{formatDescription}} {{durationMinutes}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+      scriptUser: 'Custom {{formatDescription}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     });
     expect(messages[1].content).toContain('Custom');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
@@ -197,12 +195,5 @@ describe('exportableScript', () => {
       'speakers',
       'title',
     ]);
-  });
-});
-
-describe('estimateDurationSeconds', () => {
-  it('accounts for words and pauses', () => {
-    const seconds = estimateDurationSeconds(validScript);
-    expect(seconds).toBeGreaterThan(0);
   });
 });

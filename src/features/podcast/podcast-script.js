@@ -13,7 +13,6 @@ export const MAX_PAUSE_MS = 5000;
 /**
  * @typedef {Object} PodcastPreferences
  * @property {'solo'|'conversation'} format
- * @property {number} [targetMinutes] approximate duration
  * @property {string} tone
  * @property {string} audience
  * @property {{ name: string, role: string, voice: string }[]} speakers 1 or 2
@@ -66,7 +65,6 @@ export function buildScriptPromptValues(source, prefs) {
   return {
     format: prefs.format,
     formatDescription: formatText,
-    durationMinutes: prefs.targetMinutes ?? 5,
     tone: prefs.tone,
     audience: prefs.audience,
     speakers: speakerList,
@@ -267,17 +265,6 @@ export function normalizeScript(v) {
  */
 export function exportableScript(script) {
   return normalizeScript(script);
-}
-
-/**
- * Approximate spoken length in seconds (150 wpm + pauses).
- * @param {PodcastScript} script
- * @returns {number}
- */
-export function estimateDurationSeconds(script) {
-  const words = script.segments.reduce((sum, s) => sum + s.text.split(/\s+/).length, 0);
-  const pausesMs = script.segments.reduce((sum, s) => sum + (s.pauseAfterMs || 0), 0);
-  return Math.round((words / 150) * 60 + pausesMs / 1000);
 }
 
 /**

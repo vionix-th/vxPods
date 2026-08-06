@@ -28,7 +28,6 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
   ].join('\n'),
   scriptUser: [
     'Write {{formatDescription}}.',
-    'Approximate duration: {{durationMinutes}} minutes.',
     'Tone: {{tone}}. Audience: {{audience}}.',
     'Speakers (use these exactly): {{speakers}}.',
     'Speaker ids: {{speakerIds}}.',
@@ -54,7 +53,6 @@ export const PROMPT_TEMPLATE_METADATA = Object.freeze({
     help: 'Podcast settings and source placement for script generation.',
     requiredPlaceholders: [
       'formatDescription',
-      'durationMinutes',
       'tone',
       'audience',
       'speakers',

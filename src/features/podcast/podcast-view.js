@@ -14,7 +14,6 @@ import { renderError, clearError, notify } from '../../components/error-message.
 import { confirmDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
-import { estimateDurationSeconds } from './podcast-script.js';
 import { AppError } from '../../services/errors.js';
 
 const KNOWN_CHAT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
@@ -103,7 +102,6 @@ export function createPodcastView({ controller, isOnline }) {
     options: ['conversation', 'solo'],
     value: 'conversation',
   });
-  const durationField = textField({ label: 'Approximate duration (minutes)', value: '5' });
   const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
   const chatProviderSelect = createProviderSelect({ slot: 'chat', label: 'Chat provider' });
@@ -141,7 +139,6 @@ export function createPodcastView({ controller, isOnline }) {
 
   prefsCard.append(
     formatField.wrapper,
-    durationField.wrapper,
     toneField.wrapper,
     audienceField.wrapper,
     chatProviderSelect.element,
@@ -429,10 +426,8 @@ export function createPodcastView({ controller, isOnline }) {
   // ---------- Preferences behavior
 
   function readPrefs() {
-    const minutes = Number(durationField.input.value);
     return {
       format: /** @type {'solo'|'conversation'} */ (formatField.input.value),
-      targetMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 5,
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: readSpeakers(),
@@ -829,10 +824,9 @@ export function createPodcastView({ controller, isOnline }) {
     if (state.script && state.status === 'ready') {
       const wasHidden = reviewCard.hidden;
       reviewCard.hidden = false;
-      const seconds = estimateDurationSeconds(state.script);
       reviewMeta.textContent =
         `${state.script.title} — ${state.script.speakers.map((s) => s.name).join(', ')} · ` +
-        `${state.script.segments.length} turns · about ${Math.max(1, Math.round(seconds / 60))} min`;
+        `${state.script.segments.length} turns`;
       if (!editing()) renderSegmentsReadOnly(state.script);
       if (jsonMode && !jsonEditing) renderJsonView();
       if (wasHidden) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' });

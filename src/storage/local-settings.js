@@ -8,7 +8,7 @@ import { AppError } from '../services/errors.js';
 import { TEMPLATE_IDS, validatePromptTemplate } from '../features/podcast/prompt-templates.js';
 
 const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;
 
 /**
  * @typedef {Object} ProviderConfig
@@ -115,7 +115,28 @@ function migrateAndValidate(raw) {
  */
 const MIGRATIONS = {
   1: (doc) => ({ ...doc, schemaVersion: 2, promptTemplates: {} }),
+  2: (doc) => ({
+    ...doc,
+    schemaVersion: 3,
+    promptTemplates: migrateDurationTemplate(doc.promptTemplates),
+  }),
 };
+
+/**
+ * Remove deprecated duration instructions from user-owned script templates.
+ * A one-line custom template containing this token falls back to bundled copy
+ * rather than leaving malformed prompt text behind.
+ * @param {unknown} templates
+ */
+function migrateDurationTemplate(templates) {
+  if (!templates || typeof templates !== 'object' || Array.isArray(templates)) return templates;
+  const next = { ...templates };
+  if (typeof next.scriptUser !== 'string') return next;
+  const lines = next.scriptUser.split('\n').filter((line) => !line.includes('{{durationMinutes}}'));
+  if (lines.join('\n').trim()) next.scriptUser = lines.join('\n');
+  else delete next.scriptUser;
+  return next;
+}
 
 /**
  * Keep only structurally valid values; drop invalid providers and dangling

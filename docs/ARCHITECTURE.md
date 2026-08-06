@@ -341,7 +341,7 @@ One versioned document stores:
   selectedChatProviderId: string | null,
   selectedTtsProviderId: string | null,
   preferences: { mode: 'tts' | 'podcast' },
-  promptTemplates: { /* valid per-template local overrides only */ }
+  promptTemplates: { /* valid per-template local overrides only; no duration target */ }
 }
 ```
 
