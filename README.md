@@ -19,6 +19,7 @@ vxPods has no server-side application component. Provider configurations and API
 Generation requests are sent directly from the browser to the selected provider endpoint. The endpoint must support browser CORS and the OpenAI-compatible routes used by vxPods:
 
 - `POST /v1/chat/completions`
+- `POST /v1/responses`
 - `POST /v1/audio/speech`
 
 Do not use the application on an untrusted or shared browser profile with credentials that should remain private.
@@ -51,6 +52,12 @@ Run the test suites:
 npm test
 npm run test:e2e
 ```
+
+## Deployment
+
+Pushing to `main` deploys the production build to GitHub Pages through
+`.github/workflows/deploy-pages.yml`. In the repository settings, select
+**GitHub Actions** as the Pages source before the first deployment.
 
 ## Project structure
 

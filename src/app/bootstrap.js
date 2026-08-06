@@ -80,7 +80,7 @@ export async function bootstrap(root) {
 
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register('/service-worker.js');
+      await navigator.serviceWorker.register(new URL('service-worker.js', import.meta.env.BASE_URL));
     } catch {
       // Offline shell is an enhancement; registration failure is non-fatal.
     }

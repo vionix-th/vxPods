@@ -5,13 +5,16 @@
  * - Provider/API requests: never cached (network-only).
  */
 
-const CACHE_NAME = 'vxpods-shell-v3';
+const CACHE_NAME = 'vxpods-shell-v4';
+const APP_ROOT_URL = self.registration.scope;
+const APP_ROOT_PATH = new URL(APP_ROOT_URL).pathname;
+const INDEX_URL = appUrl('index.html');
 const SHELL_URLS = [
-  '/',
-  '/index.html',
-  '/assets/img/logo.png',
-  '/assets/img/favicon.png',
-  '/assets/img/apple-touch-icon.png',
+  appUrl(),
+  INDEX_URL,
+  appUrl('assets/img/logo.png'),
+  appUrl('assets/img/favicon.png'),
+  appUrl('assets/img/apple-touch-icon.png'),
 ];
 
 self.addEventListener('install', (event) => {
@@ -21,9 +24,9 @@ self.addEventListener('install', (event) => {
       await cache.addAll(SHELL_URLS);
       // Precache the hashed build assets referenced by the shell document so
       // the first offline load has every runtime-critical file.
-      const html = await (await cache.match('/index.html', MATCH_OPTIONS)).text();
+      const html = await (await cache.match(INDEX_URL, MATCH_OPTIONS)).text();
       const assets = [
-        ...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g),
+        ...html.matchAll(/(?:src|href)="([^"]*assets\/[^"]+)"/g),
       ].map((m) => m[1]);
       for (const url of assets) {
         const response = await fetch(url);
@@ -55,7 +58,7 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(networkFirst(request));
     return;
   }
-  if (url.pathname.startsWith('/assets/')) {
+  if (url.pathname.startsWith(`${APP_ROOT_PATH}assets/`)) {
     event.respondWith(cacheFirst(request));
   }
 });
@@ -89,8 +92,16 @@ async function networkFirst(request) {
     return response;
   } catch {
     const cached = await cache.match(request, MATCH_OPTIONS);
-    return cached || (await cache.match('/index.html', MATCH_OPTIONS)) || Response.error();
+    return cached || (await cache.match(INDEX_URL, MATCH_OPTIONS)) || Response.error();
   }
+}
+
+/**
+ * @param {string} [path]
+ * @returns {string}
+ */
+function appUrl(path = '') {
+  return new URL(path, APP_ROOT_URL).pathname;
 }
 
 /**
