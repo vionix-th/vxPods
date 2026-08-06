@@ -34,7 +34,7 @@ Active workflow
   Progress/result
 
 Footer
-  Brand band: Vionix vxPods sitename, local-data/privacy statement, right-aligned Clear local data action
+  Brand band: Vionix vxPods sitename and local-data/privacy statement
   Copyright/license line
 ```
 
@@ -139,7 +139,7 @@ On startup with one unfinished render:
 
 ## 6. Settings
 
-Settings use one responsive dialog or full-height mobile sheet.
+Settings use one responsive dialog or full-height mobile sheet. The dialog has three persistent sections: Providers, Prompt templates, and Data & privacy, arranged in a compact horizontal navigation bar. Every Settings page uses shared outer insets, title/supporting-text spacing, content-group gaps, and action alignment. Provider add/edit opens as a focused Providers subpage with a Back action. Data backup, restore, and Clear local data appear only in Data & privacy. The clear action sits in a distinct Danger zone and confirms the complete removal scope before deleting local settings and unfinished work.
 
 Saved configuration list:
 

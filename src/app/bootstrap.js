@@ -12,7 +12,6 @@ import { createPodcastController } from '../features/podcast/podcast-controller.
 import { createPodcastView } from '../features/podcast/podcast-view.js';
 import { createModeSwitch } from './routes.js';
 import { openSettings } from '../features/providers/provider-form.js';
-import { confirmDialog } from '../components/dialog.js';
 import { icon } from '../components/icon.js';
 import { notify } from '../components/error-message.js';
 
@@ -43,24 +42,18 @@ export async function bootstrap(root) {
   const settingsButton = /** @type {HTMLButtonElement} */ (
     root.querySelector('#settings-button')
   );
-  settingsButton.addEventListener('click', () =>
-    openSettings({ getPromptPreview: podcastView.getPromptPreview }),
-  );
-
-  // Clear local data
-  const clearButton = /** @type {HTMLButtonElement} */ (root.querySelector('#clear-data-button'));
-  clearButton.addEventListener('click', async () => {
-    const confirmed = await confirmDialog({
-      title: 'Clear local data',
-      message:
-        'This removes saved provider configurations (including API keys) and any unfinished render data from this browser.',
-      confirmLabel: 'Clear local data',
+  settingsButton.addEventListener('click', () => {
+    openSettings({
+      getPromptPreview: podcastView.getPromptPreview,
+      onClearLocalData: clearLocalData,
     });
-    if (!confirmed) return;
+  });
+
+  async function clearLocalData() {
     clearSettings();
     await deleteJob().catch(() => {});
     window.location.reload();
-  });
+  }
 
   // Workflows
   const ttsController = createTtsController();
@@ -223,18 +216,9 @@ function buildShell() {
   const localData = document.createElement('p');
   localData.textContent =
     'Settings and unfinished work stay in this browser. Generation requests go directly to the provider you select.';
-  const clearButton = document.createElement('button');
-  clearButton.id = 'clear-data-button';
-  clearButton.type = 'button';
-  clearButton.className = 'button button-secondary button-small';
-  clearButton.textContent = 'Clear local data';
   footerBrand.append(footerBrandRow, localData);
 
-  const footerActions = document.createElement('div');
-  footerActions.className = 'footer-actions';
-  footerActions.append(clearButton);
-
-  bandInner.append(footerBrand, footerActions);
+  bandInner.append(footerBrand);
   band.append(bandInner);
 
   const copyright = document.createElement('div');

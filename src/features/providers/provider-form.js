@@ -38,14 +38,15 @@ const DEFAULT_VOICE = 'alloy';
  * @param {boolean} [options.startCreate] open directly on a new configuration form
  * @param {boolean} [options.closeOnSave] close dialog after a successful save
  * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void} [options.onSaved]
+ * @param {() => Promise<void>} [options.onClearLocalData] clear all browser-local application data
  */
 export function openSettings(options = {}) {
   const handle = openDialog({
     title: 'Settings',
     className: 'settings-dialog',
     render(body) {
-      if (options.startCreate) renderForm(body, withTemplateNavigation(body, options), null);
-      else renderManager(body, withTemplateNavigation(body, options));
+      if (options.startCreate) renderProviderFormPage(body, options, null);
+      else renderSettingsSection(body, options, 'providers');
     },
   });
   return handle;
@@ -57,27 +58,104 @@ export function openProviderSettings(options = {}) {
 }
 
 /**
+ * Render a settings page within a shared navigation frame.
+ * @param {HTMLElement} body
+ * @param {Object} options
+ * @param {'providers'|'templates'|'data'} activeSection
+ */
+function renderSettingsSection(body, options, activeSection) {
+  renderSettingsFrame(body, activeSection, (section) => renderSettingsSection(body, options, section), (content) => {
+    const navigation = createNavigation(body, options);
+    if (activeSection === 'providers') {
+      renderProviderManager(content, navigation);
+      return;
+    }
+    if (activeSection === 'templates') {
+      renderPromptTemplateSettings(content, {
+        onBack: navigation.openProviders,
+        onChange: options.onChange,
+        getPromptPreview: options.getPromptPreview,
+      });
+      return;
+    }
+    renderDataPrivacy(content, navigation);
+  });
+}
+
+/**
+ * @param {HTMLElement} body
+ * @param {Object} options
+ * @param {import('../../storage/local-settings.js').ProviderConfig | null} existing
+ */
+function renderProviderFormPage(body, options, existing) {
+  renderSettingsFrame(body, 'providers', (section) => renderSettingsSection(body, options, section), (content) => {
+    renderForm(content, createNavigation(body, options), existing);
+  });
+}
+
+/**
+ * @param {HTMLElement} body
+ * @param {'providers'|'templates'|'data'} activeSection
+ * @param {(section: 'providers'|'templates'|'data') => void} navigate
+ * @param {(content: HTMLElement) => void} renderContent
+ */
+function renderSettingsFrame(body, activeSection, navigate, renderContent) {
+  body.replaceChildren();
+  const layout = document.createElement('div');
+  layout.className = 'settings-layout';
+  const navigation = document.createElement('nav');
+  navigation.className = 'settings-navigation';
+  navigation.setAttribute('aria-label', 'Settings sections');
+  const content = document.createElement('section');
+  content.className = 'settings-content';
+
+  const sections = [
+    ['providers', 'Providers'],
+    ['templates', 'Prompt templates'],
+    ['data', 'Data & privacy'],
+  ];
+  for (const [id, label] of sections) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'settings-nav-button';
+    button.textContent = label;
+    const selected = id === activeSection;
+    button.setAttribute('aria-current', selected ? 'page' : 'false');
+    if (selected) button.classList.add('is-active');
+    button.addEventListener('click', () => {
+      if (id !== activeSection) navigate(/** @type {'providers'|'templates'|'data'} */ (id));
+    });
+    navigation.append(button);
+  }
+
+  layout.append(navigation, content);
+  body.append(layout);
+  renderContent(content);
+}
+
+/**
  * @param {HTMLElement} body
  * @param {Object} options
  */
-function withTemplateNavigation(body, options) {
+function createNavigation(body, options) {
   return {
     ...options,
-    openPromptTemplates: () =>
-      renderPromptTemplateSettings(body, {
-        onBack: () => renderManager(body, withTemplateNavigation(body, options)),
-        onChange: options.onChange,
-        getPromptPreview: options.getPromptPreview,
-      }),
+    openProviders: () => renderSettingsSection(body, options, 'providers'),
+    openProviderForm: (existing) => renderProviderFormPage(body, options, existing),
+    openPromptTemplates: () => renderSettingsSection(body, options, 'templates'),
+    openDataPrivacy: () => renderSettingsSection(body, options, 'data'),
   };
 }
 
 /**
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void }} options
+ * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../storage/local-settings.js').ProviderConfig | null) => void }} options
  */
-function renderManager(body, options) {
+function renderProviderManager(body, options) {
   body.replaceChildren();
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'Providers';
 
   const explainer = document.createElement('p');
   explainer.className = 'help-text';
@@ -101,15 +179,38 @@ function renderManager(body, options) {
   const addButton = document.createElement('button');
   addButton.type = 'button';
   addButton.className = 'button button-primary';
-  addButton.textContent = 'Add configuration';
-  addButton.addEventListener('click', () => renderForm(body, options, null));
+  addButton.textContent = 'Add provider';
+  addButton.addEventListener('click', () => options.openProviderForm(null));
 
-  const templatesButton = document.createElement('button');
-  templatesButton.type = 'button';
-  templatesButton.className = 'button button-secondary';
-  templatesButton.textContent = 'Prompt templates';
-  templatesButton.addEventListener('click', () => options.openPromptTemplates?.());
+  const pageHeader = document.createElement('header');
+  pageHeader.className = 'settings-page-header';
+  const copy = document.createElement('div');
+  copy.className = 'settings-page-copy';
+  copy.append(heading, explainer);
+  pageHeader.append(copy, addButton);
 
+  body.append(pageHeader, list);
+}
+
+/**
+ * @param {HTMLElement} body
+ * @param {{ onChange?: () => void, onClearLocalData?: () => Promise<void>, openDataPrivacy: () => void }} options
+ */
+function renderDataPrivacy(body, options) {
+  body.replaceChildren();
+  const heading = document.createElement('h3');
+  heading.textContent = 'Data & privacy';
+  const lead = document.createElement('p');
+  lead.className = 'help-text';
+  lead.textContent =
+    'Provider configurations, keys, selections, and prompt templates stay in this browser. Generation requests go directly to the provider you select.';
+  const backup = document.createElement('section');
+  backup.className = 'settings-data-section';
+  const backupHeading = document.createElement('h4');
+  backupHeading.textContent = 'Settings backup';
+  const backupHelp = document.createElement('p');
+  backupHelp.className = 'help-text';
+  backupHelp.textContent = 'Exports include unencrypted API keys. Keep backup files private.';
   const backupActions = document.createElement('div');
   backupActions.className = 'action-row';
   const exportButton = document.createElement('button');
@@ -150,20 +251,56 @@ function renderManager(body, options) {
       restoreSettingsBackup(settings);
       options.onChange?.();
       notify({ type: 'success', title: 'Settings restored', message: 'Saved settings were fully replaced.' });
-      renderManager(body, options);
+      renderDataPrivacy(body, options);
     } catch (err) {
       renderError(restoreError, toAppError(err));
     }
   });
   backupActions.append(exportButton, restoreButton, restoreInput);
+  backup.append(backupHeading, backupHelp, backupActions);
 
-  body.append(explainer, list, addButton, templatesButton, backupActions);
+  const danger = document.createElement('section');
+  danger.className = 'settings-data-section settings-danger-zone';
+  const dangerHeading = document.createElement('h4');
+  dangerHeading.textContent = 'Danger zone';
+  const dangerHelp = document.createElement('p');
+  dangerHelp.className = 'help-text';
+  dangerHelp.textContent =
+    'Clear all saved provider configurations, plaintext keys, selections, prompt templates, and unfinished work from this browser.';
+  const clearButton = document.createElement('button');
+  clearButton.type = 'button';
+  clearButton.className = 'button button-danger';
+  clearButton.textContent = 'Clear local data';
+  clearButton.addEventListener('click', async () => {
+    const confirmed = await confirmDialog({
+      title: 'Clear local data',
+      message:
+        'This permanently removes saved provider configurations, plaintext API keys, selections, prompt templates, and unfinished work from this browser.',
+      confirmLabel: 'Clear local data',
+    });
+    if (!confirmed || !options.onClearLocalData) return;
+    try {
+      await options.onClearLocalData();
+    } catch (err) {
+      notify({ type: 'error', title: 'Could not clear local data', message: toAppError(err).message });
+    }
+  });
+  danger.append(dangerHeading, dangerHelp, clearButton);
+
+  const pageHeader = document.createElement('header');
+  pageHeader.className = 'settings-page-header';
+  const copy = document.createElement('div');
+  copy.className = 'settings-page-copy';
+  copy.append(heading, lead);
+  pageHeader.append(copy);
+
+  body.append(pageHeader, backup, danger);
 }
 
 /**
  * @param {import('../../storage/local-settings.js').ProviderConfig} provider
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void }} options
+ * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../storage/local-settings.js').ProviderConfig | null) => void }} options
  */
 function renderProviderRow(provider, body, options) {
   const item = document.createElement('li');
@@ -190,7 +327,7 @@ function renderProviderRow(provider, body, options) {
   edit.type = 'button';
   edit.className = 'button button-secondary button-small';
   edit.textContent = 'Edit';
-  edit.addEventListener('click', () => renderForm(body, options, provider));
+  edit.addEventListener('click', () => options.openProviderForm(provider));
 
   const remove = document.createElement('button');
   remove.type = 'button';
@@ -205,7 +342,7 @@ function renderProviderRow(provider, body, options) {
     if (!confirmed) return;
     deleteProvider(provider.id);
     options.onChange?.();
-    renderManager(body, options);
+    renderProviderManager(body, options);
   });
 
   actions.append(edit, remove);
@@ -215,14 +352,26 @@ function renderProviderRow(provider, body, options) {
 
 /**
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void }} options
+ * @param {{ onChange?: () => void, openProviders: () => void }} options
  * @param {import('../../storage/local-settings.js').ProviderConfig | null} existing
  */
 function renderForm(body, options, existing) {
   body.replaceChildren();
 
+  const pageHeader = document.createElement('header');
+  pageHeader.className = 'settings-page-header';
+  const pageCopy = document.createElement('div');
+  pageCopy.className = 'settings-page-copy';
+  const pageTitle = document.createElement('h3');
+  pageTitle.textContent = existing ? 'Edit provider' : 'Add provider';
+  const pageLead = document.createElement('p');
+  pageLead.className = 'help-text';
+  pageLead.textContent = 'Save a configuration for direct Chat and speech requests from this browser.';
+  pageCopy.append(pageTitle, pageLead);
+  pageHeader.append(pageCopy);
+
   const form = document.createElement('form');
-  form.className = 'provider-form';
+  form.className = 'provider-form settings-form';
   form.noValidate = true;
 
   const errorRegion = document.createElement('div');
@@ -348,7 +497,7 @@ function renderForm(body, options, existing) {
   back.type = 'button';
   back.className = 'button button-ghost';
   back.textContent = 'Back';
-  back.addEventListener('click', () => renderManager(body, options));
+  back.addEventListener('click', options.openProviders);
 
   const testChat = document.createElement('button');
   testChat.type = 'button';
@@ -372,7 +521,7 @@ function renderForm(body, options, existing) {
   status.setAttribute('aria-live', 'polite');
 
   form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, capabilityEditor, errorRegion, status, actions);
-  body.append(form);
+  body.append(pageHeader, form);
 
   function currentPreset() {
     return presetRadios.find((r) => r.checked)?.value ?? 'manual';
@@ -448,7 +597,7 @@ function renderForm(body, options, existing) {
         title: 'Provider saved',
         message: 'Configuration is ready to use.',
       });
-      if (!options.closeOnSave) renderManager(body, options);
+      if (!options.closeOnSave) options.openProviders();
     } catch (err) {
       renderError(errorRegion, toAppError(err));
     }

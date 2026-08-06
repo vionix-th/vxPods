@@ -340,4 +340,17 @@
     margin: 0;
     border-radius: 0;
   }
+
+  .settings-navigation {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .settings-nav-button {
+    flex: 0 0 auto;
+  }
+
+  .settings-page-header .button {
+    width: 100%;
+  }
 }
