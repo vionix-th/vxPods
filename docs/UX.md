@@ -34,7 +34,7 @@ Active workflow
   Progress/result
 
 Footer
-  Brand band: Vionix vxPods sitename and local-data/privacy statement
+  Brand band: Vionix vxPods sitename
   Copyright/license line
 ```
 
@@ -54,9 +54,8 @@ Mode changes preserve current input in each mode for current browser session.
 - TTS provider configuration.
 - TTS model select, with options from the selected provider configuration.
 - Voice select, with options for the selected TTS model in the selected provider configuration.
+- Compact Preview action beside Voice; temporary inline audio uses the selected provider, model, voice, and speed.
 - Speed control only when supported by selected request contract.
-
-Advanced fields stay collapsed unless needed. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. The lists are never presented as discovered provider capabilities.
 
 ### Step 3: Generate and result
 
@@ -82,15 +81,16 @@ Essential controls:
 - Format: Solo or Conversation.
 - Tone.
 - Audience.
-- Chat and TTS providers.
-- Advanced settings disclosure: chat/TTS model selects and speaker cards with name, role, and assigned voice select. Options come from the selected provider configurations.
+- Chat and TTS providers, plus their model selects. Options come from the selected provider configurations.
 
-Conversation displays exactly two speaker cards. Solo displays one. Defaults let users continue with every required field populated.
+All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. The lists are never presented as discovered provider capabilities.
 
-### Step 3: Generate script
+Step 3, “Generate or update script”, is the single source of truth for speaker name, role, and voice. Roles support multi-line character descriptions. Once a script exists, “Apply speaker changes to script” sits beside Generate and Import actions and updates declared speakers, therefore every referenced turn. Each canonical speaker control offers a temporary voice preview using the selected TTS provider and model; the compact Preview action sits beside its voice select, and previews do not create render jobs or persist audio.
+
+### Step 3: Generate or update script
 
 - Summary names selected Chat provider/model.
-- Actions: “Generate script” and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a Chat provider. Replacing an existing script or unfinished render requires confirmation.
+- Actions: “Generate script”, “Apply speaker changes to script”, and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a Chat provider. Replacing an existing script or unfinished render requires confirmation.
 - Status explains “Writing and validating JSON script”.
 - Invalid output offers “Repair script” once; then “Generate again”.
 
@@ -100,6 +100,7 @@ After validation:
 
 - Show title, speakers, and segment count.
 - Default view presents ordered editable speaker turns.
+- Structured turn editing includes a validated “Pause after (ms)” control from 0 through 5000.
 - “Edit script” enables segment text editing.
 - “Download JSON” exports canonical script; the same file can be imported from Step 3.
 - Primary action: “Render audio”.

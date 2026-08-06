@@ -34,6 +34,7 @@ R1 must let users:
 - Generate direct speech from text.
 - Generate a source-grounded podcast script for one or two speakers.
 - Optionally inspect and edit the generated podcast script.
+- Apply script-wide speaker name, role, and voice changes from canonical Generate or update script controls.
 - Render, cancel, retry, and resume podcast audio generation.
 - Preview generated audio.
 - Export final audio as WAV or MP3.
@@ -151,6 +152,7 @@ Acceptance:
 - TTS rendering becomes available after script validation succeeds.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
+- Speaker changes apply to the script-wide speaker definitions rather than individual turns; temporary voice previews do not create recoverable render work.
 - Script order and speaker assignments remain stable during rendering.
 
 ### FR-6 Podcast audio rendering

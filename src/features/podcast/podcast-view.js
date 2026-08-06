@@ -8,12 +8,13 @@
 
 import { createSourceInput } from '../../components/source-input.js';
 import { createProviderSelect } from '../../components/provider-select.js';
-import { selectField, textField, cardHeader } from '../../components/fields.js';
+import { selectField, textAreaField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
 import { renderError, clearError, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
 import { subscribeProviders } from '../providers/provider-store.js';
+import { createVoicePreview } from '../../components/voice-preview.js';
 import { DEFAULT_CHAT_MODELS, DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
@@ -120,37 +121,30 @@ export function createPodcastView({ controller, isOnline }) {
   const speakersContainer = document.createElement('div');
   speakersContainer.className = 'speakers';
 
-  const advancedSettings = document.createElement('details');
-  advancedSettings.className = 'advanced-settings';
-  const advancedSummary = document.createElement('summary');
-  advancedSummary.textContent = 'Advanced settings';
-  const advancedHelp = document.createElement('p');
-  advancedHelp.className = 'help-text';
-  advancedHelp.textContent =
-    'Model and voice options are managed in their selected provider configurations.';
-  advancedSettings.append(
-    advancedSummary,
-    advancedHelp,
-    chatModelField.wrapper,
-    ttsModelField.wrapper,
-    speakersContainer,
-  );
-
   prefsCard.append(
     formatField.wrapper,
     toneField.wrapper,
     audienceField.wrapper,
     chatProviderSelect.element,
     ttsProviderSelect.element,
-    advancedSettings,
+    chatModelField.wrapper,
+    ttsModelField.wrapper,
   );
 
-  /** @type {{ name: HTMLInputElement, role: HTMLInputElement, voice: HTMLInputElement }[]} */
+  /** @type {{ name: HTMLInputElement, role: HTMLTextAreaElement, voice: HTMLSelectElement }[]} */
   let speakerInputs = [];
   /** @type {{ name: string, role: string, voice: string }[]} */
   let speakerValues = [];
+  /** @type {Set<() => void>} */
+  const clearVoicePreviewHandlers = new Set();
+
+  function clearVoicePreviews() {
+    for (const clear of clearVoicePreviewHandlers) clear();
+    clearVoicePreviewHandlers.clear();
+  }
 
   function renderSpeakerCards() {
+    clearVoicePreviews();
     const count = formatField.input.value === 'solo' ? 1 : 2;
     speakersContainer.replaceChildren();
     speakerInputs = [];
@@ -161,12 +155,24 @@ export function createPodcastView({ controller, isOnline }) {
       const legend = document.createElement('legend');
       legend.textContent = `Speaker ${i + 1}`;
       const name = textField({ label: 'Name', value: values.name, required: true });
-      const role = textField({ label: 'Role', value: values.role });
+      const role = textAreaField({ label: 'Role', value: values.role, rows: 3 });
       const voice = selectField({
         label: 'Voice',
-        options: voiceOptions(),
+        options: [...new Set([...voiceOptions(), values.voice])],
         value: values.voice,
       });
+      const voiceControls = document.createElement('div');
+      voiceControls.className = 'voice-control-row';
+      const preview = createVoicePreview({
+        getSelected: ttsProviderSelect.getSelected,
+        refresh: ttsProviderSelect.refresh,
+        getModel: () => ttsModelField.input.value || KNOWN_TTS_MODELS[0],
+        getVoice: () => voice.input.value,
+        getSample: () => `Hello, I am ${name.input.value.trim() || `Speaker ${i + 1}`}. This is a short voice preview.`,
+      });
+      clearVoicePreviewHandlers.add(preview.clear);
+      voiceControls.append(voice.input, preview.button);
+      voice.wrapper.append(voiceControls, preview.player);
       card.append(legend, name.wrapper, role.wrapper, voice.wrapper);
       speakersContainer.append(card);
       speakerInputs.push({ name: name.input, role: role.input, voice: voice.input });
@@ -205,12 +211,59 @@ export function createPodcastView({ controller, isOnline }) {
     }));
   }
 
+  function applySpeakerChangesToScript() {
+    const script = controller.store.get().script;
+    if (!script) return;
+    const speakers = readSpeakers();
+    if (speakers.length !== script.speakers.length) {
+      notify({
+        type: 'error',
+        title: 'Speaker count does not match',
+        message: 'Regenerate or import a script to change between solo and conversation formats.',
+      });
+      return;
+    }
+    try {
+      controller.applyEditedScript({
+        ...script,
+        speakers: script.speakers.map((speaker, index) => ({ ...speaker, ...speakers[index] })),
+      });
+      notify({ type: 'success', title: 'Script speakers updated', message: 'Changes apply to every turn in the script.' });
+    } catch (err) {
+      notify({ type: 'error', title: 'Could not update script speakers', message: err instanceof Error ? err.message : 'Unknown error.' });
+    }
+  }
+
+  function hydrateSpeakerSettings(script) {
+    formatField.input.value = script.format;
+    speakerValues = script.speakers.map(({ name, role, voice }) => ({ name, role, voice }));
+    renderSpeakerCards();
+  }
+
   // ---------- Step 3: script generation
   const scriptCard = document.createElement('section');
   scriptCard.className = 'card';
-  scriptCard.append(cardHeader('Generate script'));
+  scriptCard.append(cardHeader('Generate or update script'));
   const scriptSummary = document.createElement('p');
   scriptSummary.className = 'help-text';
+  const speakerSettings = document.createElement('section');
+  speakerSettings.className = 'script-speaker-settings';
+  const speakerSettingsTitle = document.createElement('h3');
+  speakerSettingsTitle.textContent = 'Speakers';
+  const speakerSettingsHelp = document.createElement('p');
+  speakerSettingsHelp.className = 'help-text';
+  speakerSettingsHelp.textContent = 'Names, roles, and voices apply to every matching turn in the script.';
+  const applySpeakerChangesButton = document.createElement('button');
+  applySpeakerChangesButton.type = 'button';
+  applySpeakerChangesButton.className = 'button button-secondary';
+  applySpeakerChangesButton.textContent = 'Apply speaker changes to script';
+  applySpeakerChangesButton.hidden = true;
+  speakerSettings.append(
+    speakerSettingsTitle,
+    speakerSettingsHelp,
+    speakersContainer,
+  );
+  applySpeakerChangesButton.addEventListener('click', applySpeakerChangesToScript);
   const generateScriptButton = document.createElement('button');
   generateScriptButton.type = 'button';
   generateScriptButton.className = 'button button-primary';
@@ -225,13 +278,18 @@ export function createPodcastView({ controller, isOnline }) {
   importScriptInput.hidden = true;
   const scriptActions = document.createElement('div');
   scriptActions.className = 'action-row';
-  scriptActions.append(generateScriptButton, importScriptButton, importScriptInput);
+  scriptActions.append(
+    generateScriptButton,
+    applySpeakerChangesButton,
+    importScriptButton,
+    importScriptInput,
+  );
   const scriptStatus = document.createElement('p');
   scriptStatus.className = 'help-text';
   scriptStatus.setAttribute('aria-live', 'polite');
   const scriptErrorRegion = document.createElement('div');
   scriptErrorRegion.className = 'error-region';
-  scriptCard.append(scriptSummary, scriptActions, scriptStatus);
+  scriptCard.append(scriptSummary, speakerSettings, scriptActions, scriptStatus);
 
   // ---------- Step 4: review & edit
   const reviewCard = document.createElement('section');
@@ -506,6 +564,7 @@ export function createPodcastView({ controller, isOnline }) {
         await controller.discardRender();
       }
       controller.importScript(importedScript);
+      hydrateSpeakerSettings(importedScript);
       exitEditMode();
       setJsonMode(false);
       notify({ type: 'success', title: 'Script imported', message: 'Review the validated script or render audio.' });
@@ -564,6 +623,22 @@ export function createPodcastView({ controller, isOnline }) {
         segment.speakerId = speakerSelect.value;
       });
 
+      const pauseField = document.createElement('label');
+      pauseField.className = 'segment-pause-field';
+      const pauseLabel = document.createElement('span');
+      pauseLabel.textContent = 'Pause after (ms)';
+      const pauseInput = document.createElement('input');
+      pauseInput.type = 'number';
+      pauseInput.min = '0';
+      pauseInput.max = '5000';
+      pauseInput.step = '1';
+      pauseInput.value = String(segment.pauseAfterMs);
+      pauseInput.setAttribute('aria-label', `Pause after turn ${index + 1}, in milliseconds`);
+      pauseInput.addEventListener('input', () => {
+        segment.pauseAfterMs = Number(pauseInput.value);
+      });
+      pauseField.append(pauseLabel, pauseInput);
+
       const tools = document.createElement('div');
       tools.className = 'segment-tools';
       const up = toolButton(`Move turn ${index + 1} up`, '↑');
@@ -585,7 +660,7 @@ export function createPodcastView({ controller, isOnline }) {
         renderSegmentsEditable(script);
       });
       tools.append(up, down, remove);
-      head.append(speakerSelect, tools);
+      head.append(speakerSelect, pauseField, tools);
 
       const area = document.createElement('textarea');
       area.rows = 3;
@@ -876,6 +951,8 @@ export function createPodcastView({ controller, isOnline }) {
     }
 
     if (state.script && state.status === 'ready') {
+      applySpeakerChangesButton.hidden = false;
+      applySpeakerChangesButton.disabled = state.renderStatus !== 'idle';
       const wasHidden = reviewCard.hidden;
       reviewCard.hidden = false;
       reviewMeta.textContent =

@@ -11,6 +11,7 @@ import { downloadBlob } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 import { requireProvider } from '../providers/provider-requirement.js';
 import { subscribeProviders } from '../providers/provider-store.js';
+import { createVoicePreview } from '../../components/voice-preview.js';
 import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
 
 const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
@@ -41,31 +42,49 @@ export function createTtsView({ controller, isOnline }) {
     label: 'Model',
     options: KNOWN_TTS_MODELS,
     value: KNOWN_TTS_MODELS[0],
-    help: 'Options are managed in the selected provider configuration.',
   });
   const voiceField = selectField({
     label: 'Voice',
     options: KNOWN_VOICES,
     value: 'alloy',
   });
+  const speedField = textField({
+    label: 'Speed',
+    value: '1',
+    help: '0.25 to 4.0. Supported when the provider implements it.',
+  });
+  const voicePreview = createVoicePreview({
+    getSelected: providerSelect.getSelected,
+    refresh: providerSelect.refresh,
+    getModel: () => modelField.input.value.trim() || KNOWN_TTS_MODELS[0],
+    getVoice: () => voiceField.input.value.trim() || 'alloy',
+    getSpeed: () => {
+      const speed = Number(speedField.input.value.trim());
+      return Number.isFinite(speed) ? speed : undefined;
+    },
+    getSample: () => 'This is a short voice preview.',
+  });
+  const voiceControls = document.createElement('div');
+  voiceControls.className = 'voice-control-row';
+  voiceControls.append(voiceField.input, voicePreview.button);
+  voiceField.wrapper.append(voiceControls, voicePreview.player);
   function refreshProviderSuggestions() {
     const provider = providerSelect.getSelected();
     modelField.setOptions(provider?.ttsModels ?? KNOWN_TTS_MODELS);
     refreshVoiceOptions();
+    voicePreview.clear();
   }
   function refreshVoiceOptions() {
     const provider = providerSelect.getSelected();
     voiceField.setOptions(provider?.voicesByTtsModel?.[modelField.input.value] ?? KNOWN_VOICES);
   }
   providerSelect.element.addEventListener('change', refreshProviderSuggestions);
-  modelField.input.addEventListener('change', refreshVoiceOptions);
+  modelField.input.addEventListener('change', () => {
+    refreshVoiceOptions();
+    voicePreview.clear();
+  });
   subscribeProviders(refreshProviderSuggestions);
   refreshProviderSuggestions();
-  const speedField = textField({
-    label: 'Speed',
-    value: '1',
-    help: '0.25 to 4.0. Supported when the provider implements it.',
-  });
   settingsCard.append(
     providerSelect.element,
     modelField.wrapper,

@@ -213,10 +213,7 @@ function buildShell() {
   siteProduct.textContent = 'vxPods';
   sitename.append(siteProduct);
   footerBrandRow.append(footerLogo, sitename);
-  const localData = document.createElement('p');
-  localData.textContent =
-    'Settings and unfinished work stay in this browser. Generation requests go directly to the provider you select.';
-  footerBrand.append(footerBrandRow, localData);
+  footerBrand.append(footerBrandRow);
 
   bandInner.append(footerBrand);
   band.append(bandInner);

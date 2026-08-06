@@ -109,10 +109,13 @@ describe('podcast script generation', () => {
     ).toThrowError(/invalid/i);
     const edited = {
       ...script,
-      segments: script.segments.map((s, i) => (i === 0 ? { ...s, text: 'Edited text.' } : s)),
+      segments: script.segments.map((s, i) =>
+        i === 0 ? { ...s, text: 'Edited text.', pauseAfterMs: 750 } : s,
+      ),
     };
     controller.applyEditedScript(edited);
     expect(controller.store.get().script.segments[0].text).toBe('Edited text.');
+    expect(controller.store.get().script.segments[0].pauseAfterMs).toBe(750);
   });
 
   it('script JSON export excludes internal metadata', async () => {
@@ -133,6 +136,22 @@ describe('podcast script generation', () => {
     const imported = controller.importScript(JSON.stringify(validScript));
     expect(imported).toEqual(validScript);
     expect(controller.store.get()).toMatchObject({ status: 'ready', script: validScript });
+  });
+
+  it('applies speaker metadata changes without changing referenced turns', async () => {
+    const controller = createPodcastController({ chat: chatReturning(validScript) });
+    await controller.generateScript('source text', prefs, chatProvider);
+    const script = controller.store.get().script;
+    const updated = controller.applyEditedScript({
+      ...script,
+      speakers: script.speakers.map((speaker, index) =>
+        index === 0 ? { ...speaker, name: 'Narrator', role: 'Introduces the topic', voice: 'nova' } : speaker,
+      ),
+    });
+    expect(updated.speakers[0]).toMatchObject({ name: 'Narrator', role: 'Introduces the topic', voice: 'nova' });
+    expect(updated.segments.map((segment) => segment.speakerId)).toEqual(
+      script.segments.map((segment) => segment.speakerId),
+    );
   });
 
   it('rejects invalid script imports without changing the current script', async () => {
