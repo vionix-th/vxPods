@@ -13,14 +13,14 @@ import { createProgress } from '../../components/progress.js';
 import { renderError, clearError, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
+import { subscribeProviders } from '../providers/provider-store.js';
+import { DEFAULT_CHAT_MODELS, DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 
-const KNOWN_CHAT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
-const KNOWN_TTS_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'];
-const KNOWN_VOICES = [
-  'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
-];
+const KNOWN_CHAT_MODELS = DEFAULT_CHAT_MODELS;
+const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
+const KNOWN_VOICES = DEFAULT_VOICES;
 
 const DEFAULT_SPEAKERS = [
   { name: 'Host', role: 'Guides the discussion', voice: 'alloy' },
@@ -109,14 +109,12 @@ export function createPodcastView({ controller, isOnline }) {
     label: 'Chat model',
     options: KNOWN_CHAT_MODELS,
     value: KNOWN_CHAT_MODELS[0],
-    allowCustom: true,
   });
   const ttsProviderSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
   const ttsModelField = selectField({
     label: 'TTS model',
     options: KNOWN_TTS_MODELS,
     value: KNOWN_TTS_MODELS[0],
-    allowCustom: true,
   });
 
   const speakersContainer = document.createElement('div');
@@ -128,7 +126,8 @@ export function createPodcastView({ controller, isOnline }) {
   advancedSummary.textContent = 'Advanced settings';
   const advancedHelp = document.createElement('p');
   advancedHelp.className = 'help-text';
-  advancedHelp.textContent = 'Default model and voice values are editable. Choose identifiers supported by selected provider.';
+  advancedHelp.textContent =
+    'Model and voice options are managed in their selected provider configurations.';
   advancedSettings.append(
     advancedSummary,
     advancedHelp,
@@ -165,9 +164,8 @@ export function createPodcastView({ controller, isOnline }) {
       const role = textField({ label: 'Role', value: values.role });
       const voice = selectField({
         label: 'Voice',
-        options: KNOWN_VOICES,
+        options: voiceOptions(),
         value: values.voice,
-        allowCustom: true,
       });
       card.append(legend, name.wrapper, role.wrapper, voice.wrapper);
       speakersContainer.append(card);
@@ -180,6 +178,25 @@ export function createPodcastView({ controller, isOnline }) {
     renderSpeakerCards();
   });
 
+  function refreshProviderSuggestions() {
+    chatModelField.setOptions(chatProviderSelect.getSelected()?.chatModels ?? KNOWN_CHAT_MODELS);
+    ttsModelField.setOptions(ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS);
+    speakerValues = readSpeakers();
+    renderSpeakerCards();
+  }
+  function voiceOptions() {
+    const provider = ttsProviderSelect.getSelected();
+    return provider?.voicesByTtsModel?.[ttsModelField.input.value] ?? KNOWN_VOICES;
+  }
+  chatProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
+  ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
+  ttsModelField.input.addEventListener('change', () => {
+    speakerValues = readSpeakers();
+    renderSpeakerCards();
+  });
+  subscribeProviders(refreshProviderSuggestions);
+  refreshProviderSuggestions();
+
   function readSpeakers() {
     return speakerInputs.map((inputs) => ({
       name: inputs.name.value.trim() || 'Speaker',
@@ -187,8 +204,6 @@ export function createPodcastView({ controller, isOnline }) {
       voice: inputs.voice.value.trim() || 'alloy',
     }));
   }
-
-  renderSpeakerCards();
 
   // ---------- Step 3: script generation
   const scriptCard = document.createElement('section');

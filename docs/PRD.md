@@ -62,6 +62,7 @@ Primary jobs:
 - Each configuration contains a user-visible name, base URL, and API key.
 - Base URLs target an OpenAI-compatible `/v1` API root.
 - R1 includes presets for OpenAI and OpenRouter plus a manual URL option.
+- Each saved configuration includes locally editable Chat-model and TTS-model option lists, with voices configured per TTS model. They are not inferred from provider APIs and each list contains at least one value.
 - Configurations persist in `localStorage` until deleted by the user or browser.
 - Chat Completions and TTS selectors are independent and may reference different saved configurations.
 - API keys are masked after entry and can be replaced.

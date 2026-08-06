@@ -3,7 +3,7 @@ import { createTtsController } from '../../src/features/tts/tts-controller.js';
 import { AppError } from '../../src/services/errors.js';
 
 const provider = { id: 'p', name: 'Test', baseUrl: 'https://api.test/v1', apiKey: 'sk' };
-const settings = { provider, model: 'tts-1', voice: 'alloy', speed: undefined, format: 'wav' };
+const settings = { provider, model: 'tts-1', voice: 'alloy', speed: undefined };
 
 /** Minimal PCM decode stub: one Float32 sample per call. */
 function fakeDecode() {

@@ -45,6 +45,7 @@ describe('local-settings', () => {
     expect(loaded.selectedTtsProviderId).toBe('p1');
     expect(loaded.preferences.mode).toBe('podcast');
     expect(loaded.promptTemplates.repairUser).toBe('Errors: {{validationErrors}}');
+    expect(loaded.providers[0].chatModels).toContain('gpt-4o-mini');
   });
 
   it('migrates v1 settings and preserves provider configuration', () => {
@@ -79,6 +80,41 @@ describe('local-settings', () => {
     expect(loaded.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
     expect(loaded.promptTemplates.scriptUser).not.toContain('durationMinutes');
     expect(loaded.promptTemplates.scriptUser).toContain('{{source}}');
+  });
+
+  it('migrates v3 providers with editable model and voice suggestions', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...defaultSettings(),
+        schemaVersion: 3,
+        providers: [{ id: 'p1', name: 'Provider', baseUrl: 'https://api.example/v1', apiKey: 'key' }],
+      }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.providers[0]).toMatchObject({
+      chatModels: expect.arrayContaining(['gpt-4o-mini']),
+      ttsModels: expect.arrayContaining(['gpt-4o-mini-tts']),
+      voicesByTtsModel: expect.any(Object),
+    });
+  });
+
+  it('restores defaults for empty option lists from v4 settings', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        ...defaultSettings(),
+        schemaVersion: 4,
+        providers: [{
+          id: 'p1', name: 'Provider', baseUrl: 'https://api.example/v1', apiKey: 'key',
+          chatModels: [], ttsModels: [], voices: [],
+        }],
+      }),
+    );
+    const [provider] = loadSettings().providers;
+    expect(provider.chatModels).not.toHaveLength(0);
+    expect(provider.ttsModels).not.toHaveLength(0);
+    expect(provider.voicesByTtsModel[provider.ttsModels[0]]).not.toHaveLength(0);
   });
 
   it('drops an invalid template override without discarding valid overrides', () => {

@@ -336,7 +336,7 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 2,
+  schemaVersion: 6,
   providers: ProviderConfig[],
   selectedChatProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -345,7 +345,7 @@ One versioned document stores:
 }
 ```
 
-Read through validation. Corrupt records fall back safely. Key or semantic changes use sequential tested migrations.
+Each `ProviderConfig` includes non-empty local `chatModels` and `ttsModels` lists plus non-empty `voicesByTtsModel` lists keyed by TTS model, used solely as UI options. They are user-managed rather than inferred from API responses. Read through validation. Corrupt records fall back safely. Key or semantic changes use sequential tested migrations.
 Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 

@@ -5,6 +5,13 @@
 
 import { AppError } from '../../services/errors.js';
 import { loadSettings, saveSettings } from '../../storage/local-settings.js';
+import {
+  DEFAULT_CHAT_MODELS,
+  DEFAULT_TTS_MODELS,
+  DEFAULT_VOICES,
+  normalizeSuggestions,
+  normalizeVoicesByTtsModel,
+} from './provider-suggestions.js';
 
 export const PROVIDER_PRESETS = {
   openai: { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
@@ -50,8 +57,8 @@ export function normalizeBaseUrl(input) {
 
 /**
  * Validate a candidate provider record. Returns normalized copy.
- * @param {{ name: string, baseUrl: string, apiKey: string }} input
- * @returns {{ name: string, baseUrl: string, apiKey: string }}
+ * @param {{ name: string, baseUrl: string, apiKey: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @returns {{ name: string, baseUrl: string, apiKey: string, chatModels: string[], ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
  * @throws {AppError} validation kind
  */
 export function validateProviderInput(input) {
@@ -60,7 +67,39 @@ export function validateProviderInput(input) {
   const apiKey = String(input.apiKey ?? '').trim();
   if (!apiKey) throw validationError('API key is required.');
   const baseUrl = normalizeBaseUrl(input.baseUrl);
-  return { name, baseUrl, apiKey };
+  const chatModels = requiredSuggestions(input.chatModels, DEFAULT_CHAT_MODELS, 'Chat model');
+  const ttsModels = requiredSuggestions(input.ttsModels, DEFAULT_TTS_MODELS, 'TTS model');
+  const voicesByTtsModel = requiredVoicesByTtsModel(input.voicesByTtsModel, ttsModels);
+  return {
+    name,
+    baseUrl,
+    apiKey,
+    chatModels,
+    ttsModels,
+    voicesByTtsModel,
+  };
+}
+
+/**
+ * @param {unknown} values
+ * @param {string[]} fallback
+ * @param {string} label
+ */
+function requiredSuggestions(values, fallback, label) {
+  const suggestions = normalizeSuggestions(values, fallback);
+  if (suggestions.length === 0) throw validationError(`At least one ${label} is required.`);
+  return suggestions;
+}
+
+/** @param {unknown} values @param {string[]} ttsModels */
+function requiredVoicesByTtsModel(values, ttsModels) {
+  const source = values && typeof values === 'object' && !Array.isArray(values) ? values : null;
+  const normalized = normalizeVoicesByTtsModel(values, ttsModels);
+  for (const model of ttsModels) {
+    const supplied = source ? normalizeSuggestions(source[model], DEFAULT_VOICES) : DEFAULT_VOICES;
+    if (supplied.length === 0) throw validationError(`At least one voice is required for ${model}.`);
+  }
+  return normalized;
 }
 
 /**
@@ -110,7 +149,7 @@ export function getProvider(id) {
 
 /**
  * Create a provider. Returns the stored record.
- * @param {{ name: string, baseUrl: string, apiKey: string }} input
+ * @param {{ name: string, baseUrl: string, apiKey: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
  */
 export function addProvider(input) {
   const valid = validateProviderInput(input);
@@ -126,7 +165,7 @@ export function addProvider(input) {
  * Update an existing provider. API key is replaced only when a new
  * non-empty key is supplied (masked-field behavior).
  * @param {string} id
- * @param {{ name: string, baseUrl: string, apiKey?: string }} input
+ * @param {{ name: string, baseUrl: string, apiKey?: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
  */
 export function updateProvider(id, input) {
   const settings = loadSettings();
@@ -137,6 +176,9 @@ export function updateProvider(id, input) {
     name: input.name,
     baseUrl: input.baseUrl,
     apiKey: input.apiKey?.trim() ? input.apiKey : existing.apiKey,
+    chatModels: input.chatModels ?? existing.chatModels,
+    ttsModels: input.ttsModels ?? existing.ttsModels,
+    voicesByTtsModel: input.voicesByTtsModel ?? existing.voicesByTtsModel,
   });
   settings.providers[index] = { ...existing, ...valid };
   saveSettings(settings);

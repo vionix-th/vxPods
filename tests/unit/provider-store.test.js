@@ -57,11 +57,14 @@ describe('validateProviderInput', () => {
       baseUrl: 'https://api.openai.com/v1/',
       apiKey: 'sk-test',
     });
-    expect(out).toEqual({
+    expect(out).toMatchObject({
       name: 'My key',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-test',
     });
+    expect(out.chatModels).toContain('gpt-4o-mini');
+    expect(out.ttsModels).toContain('gpt-4o-mini-tts');
+    expect(out.voicesByTtsModel['gpt-4o-mini-tts']).toContain('alloy');
   });
 
   it('rejects empty key', () => {
@@ -74,6 +77,19 @@ describe('validateProviderInput', () => {
     expect(() =>
       validateProviderInput({ name: '', baseUrl: 'https://api.openai.com/v1', apiKey: 'k' }),
     ).toThrowError(/Name/);
+  });
+
+  it('requires at least one entry for every select-backed option list', () => {
+    expect(() =>
+      validateProviderInput({
+        name: 'x',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'k',
+        chatModels: [],
+        ttsModels: ['tts'],
+        voicesByTtsModel: { tts: ['voice'] },
+      }),
+    ).toThrowError(/Chat model/);
   });
 });
 
@@ -100,6 +116,20 @@ describe('provider CRUD', () => {
     const updated = updateProvider(record.id, { name: 'Renamed', baseUrl: input.baseUrl, apiKey: '' });
     expect(updated.apiKey).toBe('sk-1');
     expect(updated.name).toBe('Renamed');
+  });
+
+  it('stores normalized, provider-specific model and voice suggestions', () => {
+    const record = addProvider({
+      ...input,
+      chatModels: [' custom-chat ', 'custom-chat', ''],
+      ttsModels: ['custom-tts'],
+      voicesByTtsModel: { 'custom-tts': [' voice-a ', 'voice-a'] },
+    });
+    expect(record).toMatchObject({
+      chatModels: ['custom-chat'],
+      ttsModels: ['custom-tts'],
+      voicesByTtsModel: { 'custom-tts': ['voice-a'] },
+    });
   });
 
   it('delete clears selections referencing it', () => {

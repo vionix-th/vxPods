@@ -79,50 +79,46 @@ export function textAreaField({ label, value = '', required, help, rows = 8 }) {
 }
 
 /**
- * Select with optional free-text entry via paired datalist.
+ * Native select field. The options can be refreshed without replacing the
+ * control, preserving the current value when it remains available.
  * @param {Object} args
  * @param {string} args.label
  * @param {string[]} args.options
  * @param {string} [args.value]
- * @param {boolean} [args.allowCustom] render text input + datalist instead
  * @param {string} [args.help]
  */
-export function selectField({ label, options, value, allowCustom, help }) {
+export function selectField({ label, options, value, help }) {
   const id = nextId();
   const wrapper = document.createElement('div');
   wrapper.className = 'field';
   const labelEl = document.createElement('label');
   labelEl.setAttribute('for', id);
   labelEl.textContent = label;
-  /** @type {HTMLSelectElement | HTMLInputElement} */
-  let input;
-  if (allowCustom) {
-    input = document.createElement('input');
-    input.type = 'text';
-    const listId = `${id}-list`;
-    input.setAttribute('list', listId);
-    const datalist = document.createElement('datalist');
-    datalist.id = listId;
-    for (const option of options) {
-      const opt = document.createElement('option');
-      opt.value = option;
-      datalist.append(opt);
-    }
-    wrapper.append(labelEl, input, datalist);
-  } else {
-    input = document.createElement('select');
-    for (const option of options) {
+  const input = document.createElement('select');
+  function replaceOptions(nextOptions) {
+    const currentValue = input.value;
+    input.replaceChildren();
+    for (const option of nextOptions) {
       const opt = document.createElement('option');
       opt.value = option;
       opt.textContent = option;
       input.append(opt);
     }
-    wrapper.append(labelEl, input);
+    if (nextOptions.includes(currentValue)) input.value = currentValue;
   }
+  replaceOptions(options);
+  wrapper.append(labelEl, input);
   input.id = id;
   if (value) input.value = value;
   if (help) wrapper.append(helpText(help, input));
-  return { wrapper, input };
+  return {
+    wrapper,
+    input,
+    /** Replace options while preserving the selected value when possible. */
+    setOptions(nextOptions) {
+      replaceOptions(nextOptions);
+    },
+  };
 }
 
 /**

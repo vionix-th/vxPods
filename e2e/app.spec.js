@@ -109,6 +109,41 @@ test('provider setup persists across reload', async ({ page }) => {
   await expect(dialog.getByText('https://mock.provider/v1')).toBeVisible();
 });
 
+test('provider-managed model and voice suggestions populate TTS fields', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Add configuration' }).click();
+  await dialog.getByLabel(/Name/).fill('Custom provider');
+  await dialog.getByLabel(/Base URL/).fill('https://custom.provider/v1');
+  await dialog.getByLabel(/API key/).fill('sk-synthetic');
+  await dialog.getByRole('button', { name: 'gpt-4o-mini', exact: true }).click();
+  await dialog.getByLabel('Chat model identifier').fill('custom-chat');
+  await dialog.getByRole('button', { name: 'gpt-4o-mini-tts', exact: true }).click();
+  await dialog.getByLabel('TTS model identifier').fill('custom-tts-a');
+  await dialog.getByLabel('Add voice').fill('voice-a');
+  await dialog.getByRole('button', { name: 'Add voice', exact: true }).click();
+  await dialog.getByRole('button', { name: 'tts-1', exact: true }).click();
+  await dialog.getByLabel('TTS model identifier').fill('custom-tts-b');
+  await dialog.getByLabel('Add voice').fill('voice-b');
+  await dialog.getByRole('button', { name: 'Add voice', exact: true }).click();
+  await dialog.getByRole('button', { name: 'tts-1-hd', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Remove model', exact: true }).click();
+  await page
+    .getByRole('dialog', { name: 'Remove TTS model' })
+    .getByRole('button', { name: 'Remove model' })
+    .click();
+  await dialog.getByRole('button', { name: 'Save configuration' }).click();
+  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+
+  const panel = page.locator('#panel-tts');
+  const model = panel.getByLabel('Model');
+  const voice = panel.getByLabel('Voice');
+  await expect(model.locator('option')).toHaveText(['custom-tts-a', 'custom-tts-b']);
+  await expect(voice.locator('option')).toContainText(['voice-a']);
+  await model.selectOption('custom-tts-b');
+  await expect(voice.locator('option')).toContainText(['voice-b']);
+});
+
 test('prompt templates use dedicated pages and validate edits', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');

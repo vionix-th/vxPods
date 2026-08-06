@@ -52,19 +52,18 @@ Mode changes preserve current input in each mode for current browser session.
 ### Step 2: Voice settings
 
 - TTS provider configuration.
-- Model identifier.
-- Voice identifier or supported known choices.
+- TTS model select, with options from the selected provider configuration.
+- Voice select, with options for the selected TTS model in the selected provider configuration.
 - Speed control only when supported by selected request contract.
-- Desired download format: WAV or MP3.
 
-Advanced fields stay collapsed unless needed. Manual model/voice entry remains possible because compatible endpoints may expose different identifiers.
+Advanced fields stay collapsed unless needed. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. The lists are never presented as discovered provider capabilities.
 
 ### Step 3: Generate and result
 
 - Primary action: “Generate speech”.
 - While active: progress summary and “Cancel”.
 - On partial chunk failure: completed count, failed chunk, “Retry”, and “Cancel”.
-- On success: native audio player, “Download WAV” or “Download MP3”, and “Generate again”.
+- On success: native audio player, separate “Download WAV” and “Download MP3” actions, and “Generate again”.
 
 Changing source or voice after generation retains output and labels it with generation settings used.
 
@@ -84,7 +83,7 @@ Essential controls:
 - Tone.
 - Audience.
 - Chat and TTS providers.
-- Advanced settings disclosure: chat/TTS model identifiers and speaker cards with name, role, and assigned voice. Values display editable defaults and accept provider-supported custom identifiers.
+- Advanced settings disclosure: chat/TTS model selects and speaker cards with name, role, and assigned voice select. Options come from the selected provider configurations.
 
 Conversation displays exactly two speaker cards. Solo displays one. Defaults let users continue with every required field populated.
 
@@ -155,6 +154,7 @@ Configuration form:
 - Name.
 - Base URL.
 - API key with Show/Hide toggle.
+- Compact Chat-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s voices. Each list requires at least one value; copy states that these are local hints, not API-discovered capabilities.
 - “Test Chat” and “Test Speech” actions when useful.
 - Save.
 

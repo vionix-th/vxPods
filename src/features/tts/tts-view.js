@@ -10,11 +10,11 @@ import { renderError, clearError, notify } from '../../components/error-message.
 import { downloadBlob } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 import { requireProvider } from '../providers/provider-requirement.js';
+import { subscribeProviders } from '../providers/provider-store.js';
+import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
 
-const KNOWN_TTS_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'];
-const KNOWN_VOICES = [
-  'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
-];
+const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
+const KNOWN_VOICES = DEFAULT_VOICES;
 
 /**
  * @param {Object} args
@@ -41,31 +41,36 @@ export function createTtsView({ controller, isOnline }) {
     label: 'Model',
     options: KNOWN_TTS_MODELS,
     value: KNOWN_TTS_MODELS[0],
-    allowCustom: true,
-    help: 'Known OpenAI models; compatible endpoints may accept other identifiers.',
+    help: 'Options are managed in the selected provider configuration.',
   });
   const voiceField = selectField({
     label: 'Voice',
     options: KNOWN_VOICES,
     value: 'alloy',
-    allowCustom: true,
   });
+  function refreshProviderSuggestions() {
+    const provider = providerSelect.getSelected();
+    modelField.setOptions(provider?.ttsModels ?? KNOWN_TTS_MODELS);
+    refreshVoiceOptions();
+  }
+  function refreshVoiceOptions() {
+    const provider = providerSelect.getSelected();
+    voiceField.setOptions(provider?.voicesByTtsModel?.[modelField.input.value] ?? KNOWN_VOICES);
+  }
+  providerSelect.element.addEventListener('change', refreshProviderSuggestions);
+  modelField.input.addEventListener('change', refreshVoiceOptions);
+  subscribeProviders(refreshProviderSuggestions);
+  refreshProviderSuggestions();
   const speedField = textField({
     label: 'Speed',
     value: '1',
     help: '0.25 to 4.0. Supported when the provider implements it.',
-  });
-  const formatField = selectField({
-    label: 'Download format',
-    options: ['wav', 'mp3'],
-    value: 'mp3',
   });
   settingsCard.append(
     providerSelect.element,
     modelField.wrapper,
     voiceField.wrapper,
     speedField.wrapper,
-    formatField.wrapper,
   );
 
   // --- Generate row
@@ -97,7 +102,7 @@ export function createTtsView({ controller, isOnline }) {
   const resultCard = document.createElement('section');
   resultCard.className = 'card';
   resultCard.hidden = true;
-  resultCard.append(cardHeader('Result'));
+  resultCard.append(cardHeader('Preview and export'));
   const resultMeta = document.createElement('p');
   resultMeta.className = 'help-text';
   const audio = document.createElement('audio');
@@ -106,14 +111,19 @@ export function createTtsView({ controller, isOnline }) {
   audio.setAttribute('aria-label', 'Generated speech preview');
   const downloadRow = document.createElement('div');
   downloadRow.className = 'action-row';
-  const downloadButton = document.createElement('button');
-  downloadButton.type = 'button';
-  downloadButton.className = 'button button-primary';
+  const downloadWavButton = document.createElement('button');
+  downloadWavButton.type = 'button';
+  downloadWavButton.className = 'button button-primary';
+  downloadWavButton.textContent = 'Download WAV';
+  const downloadMp3Button = document.createElement('button');
+  downloadMp3Button.type = 'button';
+  downloadMp3Button.className = 'button button-primary';
+  downloadMp3Button.textContent = 'Download MP3';
   const againButton = document.createElement('button');
   againButton.type = 'button';
   againButton.className = 'button button-secondary';
   againButton.textContent = 'Generate again';
-  downloadRow.append(downloadButton, againButton);
+  downloadRow.append(downloadWavButton, downloadMp3Button, againButton);
   resultCard.append(resultMeta, audio, downloadRow);
 
   root.append(source.element, settingsCard, actionRow, offlineNote, progress.element, resultCard);
@@ -130,7 +140,6 @@ export function createTtsView({ controller, isOnline }) {
       model: modelField.input.value.trim() || KNOWN_TTS_MODELS[0],
       voice: voiceField.input.value.trim() || 'alloy',
       speed: Number.isFinite(speed) ? speed : undefined,
-      format: /** @type {'wav'|'mp3'} */ (formatField.input.value),
     };
   }
 
@@ -158,11 +167,12 @@ export function createTtsView({ controller, isOnline }) {
 
   againButton.addEventListener('click', () => generateButton.click());
 
-  downloadButton.addEventListener('click', async () => {
+  async function downloadAudio(format) {
     clearError(errorRegion);
-    const format = /** @type {'wav'|'mp3'} */ (formatField.input.value);
-    downloadButton.disabled = true;
-    downloadButton.textContent = format === 'mp3' ? 'Encoding MP3…' : 'Preparing…';
+    const button = format === 'wav' ? downloadWavButton : downloadMp3Button;
+    button.disabled = true;
+    const originalLabel = button.textContent;
+    button.textContent = format === 'mp3' ? 'Encoding MP3…' : 'Preparing…';
     try {
       const { blob, filename } = await controller.exportAudio(format, (done, total) => {
         progress.element.hidden = false;
@@ -172,10 +182,13 @@ export function createTtsView({ controller, isOnline }) {
     } catch (err) {
       renderError(errorRegion, err, { onDismiss: () => {} });
     } finally {
-      downloadButton.disabled = false;
-      downloadButton.textContent = `Download ${format.toUpperCase()}`;
+      button.disabled = false;
+      button.textContent = originalLabel;
     }
-  });
+  }
+
+  downloadWavButton.addEventListener('click', () => downloadAudio('wav'));
+  downloadMp3Button.addEventListener('click', () => downloadAudio('mp3'));
 
   controller.store.subscribe((state) => {
     const busy = state.status === 'validating' || state.status === 'generating';
@@ -229,7 +242,6 @@ export function createTtsView({ controller, isOnline }) {
       if (audioUrl) URL.revokeObjectURL(audioUrl);
       audioUrl = URL.createObjectURL(state.output.wav);
       audio.src = audioUrl;
-      downloadButton.textContent = `Download ${String(formatField.input.value).toUpperCase()}`;
       if (previousStatus !== 'ready') {
         notify({ type: 'success', title: 'Speech ready', message: 'Audio is ready to preview or download.' });
       }
@@ -256,10 +268,6 @@ export function createTtsView({ controller, isOnline }) {
       },
     );
   }
-
-  formatField.input.addEventListener('change', () => {
-    downloadButton.textContent = `Download ${String(formatField.input.value).toUpperCase()}`;
-  });
 
   let lastBusy = false;
   function syncOnline() {

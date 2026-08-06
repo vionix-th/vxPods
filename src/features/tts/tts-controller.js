@@ -22,7 +22,6 @@ const SAMPLE_RATE = 44100;
  * @property {string} model
  * @property {string} voice
  * @property {number | undefined} speed
- * @property {'wav'|'mp3'} format
  */
 
 /**

@@ -6,9 +6,18 @@
 
 import { AppError } from '../services/errors.js';
 import { TEMPLATE_IDS, validatePromptTemplate } from '../features/podcast/prompt-templates.js';
+import {
+  DEFAULT_CHAT_MODELS,
+  DEFAULT_TTS_MODELS,
+  DEFAULT_VOICES,
+  defaultProviderSuggestions,
+  normalizeSuggestions,
+  normalizeVoicesByTtsModel,
+  voicesForTtsModels,
+} from '../features/providers/provider-suggestions.js';
 
 const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 3;
+export const SETTINGS_SCHEMA_VERSION = 6;
 
 /**
  * @typedef {Object} ProviderConfig
@@ -16,6 +25,9 @@ export const SETTINGS_SCHEMA_VERSION = 3;
  * @property {string} name
  * @property {string} baseUrl normalized API root ending in /v1
  * @property {string} apiKey
+ * @property {string[]} chatModels locally managed chat model suggestions
+ * @property {string[]} ttsModels locally managed TTS model suggestions
+ * @property {Record<string, string[]>} voicesByTtsModel locally managed voices keyed by TTS model
  */
 
 /**
@@ -120,6 +132,27 @@ const MIGRATIONS = {
     schemaVersion: 3,
     promptTemplates: migrateDurationTemplate(doc.promptTemplates),
   }),
+  3: (doc) => ({
+    ...doc,
+    schemaVersion: 4,
+    providers: Array.isArray(doc.providers)
+      ? doc.providers.map((provider) => ({ ...provider, ...defaultProviderSuggestions() }))
+      : doc.providers,
+  }),
+  4: (doc) => ({ ...doc, schemaVersion: 5 }),
+  5: (doc) => ({
+    ...doc,
+    schemaVersion: 6,
+    providers: Array.isArray(doc.providers)
+      ? doc.providers.map((provider) => {
+          const ttsModels = normalizeSuggestions(provider.ttsModels, DEFAULT_TTS_MODELS);
+          return {
+            ...provider,
+            voicesByTtsModel: voicesForTtsModels(ttsModels.length ? ttsModels : DEFAULT_TTS_MODELS, normalizeSuggestions(provider.voices, DEFAULT_VOICES)),
+          };
+        })
+      : doc.providers,
+  }),
 };
 
 /**
@@ -146,7 +179,7 @@ function migrateDurationTemplate(templates) {
  */
 function validateDocument(doc) {
   const providers = Array.isArray(doc.providers)
-    ? doc.providers.filter(isValidProviderRecord)
+    ? doc.providers.filter(isValidProviderRecord).map(normalizeProviderRecord)
     : [];
   const ids = new Set(providers.map((p) => p.id));
   const selectedChatProviderId =
@@ -202,6 +235,19 @@ function isValidProviderRecord(value) {
     typeof v.apiKey === 'string' &&
     v.apiKey.length > 0
   );
+}
+
+/** @param {ProviderConfig} provider */
+function normalizeProviderRecord(provider) {
+  const chatModels = normalizeSuggestions(provider.chatModels, DEFAULT_CHAT_MODELS);
+  const ttsModels = normalizeSuggestions(provider.ttsModels, DEFAULT_TTS_MODELS);
+  const validTtsModels = ttsModels.length ? ttsModels : [...DEFAULT_TTS_MODELS];
+  return {
+    ...provider,
+    chatModels: chatModels.length ? chatModels : [...DEFAULT_CHAT_MODELS],
+    ttsModels: validTtsModels,
+    voicesByTtsModel: normalizeVoicesByTtsModel(provider.voicesByTtsModel, validTtsModels),
+  };
 }
 
 /**

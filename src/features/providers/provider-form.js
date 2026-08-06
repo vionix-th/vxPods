@@ -16,6 +16,12 @@ import {
   listProviders,
   updateProvider,
 } from './provider-store.js';
+import {
+  DEFAULT_CHAT_MODELS,
+  DEFAULT_TTS_MODELS,
+  DEFAULT_VOICES,
+  normalizeSuggestions,
+} from './provider-suggestions.js';
 
 const DEFAULT_CHAT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
@@ -242,6 +248,47 @@ function renderForm(body, options, existing) {
   keyRow.append(keyInput, toggle);
   keyWrapper.append(keyLabel, keyRow);
 
+  const capabilityEditor = document.createElement('section');
+  capabilityEditor.className = 'capability-editor';
+  const editorTitle = document.createElement('h3');
+  editorTitle.textContent = 'Available models and voices';
+  const editorLead = document.createElement('p');
+  editorLead.className = 'help-text';
+  editorLead.textContent =
+    'Maintain the exact identifiers accepted by this provider. Voice options belong to a specific TTS model and appear automatically in the generation workflows.';
+  const chatModelsEditor = createIdentifierListEditor({
+    title: 'Chat models',
+    description: 'Used for podcast script generation.',
+    itemLabel: 'Chat model',
+    addLabel: 'Add chat model',
+    values: existing?.chatModels ?? DEFAULT_CHAT_MODELS,
+  });
+  const ttsModelsEditor = createTtsModelEditor({
+    models: existing?.ttsModels ?? DEFAULT_TTS_MODELS,
+    voicesByTtsModel: existing?.voicesByTtsModel ?? {},
+  });
+  const restoreDefaults = document.createElement('button');
+  restoreDefaults.type = 'button';
+  restoreDefaults.className = 'button button-ghost button-small';
+  restoreDefaults.textContent = 'Restore all standard defaults';
+  restoreDefaults.addEventListener('click', async () => {
+    const confirmed = await confirmDialog({
+      title: 'Restore all model and voice defaults',
+      message: 'This replaces every configured Chat model, TTS model, and model-specific voice list for this provider. Save the configuration to keep the restored values.',
+      confirmLabel: 'Restore all defaults',
+    });
+    if (!confirmed) return;
+    chatModelsEditor.reset(DEFAULT_CHAT_MODELS);
+    ttsModelsEditor.reset(DEFAULT_TTS_MODELS);
+  });
+  capabilityEditor.append(
+    editorTitle,
+    editorLead,
+    chatModelsEditor.element,
+    ttsModelsEditor.element,
+    restoreDefaults,
+  );
+
   // Actions
   const actions = document.createElement('div');
   actions.className = 'dialog-actions';
@@ -273,7 +320,7 @@ function renderForm(body, options, existing) {
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, status, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, capabilityEditor, errorRegion, status, actions);
   body.append(form);
 
   function currentPreset() {
@@ -289,10 +336,14 @@ function renderForm(body, options, existing) {
   urlField.input.disabled = currentPreset() !== 'manual';
 
   function readForm() {
+    const { ttsModels, voicesByTtsModel } = ttsModelsEditor.values();
     return {
       name: nameField.input.value,
       baseUrl: urlField.input.value,
       apiKey: keyInput.value,
+      chatModels: chatModelsEditor.values(),
+      ttsModels,
+      voicesByTtsModel,
     };
   }
 
@@ -306,9 +357,13 @@ function renderForm(body, options, existing) {
     };
     try {
       if (kind === 'chat') {
-        await testChatConnection(provider, DEFAULT_CHAT_MODEL);
+        await testChatConnection(provider, values.chatModels[0] || DEFAULT_CHAT_MODEL);
       } else {
-        await testSpeechConnection(provider, DEFAULT_TTS_MODEL, DEFAULT_VOICE);
+        await testSpeechConnection(
+          provider,
+          values.ttsModels[0] || DEFAULT_TTS_MODEL,
+          values.voicesByTtsModel[values.ttsModels[0]]?.[0] || DEFAULT_VOICE,
+        );
       }
       status.textContent = `${kind === 'chat' ? 'Chat' : 'Speech'} endpoint reachable.`;
       notify({
@@ -393,4 +448,243 @@ function textField({ label, value, required, autocomplete, inputmode, help }) {
     wrapper.append(helpEl);
   }
   return { wrapper, input };
+}
+
+/**
+ * @param {{ title: string, description: string, itemLabel: string, addLabel: string, values: string[] }} args
+ */
+function createIdentifierListEditor({ title, description, itemLabel, addLabel, values }) {
+  const element = document.createElement('section');
+  element.className = 'identifier-list-editor';
+  const heading = document.createElement('h4');
+  heading.textContent = title;
+  const help = document.createElement('p');
+  help.className = 'help-text';
+  help.textContent = description;
+  const chips = document.createElement('div');
+  chips.className = 'model-chip-list';
+  chips.setAttribute('role', 'list');
+  const detail = document.createElement('div');
+  detail.className = 'identifier-detail';
+  const entries = values.map((value) => ({ value }));
+  let selectedIndex = 0;
+
+  function render() {
+    chips.replaceChildren();
+    detail.replaceChildren();
+    entries.forEach((entry, index) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `model-chip${index === selectedIndex ? ' is-selected' : ''}`;
+      chip.textContent = entry.value || `New ${itemLabel.toLowerCase()}`;
+      chip.setAttribute('aria-pressed', String(index === selectedIndex));
+      chip.addEventListener('click', () => {
+        selectedIndex = index;
+        render();
+      });
+      chips.append(chip);
+    });
+    const entry = entries[selectedIndex];
+    if (!entry) return;
+    const field = textField({ label: `${itemLabel} identifier`, value: entry.value });
+    field.input.addEventListener('input', () => {
+      entry.value = field.input.value;
+      chips.children[selectedIndex].textContent = entry.value || `New ${itemLabel.toLowerCase()}`;
+    });
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button button-ghost button-small';
+    remove.textContent = `Remove ${itemLabel.toLowerCase()}`;
+    remove.addEventListener('click', async () => {
+      const confirmed = await confirmDialog({
+        title: `Remove ${itemLabel.toLowerCase()}`,
+        message: `Remove “${entry.value || `this ${itemLabel.toLowerCase()}`}” from this provider configuration?`,
+        confirmLabel: `Remove ${itemLabel.toLowerCase()}`,
+      });
+      if (!confirmed) return;
+      entries.splice(selectedIndex, 1);
+      selectedIndex = Math.max(0, selectedIndex - 1);
+      render();
+    });
+    detail.append(field.wrapper, remove);
+  }
+  const addButton = document.createElement('button');
+  addButton.type = 'button';
+  addButton.className = 'button button-secondary button-small';
+  addButton.textContent = addLabel;
+  addButton.addEventListener('click', () => {
+    entries.push({ value: '' });
+    selectedIndex = entries.length - 1;
+    render();
+  });
+  render();
+  element.append(heading, help, chips, detail, addButton);
+  return {
+    element,
+    values: () => normalizeSuggestions(entries.map((entry) => entry.value), []),
+    reset(nextValues) {
+      entries.splice(0, entries.length, ...nextValues.map((value) => ({ value })));
+      selectedIndex = 0;
+      render();
+    },
+  };
+}
+
+/**
+ * @param {{ models: string[], voicesByTtsModel: Record<string, string[]> }} args
+ */
+function createTtsModelEditor({ models, voicesByTtsModel }) {
+  const element = document.createElement('section');
+  element.className = 'tts-model-editor';
+  const heading = document.createElement('h4');
+  heading.textContent = 'TTS models and voices';
+  const help = document.createElement('p');
+  help.className = 'help-text';
+  help.textContent = 'Each model has its own voice menu in the TTS and Podcast workflows.';
+  const chips = document.createElement('div');
+  chips.className = 'model-chip-list';
+  chips.setAttribute('role', 'list');
+  const detail = document.createElement('section');
+  detail.className = 'tts-model-detail';
+  const entries = models.map((model) => ({ model, voices: [...(voicesByTtsModel[model] ?? DEFAULT_VOICES)] }));
+  let selectedIndex = 0;
+
+  function render() {
+    chips.replaceChildren();
+    detail.replaceChildren();
+    entries.forEach((entry, index) => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = `model-chip${index === selectedIndex ? ' is-selected' : ''}`;
+      chip.textContent = entry.model || 'New TTS model';
+      chip.setAttribute('aria-pressed', String(index === selectedIndex));
+      chip.addEventListener('click', () => {
+        selectedIndex = index;
+        render();
+      });
+      chips.append(chip);
+    });
+    const entry = entries[selectedIndex];
+    if (!entry) return;
+    const modelField = textField({ label: 'TTS model identifier', value: entry.model });
+    modelField.input.addEventListener('input', () => {
+      entry.model = modelField.input.value;
+      chips.children[selectedIndex].textContent = entry.model || 'New TTS model';
+    });
+    const voicesHeading = document.createElement('h5');
+    voicesHeading.textContent = 'Available voices';
+    const voiceChips = document.createElement('div');
+    voiceChips.className = 'voice-chip-list';
+    function renderVoices() {
+      voiceChips.replaceChildren();
+      entry.voices.forEach((voice, index) => {
+        const chip = document.createElement('span');
+        chip.className = 'voice-chip';
+        const text = document.createElement('span');
+        text.textContent = voice;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'voice-chip-remove';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', `Remove voice ${voice}`);
+        remove.addEventListener('click', async () => {
+          const confirmed = await confirmDialog({
+            title: 'Remove voice',
+            message: `Remove “${voice}” from ${entry.model || 'this TTS model'}?`,
+            confirmLabel: 'Remove voice',
+          });
+          if (!confirmed) return;
+          entry.voices.splice(index, 1);
+          renderVoices();
+        });
+        chip.append(text, remove);
+        voiceChips.append(chip);
+      });
+    }
+    const addVoice = textField({ label: 'Add voice', value: '' });
+    const addVoiceButton = document.createElement('button');
+    addVoiceButton.type = 'button';
+    addVoiceButton.className = 'button button-secondary button-small';
+    addVoiceButton.textContent = 'Add voice';
+    const commitVoice = () => {
+      const voice = addVoice.input.value.trim();
+      if (!voice || entry.voices.includes(voice)) return;
+      entry.voices.push(voice);
+      addVoice.input.value = '';
+      renderVoices();
+    };
+    addVoiceButton.addEventListener('click', commitVoice);
+    addVoice.input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commitVoice();
+      }
+    });
+    const removeModel = document.createElement('button');
+    removeModel.type = 'button';
+    removeModel.className = 'button button-ghost button-small';
+    removeModel.textContent = 'Remove model';
+    removeModel.addEventListener('click', async () => {
+      const confirmed = await confirmDialog({
+        title: 'Remove TTS model',
+        message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
+        confirmLabel: 'Remove model',
+      });
+      if (!confirmed) return;
+      entries.splice(selectedIndex, 1);
+      selectedIndex = Math.max(0, selectedIndex - 1);
+      render();
+    });
+    const addVoiceRow = document.createElement('div');
+    addVoiceRow.className = 'add-voice-row';
+    addVoiceRow.append(addVoice.wrapper, addVoiceButton);
+    renderVoices();
+    const restoreVoices = document.createElement('button');
+    restoreVoices.type = 'button';
+    restoreVoices.className = 'button button-ghost button-small';
+    restoreVoices.textContent = 'Restore standard voices';
+    restoreVoices.addEventListener('click', async () => {
+      const confirmed = await confirmDialog({
+        title: 'Restore model voice defaults',
+        message: `Replace the configured voices for ${entry.model || 'this TTS model'} with the standard voice list?`,
+        confirmLabel: 'Restore voices',
+      });
+      if (!confirmed) return;
+      entry.voices = [...DEFAULT_VOICES];
+      renderVoices();
+    });
+    detail.append(modelField.wrapper, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
+  }
+  const addButton = document.createElement('button');
+  addButton.type = 'button';
+  addButton.className = 'button button-secondary button-small';
+  addButton.textContent = 'Add TTS model';
+  addButton.addEventListener('click', () => {
+    entries.push({ model: '', voices: [...DEFAULT_VOICES] });
+    selectedIndex = entries.length - 1;
+    render();
+  });
+  render();
+  element.append(heading, help, chips, detail, addButton);
+  return {
+    element,
+    reset(nextModels) {
+      entries.splice(
+        0,
+        entries.length,
+        ...nextModels.map((model) => ({ model, voices: [...DEFAULT_VOICES] })),
+      );
+      selectedIndex = 0;
+      render();
+    },
+    values() {
+      const ttsModels = normalizeSuggestions(entries.map((entry) => entry.model), []);
+      const voicesByTtsModel = Object.fromEntries(
+        entries
+          .filter((entry) => entry.model.trim())
+          .map((entry) => [entry.model.trim(), normalizeSuggestions(entry.voices, [])]),
+      );
+      return { ttsModels, voicesByTtsModel };
+    },
+  };
 }
