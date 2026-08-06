@@ -392,6 +392,7 @@ Use a minimal service worker for offline application shell:
 - Prefer network for HTML update checks and cached hashed assets for stable resources.
 - Production build registers service worker; development uses direct Vite asset loading.
 - Offline state is communicated through a warning notification and disabled generation controls; the normal online state has no persistent indicator.
+- Global notifications render outside modal workflows. Settings feedback renders through a reusable dialog-local notice component, keeping errors and outcomes visible within the native dialog top layer.
 
 ## 13. Security and privacy controls
 

@@ -1,7 +1,7 @@
 /** Dedicated-page prompt-template editor. */
 
 import { confirmDialog } from '../../components/dialog.js';
-import { clearError, renderError, notify } from '../../components/error-message.js';
+import { createLocalNotice } from '../../components/error-message.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { loadSettings, saveSettings } from '../../storage/local-settings.js';
 import { buildScriptPrompt } from './podcast-script.js';
@@ -68,8 +68,7 @@ export function renderPromptTemplateSettings(body, options) {
   panel.id = 'prompt-template-page';
   panel.setAttribute('role', 'tabpanel');
   panel.tabIndex = -1;
-  const errorRegion = document.createElement('div');
-  errorRegion.className = 'error-region';
+  const notice = createLocalNotice();
   const status = document.createElement('p');
   status.className = 'prompt-editor-status';
   status.setAttribute('aria-live', 'polite');
@@ -112,7 +111,7 @@ export function renderPromptTemplateSettings(body, options) {
   back.type = 'button';
   back.className = 'button button-secondary';
   back.textContent = 'Back to provider settings';
-  back.addEventListener('click', options.onBack);
+  back.addEventListener('click', () => options.onBack());
   const resetAll = document.createElement('button');
   resetAll.type = 'button';
   resetAll.className = 'button button-ghost';
@@ -120,14 +119,14 @@ export function renderPromptTemplateSettings(body, options) {
   resetAll.addEventListener('click', restoreAll);
   footer.append(back, resetAll);
 
-  editor.append(hero, tabList, errorRegion, workspace, status, footer);
+  editor.append(hero, tabList, notice.element, workspace, status, footer);
   body.append(editor);
   renderActiveTemplate();
 
   /** @param {import('./prompt-templates.js').PromptTemplateId} id */
   function setActiveTemplate(id) {
     activeId = id;
-    clearError(errorRegion);
+    notice.clear();
     status.textContent = '';
     renderActiveTemplate();
     if (previewOpen) renderPreview();
@@ -215,11 +214,11 @@ export function renderPromptTemplateSettings(body, options) {
   }
 
   async function saveActive() {
-    clearError(errorRegion);
+    notice.clear();
     const template = drafts[activeId];
     const result = validatePromptTemplate(activeId, template);
     if (!result.valid) {
-      renderError(errorRegion, new AppError({
+      notice.showError(new AppError({
         kind: 'validation',
         message: `${PROMPT_TEMPLATE_METADATA[activeId].title}: ${result.errors.join(' ')}`,
         retryable: false,
@@ -247,10 +246,10 @@ export function renderPromptTemplateSettings(body, options) {
       drafts[activeId] = resolved[activeId];
       options.onChange?.();
       status.textContent = 'Template saved.';
-      notify({ type: 'success', title: 'Template saved', message: 'Generation now uses this browser-local template.' });
+      notice.show({ type: 'success', title: 'Template saved', message: 'Generation now uses this browser-local template.' });
       renderActiveTemplate();
     } catch (err) {
-      renderError(errorRegion, toAppError(err));
+      notice.showError(toAppError(err));
     }
   }
 
@@ -326,10 +325,10 @@ export function renderPromptTemplateSettings(body, options) {
       unlocked.delete(activeId);
       options.onChange?.();
       status.textContent = 'Bundled default restored.';
-      notify({ type: 'success', title: 'Template restored', message: 'Bundled default is active.' });
+      notice.show({ type: 'success', title: 'Template restored', message: 'Bundled default is active.' });
       renderActiveTemplate();
     } catch (err) {
-      renderError(errorRegion, toAppError(err));
+      notice.showError(toAppError(err));
     }
   }
 
@@ -349,10 +348,10 @@ export function renderPromptTemplateSettings(body, options) {
       unlocked.clear();
       options.onChange?.();
       status.textContent = 'All bundled defaults restored.';
-      notify({ type: 'success', title: 'Templates restored', message: 'All prompt templates use bundled defaults.' });
+      notice.show({ type: 'success', title: 'Templates restored', message: 'All prompt templates use bundled defaults.' });
       renderActiveTemplate();
     } catch (err) {
-      renderError(errorRegion, toAppError(err));
+      notice.showError(toAppError(err));
     }
   }
 }

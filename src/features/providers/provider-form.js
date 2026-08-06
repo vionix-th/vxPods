@@ -4,7 +4,7 @@
  */
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
-import { renderError, clearError, notify } from '../../components/error-message.js';
+import { createLocalNotice } from '../../components/error-message.js';
 import { testTextGenerationConnection } from '../../services/text-generation-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
@@ -64,7 +64,7 @@ export function openProviderSettings(options = {}) {
  * @param {Object} options
  * @param {'providers'|'templates'|'data'} activeSection
  */
-function renderSettingsSection(body, options, activeSection) {
+function renderSettingsSection(body, options, activeSection, notice) {
   renderSettingsFrame(body, activeSection, (section) => renderSettingsSection(body, options, section), (content) => {
     const navigation = createNavigation(body, options);
     if (activeSection === 'providers') {
@@ -80,7 +80,7 @@ function renderSettingsSection(body, options, activeSection) {
       return;
     }
     renderDataPrivacy(content, navigation);
-  });
+  }, notice);
 }
 
 /**
@@ -100,7 +100,7 @@ function renderProviderFormPage(body, options, existing) {
  * @param {(section: 'providers'|'templates'|'data') => void} navigate
  * @param {(content: HTMLElement) => void} renderContent
  */
-function renderSettingsFrame(body, activeSection, navigate, renderContent) {
+function renderSettingsFrame(body, activeSection, navigate, renderContent, notice) {
   body.replaceChildren();
   const layout = document.createElement('div');
   layout.className = 'settings-layout';
@@ -109,6 +109,7 @@ function renderSettingsFrame(body, activeSection, navigate, renderContent) {
   navigation.setAttribute('aria-label', 'Settings sections');
   const content = document.createElement('section');
   content.className = 'settings-content';
+  const localNotice = createLocalNotice();
 
   const sections = [
     ['providers', 'Providers'],
@@ -129,8 +130,9 @@ function renderSettingsFrame(body, activeSection, navigate, renderContent) {
     navigation.append(button);
   }
 
-  layout.append(navigation, content);
+  layout.append(navigation, localNotice.element, content);
   body.append(layout);
+  if (notice) localNotice.show(notice);
   renderContent(content);
 }
 
@@ -141,7 +143,7 @@ function renderSettingsFrame(body, activeSection, navigate, renderContent) {
 function createNavigation(body, options) {
   return {
     ...options,
-    openProviders: () => renderSettingsSection(body, options, 'providers'),
+    openProviders: (notice) => renderSettingsSection(body, options, 'providers', notice),
     openProviderForm: (existing) => renderProviderFormPage(body, options, existing),
     openPromptTemplates: () => renderSettingsSection(body, options, 'templates'),
     openDataPrivacy: () => renderSettingsSection(body, options, 'data'),
@@ -205,6 +207,7 @@ function renderDataPrivacy(body, options) {
   lead.className = 'help-text';
   lead.textContent =
     'Provider configurations, keys, selections, and prompt templates stay in this browser. Generation requests go directly to the provider you select.';
+  const notice = createLocalNotice();
   const backup = document.createElement('section');
   backup.className = 'settings-data-section';
   const backupHeading = document.createElement('h4');
@@ -220,7 +223,7 @@ function renderDataPrivacy(body, options) {
   exportButton.textContent = 'Export settings';
   exportButton.addEventListener('click', () => {
     downloadJson(exportSettingsBackup(), 'vxpods-settings.json');
-    notify({
+    notice.show({
       type: 'warning',
       title: 'Sensitive export created',
       message: 'Settings export includes unencrypted API keys. Store it securely and do not share it.',
@@ -234,7 +237,6 @@ function renderDataPrivacy(body, options) {
   restoreInput.type = 'file';
   restoreInput.accept = '.json,application/json';
   restoreInput.hidden = true;
-  const restoreError = document.createElement('div');
   restoreButton.addEventListener('click', () => restoreInput.click());
   restoreInput.addEventListener('change', async () => {
     const file = restoreInput.files?.[0];
@@ -251,10 +253,9 @@ function renderDataPrivacy(body, options) {
       if (!confirmed) return;
       restoreSettingsBackup(settings);
       options.onChange?.();
-      notify({ type: 'success', title: 'Settings restored', message: 'Saved settings were fully replaced.' });
-      renderDataPrivacy(body, options);
+      notice.show({ type: 'success', title: 'Settings restored', message: 'Saved settings were fully replaced.' });
     } catch (err) {
-      renderError(restoreError, toAppError(err));
+      notice.showError(toAppError(err));
     }
   });
   backupActions.append(exportButton, restoreButton, restoreInput);
@@ -283,7 +284,7 @@ function renderDataPrivacy(body, options) {
     try {
       await options.onClearLocalData();
     } catch (err) {
-      notify({ type: 'error', title: 'Could not clear local data', message: toAppError(err).message });
+      notice.showError(toAppError(err));
     }
   });
   danger.append(dangerHeading, dangerHelp, clearButton);
@@ -295,7 +296,7 @@ function renderDataPrivacy(body, options) {
   copy.append(heading, lead);
   pageHeader.append(copy);
 
-  body.append(pageHeader, backup, danger);
+  body.append(pageHeader, notice.element, backup, danger);
 }
 
 /**
@@ -375,8 +376,7 @@ function renderForm(body, options, existing) {
   form.className = 'provider-form settings-form';
   form.noValidate = true;
 
-  const errorRegion = document.createElement('div');
-  errorRegion.className = 'error-region';
+  const notice = createLocalNotice();
 
   // Preset selector
   const presetField = fieldset('Preset');
@@ -541,7 +541,7 @@ function renderForm(body, options, existing) {
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, textApiField, capabilityEditor, errorRegion, status, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, textApiField, capabilityEditor, notice.element, status, actions);
   body.append(pageHeader, form);
 
   function currentPreset() {
@@ -590,7 +590,7 @@ function renderForm(body, options, existing) {
   }
 
   async function runTest(kind) {
-    clearError(errorRegion);
+    notice.clear();
     const capability = kind === 'text' ? TEXT_GENERATION_API_LABELS[selectedTextApi] : 'Speech';
     status.textContent = `Testing ${capability}…`;
     const values = readForm();
@@ -610,14 +610,14 @@ function renderForm(body, options, existing) {
         );
       }
       status.textContent = `${capability} endpoint reachable.`;
-      notify({
+      notice.show({
         type: 'success',
         title: 'Connection verified',
         message: `${capability} endpoint is reachable.`,
       });
     } catch (err) {
       status.textContent = '';
-      renderError(errorRegion, toAppError(err));
+      notice.showError(toAppError(err));
     }
   }
 
@@ -626,7 +626,7 @@ function renderForm(body, options, existing) {
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
-    clearError(errorRegion);
+    notice.clear();
     try {
       if (existing) {
         const saved = updateProvider(existing.id, readForm());
@@ -636,14 +636,11 @@ function renderForm(body, options, existing) {
         options.onSaved?.(saved);
       }
       options.onChange?.();
-      notify({
-        type: 'success',
-        title: 'Provider saved',
-        message: 'Configuration is ready to use.',
-      });
-      if (!options.closeOnSave) options.openProviders();
+      if (!options.closeOnSave) {
+        options.openProviders({ type: 'success', title: 'Provider saved', message: 'Configuration is ready to use.' });
+      }
     } catch (err) {
-      renderError(errorRegion, toAppError(err));
+      notice.showError(toAppError(err));
     }
   });
 }

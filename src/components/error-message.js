@@ -24,6 +24,60 @@ let notificationCounter = 0;
 const activeNotifications = new Map();
 
 /**
+ * Contextual feedback for an active dialog or form. Unlike global toasts,
+ * this stays inside the interaction that produced it and therefore remains
+ * visible above a native modal dialog.
+ * @returns {{ element: HTMLElement, clear: () => void, show: (notice: { type: 'error'|'warning'|'success'|'info', title: string, message: string }) => void, showError: (error: AppError | Error | unknown) => void }}
+ */
+export function createLocalNotice() {
+  const element = document.createElement('div');
+  element.className = 'local-notice';
+  element.hidden = true;
+  const content = document.createElement('div');
+  content.className = 'local-notice-content';
+  const title = document.createElement('p');
+  title.className = 'local-notice-title';
+  const message = document.createElement('p');
+  message.className = 'local-notice-message';
+  const close = document.createElement('button');
+  close.type = 'button';
+  close.className = 'local-notice-close';
+  close.setAttribute('aria-label', 'Dismiss message');
+  close.textContent = '×';
+  close.addEventListener('click', clear);
+  content.append(title, message);
+  element.append(content, close);
+
+  function clear() {
+    element.hidden = true;
+    element.className = 'local-notice';
+    element.removeAttribute('role');
+    element.removeAttribute('aria-live');
+  }
+
+  function show({ type, title: nextTitle, message: nextMessage }) {
+    element.className = `local-notice local-notice-${type}`;
+    element.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    element.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    title.textContent = nextTitle;
+    message.textContent = nextMessage;
+    close.setAttribute('aria-label', `Dismiss ${nextTitle}`);
+    element.hidden = false;
+  }
+
+  function showError(error) {
+    const normalized = normalizeError(error);
+    show({
+      type: 'error',
+      title: KIND_LABELS[normalized.kind] || 'Error',
+      message: normalized.message,
+    });
+  }
+
+  return { element, clear, show, showError };
+}
+
+/**
  * @returns {HTMLElement | null}
  */
 function notificationStack() {
@@ -138,16 +192,7 @@ export function dismissNotification(id) {
  * @returns {string | null}
  */
 export function renderError(container, error, options = {}) {
-  const normalized =
-    error instanceof AppError
-      ? error
-      : new AppError({
-          kind: 'provider',
-          message: error instanceof Error ? error.message : 'Unexpected error.',
-          retryable: false,
-          status: undefined,
-          cause: error,
-        });
+  const normalized = normalizeError(error);
   const previousId = container?.dataset.notificationId;
   const id = notify({
     type: 'error',
@@ -159,6 +204,19 @@ export function renderError(container, error, options = {}) {
   if (previousId && previousId !== id) dismissNotification(previousId);
   if (container && id) container.dataset.notificationId = id;
   return id;
+}
+
+/** @param {AppError | Error | unknown} error */
+function normalizeError(error) {
+  return error instanceof AppError
+    ? error
+    : new AppError({
+        kind: 'provider',
+        message: error instanceof Error ? error.message : 'Unexpected error.',
+        retryable: false,
+        status: undefined,
+        cause: error,
+      });
 }
 
 /**

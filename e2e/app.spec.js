@@ -128,6 +128,18 @@ test('provider setup persists across reload', async ({ page }) => {
   await expect(dialog.getByText('https://mock.provider/v1')).toBeVisible();
 });
 
+test('settings validation feedback stays visible inside the dialog', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
+  await dialog.getByRole('button', { name: 'Save configuration' }).click();
+
+  const notice = dialog.locator('.local-notice');
+  await expect(notice).toHaveAttribute('role', 'alert');
+  await expect(notice).toContainText('Input problem');
+  await expect(page.locator('#notification-stack .notification-error')).toHaveCount(0);
+});
+
 test('provider-managed model and voice suggestions populate TTS fields', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');

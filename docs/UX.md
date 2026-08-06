@@ -259,9 +259,9 @@ Application adaptation:
 
 ### Notifications
 
-- Errors, warnings, and informational outcomes display in a global toast stack rather than inline workflow blocks.
-- Every toast has an explicit close control.
-- Errors remain visible until dismissed. Warnings and informational notifications auto-close after six seconds and pause while hovered or focused.
+- Errors, warnings, and informational outcomes outside a modal display in a global toast stack. Settings and other modal workflows display contextual notices inside their active dialog, so native modal layering cannot hide feedback.
+- Every toast and contextual notice has an explicit close control.
+- Errors and dialog-local notices remain visible until dismissed. Global warnings and informational notifications auto-close after six seconds and pause while hovered or focused.
 - Error copy includes what failed and next useful action.
 - User-facing UI presents normalized error category and action.
 
