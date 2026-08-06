@@ -36,10 +36,12 @@ export function createVoicePreview({ getSelected, refresh, getModel, getVoice, g
       refresh,
       onReady: async (provider) => {
         try {
+          const voice = getVoice().trim();
+          if (!voice) throw new Error('No voices are configured for this TTS model. Add a voice in provider settings.');
           const result = await createSpeech({
             provider,
             model: getModel(),
-            voice: getVoice(),
+            voice,
             input: getSample(),
             speed: getSpeed?.(),
           });

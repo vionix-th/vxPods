@@ -19,7 +19,7 @@ import {
 } from '../features/providers/provider-suggestions.js';
 
 const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 7;
+export const SETTINGS_SCHEMA_VERSION = 8;
 
 /**
  * @typedef {Object} ProviderConfig
@@ -220,6 +220,7 @@ const MIGRATIONS = {
       : doc.providers,
     selectedTextProviderId: doc.selectedChatProviderId ?? null,
   }),
+  7: (doc) => ({ ...doc, schemaVersion: 8 }),
 };
 
 /**

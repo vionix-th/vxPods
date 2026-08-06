@@ -164,7 +164,7 @@ export function createPodcastView({ controller, isOnline }) {
       const role = textAreaField({ label: 'Role', value: values.role, rows: 3 });
       const voice = selectField({
         label: 'Voice',
-        options: [...new Set([...voiceOptions(), values.voice])],
+        options: voiceOptions().length ? [...new Set([...voiceOptions(), values.voice])] : [],
         value: values.voice,
       });
       const voiceControls = document.createElement('div');
@@ -182,6 +182,7 @@ export function createPodcastView({ controller, isOnline }) {
       card.append(legend, name.wrapper, role.wrapper, voice.wrapper);
       speakersContainer.append(card);
       speakerInputs.push({ name: name.input, role: role.input, voice: voice.input });
+      voice.input.disabled = voiceOptions().length === 0;
     }
   }
 
@@ -198,7 +199,9 @@ export function createPodcastView({ controller, isOnline }) {
   }
   function voiceOptions() {
     const provider = ttsProviderSelect.getSelected();
-    return provider?.voicesByTtsModel?.[ttsModelField.input.value] ?? KNOWN_VOICES;
+    return provider
+      ? provider.voicesByTtsModel?.[ttsModelField.input.value] ?? []
+      : KNOWN_VOICES;
   }
   textProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
@@ -213,7 +216,7 @@ export function createPodcastView({ controller, isOnline }) {
     return speakerInputs.map((inputs) => ({
       name: inputs.name.value.trim() || 'Speaker',
       role: inputs.role.value.trim(),
-      voice: inputs.voice.value.trim() || 'alloy',
+      voice: inputs.voice.value.trim(),
     }));
   }
 
@@ -864,6 +867,16 @@ export function createPodcastView({ controller, isOnline }) {
       getSelected: ttsProviderSelect.getSelected,
       refresh: ttsProviderSelect.refresh,
       onReady: async (provider) => {
+        const model = readPrefs().ttsModel;
+        if (!(provider.voicesByTtsModel?.[model] ?? []).length) {
+          renderError(reviewErrorRegion, new AppError({
+            kind: 'validation',
+            message: `No voices are configured for ${model}. Add a voice in provider settings.`,
+            retryable: false,
+            status: undefined,
+          }), { onDismiss: () => {} });
+          return;
+        }
         const existing = await controller.getRecoverableJob();
         if (existing) {
           const confirmed = await confirmDialog({
@@ -873,7 +886,7 @@ export function createPodcastView({ controller, isOnline }) {
           });
           if (!confirmed) return;
         }
-        await controller.startRender(provider, readPrefs().ttsModel);
+        await controller.startRender(provider, model);
       },
     });
   });

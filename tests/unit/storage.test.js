@@ -145,6 +145,25 @@ describe('local-settings', () => {
     expect(loaded.providers[0]).not.toHaveProperty('chatModels');
   });
 
+  it('migrates v7 voice mappings without overwriting explicit choices', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...defaultSettings(),
+      schemaVersion: 7,
+      providers: [{
+        id: 'p1', name: 'Provider', baseUrl: 'https://api.example/v1', apiKey: 'key',
+        textGeneration: { api: 'chat-completions', models: ['m'] },
+        ttsModels: ['tts-1', 'unknown-tts', 'custom-tts'],
+        voicesByTtsModel: { 'tts-1': ['custom'], 'custom-tts': ['voice'] },
+      }],
+    }));
+    const [provider] = loadSettings().providers;
+    expect(provider.voicesByTtsModel).toEqual({
+      'tts-1': ['custom'],
+      'unknown-tts': [],
+      'custom-tts': ['voice'],
+    });
+  });
+
   it('drops an invalid template override without discarding valid overrides', () => {
     const doc = defaultSettings();
     doc.promptTemplates = {

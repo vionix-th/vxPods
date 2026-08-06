@@ -95,6 +95,24 @@ describe('validateProviderInput', () => {
     ).toThrowError(/Text generation model/);
   });
 
+  it('leaves an unknown TTS model without voices', () => {
+    const out = validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      ttsModels: ['unknown-tts'],
+      voicesByTtsModel: {},
+    });
+    expect(out.voicesByTtsModel).toEqual({ 'unknown-tts': [] });
+  });
+
+  it('accepts an explicit empty voice list for a TTS model', () => {
+    const out = validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      ttsModels: ['tts-1'],
+      voicesByTtsModel: { 'tts-1': [] },
+    });
+    expect(out.voicesByTtsModel).toEqual({ 'tts-1': [] });
+  });
+
   it('accepts Responses models and rejects unknown text-generation APIs', () => {
     expect(validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',

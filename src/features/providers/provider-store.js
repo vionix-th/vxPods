@@ -12,7 +12,6 @@ import {
 } from '../../storage/local-settings.js';
 import {
   DEFAULT_TTS_MODELS,
-  DEFAULT_VOICES,
   TEXT_GENERATION_APIS,
   defaultTextModels,
   isTextGenerationApi,
@@ -101,13 +100,7 @@ function requiredSuggestions(values, fallback, label) {
 
 /** @param {unknown} values @param {string[]} ttsModels */
 function requiredVoicesByTtsModel(values, ttsModels) {
-  const source = values && typeof values === 'object' && !Array.isArray(values) ? values : null;
-  const normalized = normalizeVoicesByTtsModel(values, ttsModels);
-  for (const model of ttsModels) {
-    const supplied = source ? normalizeSuggestions(source[model], DEFAULT_VOICES) : DEFAULT_VOICES;
-    if (supplied.length === 0) throw validationError(`At least one voice is required for ${model}.`);
-  }
-  return normalized;
+  return normalizeVoicesByTtsModel(values, ttsModels);
 }
 
 /**

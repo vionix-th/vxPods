@@ -156,7 +156,7 @@ Configuration form:
 - Base URL.
 - API key with Show/Hide toggle.
 - Text generation API: Chat Completions or Responses; each configuration binds exactly one.
-- Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s voices. Each list requires at least one value; copy states that these are local hints, not API-discovered capabilities.
+- Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Known TTS models prefill their locally maintained voice list; unknown identifiers start with no voices. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s known voices. Model lists require at least one value; voice lists may be empty. Copy states that these are local hints, not API-discovered capabilities.
 - “Test generation” and “Test Speech” actions when useful.
 - Save.
 

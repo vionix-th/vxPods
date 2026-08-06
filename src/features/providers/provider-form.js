@@ -22,11 +22,11 @@ import {
 } from './provider-store.js';
 import {
   DEFAULT_TTS_MODELS,
-  DEFAULT_VOICES,
   TEXT_GENERATION_APIS,
   TEXT_GENERATION_API_LABELS,
   defaultTextModels,
   normalizeSuggestions,
+  voicesForTtsModel,
 } from './provider-suggestions.js';
 
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
@@ -790,7 +790,7 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
   chips.setAttribute('role', 'list');
   const detail = document.createElement('section');
   detail.className = 'tts-model-detail';
-  const entries = models.map((model) => ({ model, voices: [...(voicesByTtsModel[model] ?? DEFAULT_VOICES)] }));
+  const entries = models.map((model) => ({ model, voices: [...(voicesByTtsModel[model] ?? voicesForTtsModel(model))] }));
   let selectedIndex = 0;
 
   function render() {
@@ -886,15 +886,15 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
     const restoreVoices = document.createElement('button');
     restoreVoices.type = 'button';
     restoreVoices.className = 'button button-ghost button-small';
-    restoreVoices.textContent = 'Restore standard voices';
+    restoreVoices.textContent = 'Restore known voices';
     restoreVoices.addEventListener('click', async () => {
       const confirmed = await confirmDialog({
-        title: 'Restore model voice defaults',
-        message: `Replace the configured voices for ${entry.model || 'this TTS model'} with the standard voice list?`,
+        title: 'Restore known model voices',
+        message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
         confirmLabel: 'Restore voices',
       });
       if (!confirmed) return;
-      entry.voices = [...DEFAULT_VOICES];
+      entry.voices = voicesForTtsModel(entry.model.trim());
       renderVoices();
     });
     detail.append(modelField.wrapper, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
@@ -904,7 +904,7 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
   addButton.className = 'button button-secondary button-small';
   addButton.textContent = 'Add TTS model';
   addButton.addEventListener('click', () => {
-    entries.push({ model: '', voices: [...DEFAULT_VOICES] });
+    entries.push({ model: '', voices: [] });
     selectedIndex = entries.length - 1;
     render();
   });
@@ -916,7 +916,7 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
       entries.splice(
         0,
         entries.length,
-        ...nextModels.map((model) => ({ model, voices: [...DEFAULT_VOICES] })),
+        ...nextModels.map((model) => ({ model, voices: voicesForTtsModel(model) })),
       );
       selectedIndex = 0;
       render();

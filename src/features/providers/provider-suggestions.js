@@ -25,6 +25,17 @@ export const DEFAULT_VOICES = [
 ];
 
 /**
+ * Locally maintained TTS capability hints. Provider APIs do not expose a
+ * portable model-to-voice contract, so unknown model identifiers deliberately
+ * have no suggested voices.
+ */
+export const KNOWN_TTS_VOICES_BY_MODEL = {
+  'gpt-4o-mini-tts': DEFAULT_VOICES,
+  'tts-1': DEFAULT_VOICES,
+  'tts-1-hd': DEFAULT_VOICES,
+};
+
+/**
  * @returns {{ textGeneration: { api: 'chat-completions', models: string[] }, ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
  */
 export function defaultProviderSuggestions() {
@@ -54,8 +65,19 @@ export function defaultTextModels(api) {
  * @param {string[]} [fallbackVoices]
  * @returns {Record<string, string[]>}
  */
-export function voicesForTtsModels(ttsModels, fallbackVoices = DEFAULT_VOICES) {
-  return Object.fromEntries(ttsModels.map((model) => [model, [...fallbackVoices]]));
+export function voicesForTtsModels(ttsModels, fallbackVoices) {
+  return Object.fromEntries(ttsModels.map((model) => [model, voicesForTtsModel(model, fallbackVoices)]));
+}
+
+/**
+ * @param {string} model
+ * @param {string[]} [fallbackVoices] compatibility fallback for legacy migrations
+ * @returns {string[]}
+ */
+export function voicesForTtsModel(model, fallbackVoices) {
+  const knownVoices = KNOWN_TTS_VOICES_BY_MODEL[model];
+  if (knownVoices) return [...knownVoices];
+  return fallbackVoices ? [...fallbackVoices] : [];
 }
 
 /**
@@ -82,19 +104,19 @@ export function normalizeSuggestions(values, fallback) {
 }
 
 /**
- * Normalize model-specific voice lists. Missing or malformed entries receive
- * defaults so loaded settings always produce valid native select controls.
+ * Normalize model-specific voice lists. Explicit empty lists remain empty.
+ * Missing entries receive known voices only for models in local registry.
  * @param {unknown} values
  * @param {string[]} ttsModels
  * @param {string[]} [fallbackVoices]
  * @returns {Record<string, string[]>}
  */
-export function normalizeVoicesByTtsModel(values, ttsModels, fallbackVoices = DEFAULT_VOICES) {
+export function normalizeVoicesByTtsModel(values, ttsModels, fallbackVoices) {
   const input = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
   return Object.fromEntries(
     ttsModels.map((model) => {
-      const voices = normalizeSuggestions(input[model], fallbackVoices);
-      return [model, voices.length ? voices : [...fallbackVoices]];
+      if (Array.isArray(input[model])) return [model, normalizeSuggestions(input[model], [])];
+      return [model, voicesForTtsModel(model, fallbackVoices)];
     }),
   );
 }

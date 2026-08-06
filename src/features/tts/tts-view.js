@@ -76,7 +76,12 @@ export function createTtsView({ controller, isOnline }) {
   }
   function refreshVoiceOptions() {
     const provider = providerSelect.getSelected();
-    voiceField.setOptions(provider?.voicesByTtsModel?.[modelField.input.value] ?? KNOWN_VOICES);
+    const voices = provider
+      ? provider.voicesByTtsModel?.[modelField.input.value] ?? []
+      : KNOWN_VOICES;
+    voiceField.setOptions(voices);
+    voiceField.input.disabled = voices.length === 0;
+    voicePreview.button.disabled = voices.length === 0;
   }
   providerSelect.element.addEventListener('change', refreshProviderSuggestions);
   modelField.input.addEventListener('change', () => {
@@ -154,10 +159,19 @@ export function createTtsView({ controller, isOnline }) {
   function readSettings(provider) {
     const speedRaw = speedField.input.value.trim();
     const speed = speedRaw === '' ? undefined : Number(speedRaw);
+    const voice = voiceField.input.value.trim();
+    if (!voice) {
+      throw new AppError({
+        kind: 'validation',
+        message: `No voices are configured for ${modelField.input.value.trim() || 'this TTS model'}. Add a voice in provider settings.`,
+        retryable: false,
+        status: undefined,
+      });
+    }
     return {
       provider,
       model: modelField.input.value.trim() || KNOWN_TTS_MODELS[0],
-      voice: voiceField.input.value.trim() || 'alloy',
+      voice,
       speed: Number.isFinite(speed) ? speed : undefined,
     };
   }

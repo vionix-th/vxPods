@@ -344,7 +344,7 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 7,
+  schemaVersion: 8,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -353,7 +353,7 @@ One versioned document stores:
 }
 ```
 
-Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a non-empty model list, plus non-empty `ttsModels` and `voicesByTtsModel` lists. These are user-managed UI options rather than inferred capabilities. Version 6 records migrate to Chat Completions without changing their selection or model list. Read through validation; corrupt records fall back safely and semantic changes use sequential tested migrations.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a non-empty model list, plus non-empty `ttsModels` and a `voicesByTtsModel` list for each TTS model. These are user-managed UI options rather than inferred capabilities. A maintained local registry supplies voices when a known TTS model is added; unknown models receive an empty list. Empty lists persist and require a voice to be added before speech work can run. Version 6 records migrate to Chat Completions without changing their selection or model list. Version 8 preserves explicit voice lists, supplies registry voices for missing known-model mappings, and leaves missing unknown-model mappings empty. Read through validation; corrupt records fall back safely and semantic changes use sequential tested migrations.
 Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
