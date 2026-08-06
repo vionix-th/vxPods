@@ -17,7 +17,6 @@ Single application shell:
 Header
   Topbar: "A Vionix Consulting product" + vionix.cloud/GitHub links
   Branding: Vionix vxPods identity (two-tone, links to vionix.cloud)
-  Online/offline status
   Provider settings
 
 Hero band (light background)
@@ -162,6 +161,8 @@ Configuration form:
 Explain once: “Configurations stay in this browser and requests go directly to the selected provider.”
 
 Chat and TTS selectors elsewhere display saved configuration name plus endpoint host. An unsupported speech endpoint reports failure without changing saved configuration.
+
+When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required Chat or TTS slot and resumes the action.
 
 ## 7. Responsive behavior
 

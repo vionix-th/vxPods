@@ -24,14 +24,17 @@ const DEFAULT_VOICE = 'alloy';
  * Open the provider management dialog.
  * @param {Object} [options]
  * @param {() => void} [options.onChange] called after any mutation
- * @param {string} [options.editId] open the form directly for this record
+ * @param {boolean} [options.startCreate] open directly on a new configuration form
+ * @param {boolean} [options.closeOnSave] close dialog after a successful save
+ * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void} [options.onSaved]
  */
 export function openProviderSettings(options = {}) {
   const handle = openDialog({
     title: 'Provider settings',
     className: 'provider-dialog',
     render(body) {
-      renderManager(body, options);
+      if (options.startCreate) renderForm(body, options, null);
+      else renderManager(body, options);
     },
   });
   return handle;
@@ -299,9 +302,11 @@ function renderForm(body, options, existing) {
     clearError(errorRegion);
     try {
       if (existing) {
-        updateProvider(existing.id, readForm());
+        const saved = updateProvider(existing.id, readForm());
+        options.onSaved?.(saved);
       } else {
-        addProvider(readForm());
+        const saved = addProvider(readForm());
+        options.onSaved?.(saved);
       }
       options.onChange?.();
       notify({
@@ -309,7 +314,7 @@ function renderForm(body, options, existing) {
         title: 'Provider saved',
         message: 'Configuration is ready to use.',
       });
-      renderManager(body, options);
+      if (!options.closeOnSave) renderManager(body, options);
     } catch (err) {
       renderError(errorRegion, toAppError(err));
     }

@@ -12,7 +12,7 @@ import { selectField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
 import { renderError, clearError, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
-import { openProviderSettings } from '../providers/provider-form.js';
+import { requireProvider } from '../providers/provider-requirement.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { estimateDurationSeconds } from './podcast-script.js';
 import { AppError } from '../../services/errors.js';
@@ -453,20 +453,12 @@ export function createPodcastView({ controller, isOnline }) {
 
   generateScriptButton.addEventListener('click', async () => {
     clearError(scriptErrorRegion);
-    const provider = chatProviderSelect.getSelected();
-    if (!provider) {
-      renderError(
-        scriptErrorRegion,
-        new AppError({
-          kind: 'validation',
-          message: 'Add and select a Chat provider configuration first.',
-          retryable: false,
-          status: undefined,
-        }),
-      );
-      return;
-    }
-    await controller.generateScript(source.getText(), readPrefs(), provider);
+    requireProvider({
+      slot: 'chat',
+      getSelected: chatProviderSelect.getSelected,
+      refresh: chatProviderSelect.refresh,
+      onReady: (provider) => controller.generateScript(source.getText(), readPrefs(), provider),
+    });
   });
 
   // ---------- Review: structured editor
@@ -732,29 +724,23 @@ export function createPodcastView({ controller, isOnline }) {
 
   renderButton.addEventListener('click', async () => {
     clearError(reviewErrorRegion);
-    const provider = ttsProviderSelect.getSelected();
-    if (!provider) {
-      renderError(
-        reviewErrorRegion,
-        new AppError({
-          kind: 'validation',
-          message: 'Add and select a TTS provider configuration first.',
-          retryable: false,
-          status: undefined,
-        }),
-      );
-      return;
-    }
-    const existing = await controller.getRecoverableJob();
-    if (existing) {
-      const confirmed = await confirmDialog({
-        title: 'Replace recoverable render',
-        message: `An unfinished render (${completedCount(existing)} of ${existing.script.segments.length} segments) exists. Starting a new render removes it.`,
-        confirmLabel: 'Replace render',
-      });
-      if (!confirmed) return;
-    }
-    await controller.startRender(provider, readPrefs().ttsModel);
+    requireProvider({
+      slot: 'tts',
+      getSelected: ttsProviderSelect.getSelected,
+      refresh: ttsProviderSelect.refresh,
+      onReady: async (provider) => {
+        const existing = await controller.getRecoverableJob();
+        if (existing) {
+          const confirmed = await confirmDialog({
+            title: 'Replace recoverable render',
+            message: `An unfinished render (${completedCount(existing)} of ${existing.script.segments.length} segments) exists. Starting a new render removes it.`,
+            confirmLabel: 'Replace render',
+          });
+          if (!confirmed) return;
+        }
+        await controller.startRender(provider, readPrefs().ttsModel);
+      },
+    });
   });
 
   cancelRenderButton.addEventListener('click', () => controller.cancelRender());
@@ -884,8 +870,12 @@ export function createPodcastView({ controller, isOnline }) {
         retry.className = 'button button-secondary button-small';
         retry.textContent = 'Retry segment';
         retry.addEventListener('click', () => {
-          const provider = ttsProviderSelect.getSelected();
-          if (provider) controller.retrySegment(segment.id, provider, readPrefs().ttsModel);
+          requireProvider({
+            slot: 'tts',
+            getSelected: ttsProviderSelect.getSelected,
+            refresh: ttsProviderSelect.refresh,
+            onReady: (provider) => controller.retrySegment(segment.id, provider, readPrefs().ttsModel),
+          });
         });
         item.append(label, retry);
         failedList.append(item);
@@ -959,25 +949,15 @@ export function createPodcastView({ controller, isOnline }) {
 
     resume.addEventListener('click', async () => {
       clearError(recoveryError);
-      const provider = ttsProviderSelect.getSelected();
-      if (!provider) {
-        renderError(
-          recoveryError,
-          new AppError({
-            kind: 'validation',
-            message: 'Select a saved TTS configuration to resume. Your work is preserved.',
-            retryable: false,
-            status: undefined,
-          }),
-          {
-            actionLabel: 'Open provider settings',
-            onAction: () => openProviderSettings({ onChange: () => ttsProviderSelect.refresh() }),
-          },
-        );
-        return;
-      }
-      recoveryCard.hidden = true;
-      await controller.resumeRender(provider);
+      requireProvider({
+        slot: 'tts',
+        getSelected: ttsProviderSelect.getSelected,
+        refresh: ttsProviderSelect.refresh,
+        onReady: async (provider) => {
+          recoveryCard.hidden = true;
+          await controller.resumeRender(provider);
+        },
+      });
     });
 
     discard.addEventListener('click', async () => {

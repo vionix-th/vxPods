@@ -9,6 +9,7 @@ import { createProgress } from '../../components/progress.js';
 import { renderError, clearError, notify } from '../../components/error-message.js';
 import { downloadBlob } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
+import { requireProvider } from '../providers/provider-requirement.js';
 
 const KNOWN_TTS_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'];
 const KNOWN_VOICES = [
@@ -121,11 +122,7 @@ export function createTtsView({ controller, isOnline }) {
   let audioUrl = null;
   let previousStatus = 'idle';
 
-  function readSettings() {
-    const provider = providerSelect.getSelected();
-    if (!provider) {
-      throw Object.assign(new Error('Add a provider configuration first.'), { kind: 'validation' });
-    }
+  function readSettings(provider) {
     const speedRaw = speedField.input.value.trim();
     const speed = speedRaw === '' ? undefined : Number(speedRaw);
     return {
@@ -139,15 +136,22 @@ export function createTtsView({ controller, isOnline }) {
 
   generateButton.addEventListener('click', async () => {
     clearError(errorRegion);
-    try {
-      const settings = readSettings();
-      generateButton.textContent = `Generate with ${settings.provider.name}`;
-      await controller.generate(source.getText(), settings);
-    } catch (err) {
-      renderError(errorRegion, err, { onDismiss: () => {} });
-    } finally {
-      generateButton.textContent = 'Generate speech';
-    }
+    requireProvider({
+      slot: 'tts',
+      getSelected: providerSelect.getSelected,
+      refresh: providerSelect.refresh,
+      onReady: async (provider) => {
+        try {
+          const settings = readSettings(provider);
+          generateButton.textContent = `Generate with ${settings.provider.name}`;
+          await controller.generate(source.getText(), settings);
+        } catch (err) {
+          renderError(errorRegion, err, { onDismiss: () => {} });
+        } finally {
+          generateButton.textContent = 'Generate speech';
+        }
+      },
+    });
   });
 
   cancelButton.addEventListener('click', () => controller.cancel());

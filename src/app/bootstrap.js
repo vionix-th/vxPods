@@ -28,26 +28,16 @@ export async function bootstrap(root) {
   }
 
   root.replaceChildren(buildShell());
-  const onlineBadge = /** @type {HTMLElement} */ (root.querySelector('#online-status'));
   const main = /** @type {HTMLElement} */ (root.querySelector('#main'));
   const modeNav = /** @type {HTMLElement} */ (root.querySelector('#mode-nav'));
 
   const isOnline = () => navigator.onLine;
-  function renderOnlineState() {
-    const online = isOnline();
-    onlineBadge.textContent = online ? 'Online' : 'Offline';
-    onlineBadge.classList.toggle('is-offline', !online);
-    onlineBadge.classList.toggle('is-online', online);
-  }
-  window.addEventListener('online', renderOnlineState);
-  window.addEventListener('offline', renderOnlineState);
   window.addEventListener('online', () =>
     notify({ type: 'success', title: 'Back online', message: 'Generation is available again.' }),
   );
   window.addEventListener('offline', () =>
     notify({ type: 'warning', title: 'Offline', message: 'Generation is unavailable until connection returns.' }),
   );
-  renderOnlineState();
 
   // Provider settings button
   const settingsButton = /** @type {HTMLButtonElement} */ (
@@ -166,15 +156,12 @@ function buildShell() {
   brand.append(logo, brandText);
   const headerActions = document.createElement('div');
   headerActions.className = 'header-actions';
-  const onlineBadge = document.createElement('span');
-  onlineBadge.id = 'online-status';
-  onlineBadge.className = 'status-badge';
   const settingsButton = document.createElement('button');
   settingsButton.id = 'provider-settings-button';
   settingsButton.type = 'button';
   settingsButton.className = 'button button-secondary button-small';
   settingsButton.textContent = 'Provider settings';
-  headerActions.append(onlineBadge, settingsButton);
+  headerActions.append(settingsButton);
   branding.append(brand, headerActions);
   header.append(topbar, branding);
 

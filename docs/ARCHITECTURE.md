@@ -378,7 +378,7 @@ Use a minimal service worker for offline application shell:
 - Cache allowlist contains versioned static application assets; provider requests remain network-only.
 - Prefer network for HTML update checks and cached hashed assets for stable resources.
 - Production build registers service worker; development uses direct Vite asset loading.
-- Online/offline UI combines browser events with actual request results.
+- Offline state is communicated through a warning notification and disabled generation controls; the normal online state has no persistent indicator.
 
 ## 13. Security and privacy controls
 

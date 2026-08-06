@@ -73,6 +73,7 @@ Acceptance:
 - Reloading the page preserves saved configurations and current selections.
 - Deleting a configuration removes it and clears any selection that references it.
 - A malformed URL or empty key cannot be saved.
+- A provider-required action with no saved configuration opens provider creation; saving selects the new configuration for that action and resumes it.
 
 ### FR-2 Source input
 
