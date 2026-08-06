@@ -39,7 +39,7 @@ Static vxPods application
   |-- IndexedDB: one recoverable render job + audio segments
   |-- Cache Storage: versioned application shell
   |
-  |-- Chat Completions request --> selected OpenAI-compatible endpoint
+  |-- Text generation request -> selected Chat Completions or Responses endpoint
   `-- Speech requests ---------> selected OpenAI-compatible endpoint
 ```
 
@@ -74,7 +74,10 @@ src/
       podcast-script.js
       podcast-view.js
   services/
+    text-generation-client.js
     chat-completions-client.js
+    responses-client.js
+    provider-http.js
     speech-client.js
   storage/
     local-settings.js
@@ -123,7 +126,7 @@ Create each folder with its first owned module.
 ### Service clients
 
 - Own request construction, endpoint paths, headers, response parsing, timeouts, and provider error normalization.
-- Implement only OpenAI-compatible Chat Completions and Speech contracts.
+- Implement only configured OpenAI-compatible Chat Completions, Responses, and Speech contracts.
 - Accept provider configuration and request payload as explicit inputs.
 
 ### Storage modules
@@ -149,6 +152,7 @@ R1 uses one shared configuration record:
  * @property {string} name
  * @property {string} baseUrl // normalized API root ending in /v1
  * @property {string} apiKey
+ * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
  */
 ```
 
@@ -162,10 +166,11 @@ Routes:
 
 ```text
 POST {baseUrl}/chat/completions
+POST {baseUrl}/responses
 POST {baseUrl}/audio/speech
 ```
 
-OpenRouter is expected primarily for Chat Completions. A configuration is usable for TTS when its endpoint implements OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
+Each configuration binds one text-generation API; users create a second configuration to use both routes with the same endpoint. A configuration is usable for TTS when its endpoint implements the OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
 
 Request clients return application results or throw a normalized `AppError`:
 
@@ -193,7 +198,7 @@ Top-level state:
   mode: 'tts' | 'podcast',
   online: boolean,
   providers: ProviderConfig[],
-  selectedChatProviderId: string | null,
+  selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
   tts: { /* source, settings, status, output */ },
   podcast: { /* source, preferences, script, job status */ }
@@ -273,7 +278,8 @@ Model output enters as untrusted text, passes JSON isolation and schema validati
 ```text
 Source + preferences
   -> local validation
-  -> Chat Completions prompt
+  -> API-neutral text-generation messages
+  -> configured Chat Completions or Responses adapter
   -> JSON extraction
   -> schema validation/normalization
   -> optional user review/edit
@@ -296,7 +302,7 @@ Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
-One explicit repair request may submit validation errors and prior output to the selected Chat Completions endpoint. Further attempts require user action.
+One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Further attempts require user action.
 
 ## 10. Speech and audio pipeline
 
@@ -338,16 +344,16 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 6,
+  schemaVersion: 7,
   providers: ProviderConfig[],
-  selectedChatProviderId: string | null,
+  selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
   preferences: { mode: 'tts' | 'podcast' },
   promptTemplates: { /* valid per-template local overrides only; no duration target */ }
 }
 ```
 
-Each `ProviderConfig` includes non-empty local `chatModels` and `ttsModels` lists plus non-empty `voicesByTtsModel` lists keyed by TTS model, used solely as UI options. They are user-managed rather than inferred from API responses. Read through validation. Corrupt records fall back safely. Key or semantic changes use sequential tested migrations.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a non-empty model list, plus non-empty `ttsModels` and `voicesByTtsModel` lists. These are user-managed UI options rather than inferred capabilities. Version 6 records migrate to Chat Completions without changing their selection or model list. Read through validation; corrupt records fall back safely and semantic changes use sequential tested migrations.
 Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
@@ -422,7 +428,7 @@ Unit tests cover:
 
 Integration tests cover:
 
-- Mock Chat Completions to valid/invalid script.
+- Mock both text-generation adapters with valid, invalid, refused, incomplete, and malformed output.
 - Mock TTS success, partial failure, retry, cancellation, and rate limit.
 - Resume from IndexedDB without regenerating completed segments.
 - Storage quota and corrupt-record recovery.
@@ -441,6 +447,9 @@ Tests use fixtures, intercepted requests, and synthetic credentials.
 ## 16. Deployment
 
 - `npm run build` produces self-contained static output in `dist/`.
+- GitHub Actions deploys the `main` branch to GitHub Pages. The workflow builds
+  with the repository path as Vite's base URL, so project pages resolve assets
+  and the service worker under `/<repository>/`.
 - Hosting must serve correct JavaScript module, worker, audio, and service-worker MIME types.
 - SPA navigation fallback is unnecessary unless real client-side routes are added.
 - Service worker scope remains application root.

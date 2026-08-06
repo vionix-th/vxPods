@@ -7,7 +7,7 @@ import {
 } from '../../src/storage/render-job-store.js';
 import { AppError } from '../../src/services/errors.js';
 
-const chatProvider = { baseUrl: 'https://chat.test/v1', apiKey: 'sk-chat' };
+const textProvider = { baseUrl: 'https://text.test/v1', apiKey: 'sk-text' };
 const ttsProvider = {
   id: 'tts1',
   name: 'TTS',
@@ -23,7 +23,7 @@ const prefs = {
     { name: 'Host', role: 'Guides', voice: 'alloy' },
     { name: 'Guest', role: 'Explains', voice: 'verse' },
   ],
-  chatModel: 'gpt-4o-mini',
+  textModel: 'gpt-4o-mini',
   ttsModel: 'tts-1',
 };
 
@@ -44,7 +44,7 @@ const validScript = {
   ],
 };
 
-function chatReturning(script) {
+function textReturning(script) {
   return vi.fn().mockResolvedValue({ content: JSON.stringify(script), model: 'm' });
 }
 
@@ -64,23 +64,23 @@ beforeEach(() => {
 describe('podcast script generation', () => {
   it('valid output becomes ready script', async () => {
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
     });
-    await controller.generateScript('source text', prefs, chatProvider);
+    await controller.generateScript('source text', prefs, textProvider);
     const state = controller.store.get();
     expect(state.status).toBe('ready');
     expect(state.script.title).toBe('Test Show');
   });
 
   it('invalid output fails with schema error and one repair option', async () => {
-    const chat = vi
+    const textGeneration = vi
       .fn()
       .mockResolvedValueOnce({ content: '{"schemaVersion":7}', model: 'm' })
       .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' });
-    const controller = createPodcastController({ chat, speech: speechOk(), decode: fakeDecode });
-    await controller.generateScript('source text', prefs, chatProvider);
+    const controller = createPodcastController({ textGeneration, speech: speechOk(), decode: fakeDecode });
+    await controller.generateScript('source text', prefs, textProvider);
     let state = controller.store.get();
     expect(state.status).toBe('failed');
     expect(state.error.kind).toBe('schema');
@@ -90,19 +90,19 @@ describe('podcast script generation', () => {
     state = controller.store.get();
     expect(state.status).toBe('ready');
     expect(state.script.title).toBe('Test Show');
-    expect(chat).toHaveBeenCalledTimes(2);
+    expect(textGeneration).toHaveBeenCalledTimes(2);
     // repair request included validation errors
-    const repairCall = chat.mock.calls[1][0];
+    const repairCall = textGeneration.mock.calls[1][0];
     expect(JSON.stringify(repairCall.messages)).toContain('schemaVersion');
   });
 
   it('edited script is revalidated', async () => {
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
     });
-    await controller.generateScript('source text', prefs, chatProvider);
+    await controller.generateScript('source text', prefs, textProvider);
     const script = controller.store.get().script;
     expect(() =>
       controller.applyEditedScript({ ...script, segments: [] }),
@@ -120,11 +120,11 @@ describe('podcast script generation', () => {
 
   it('script JSON export excludes internal metadata', async () => {
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
     });
-    await controller.generateScript('source text', prefs, chatProvider);
+    await controller.generateScript('source text', prefs, textProvider);
     const { json, filename } = controller.exportScriptJson();
     expect(filename.endsWith('.json')).toBe(true);
     expect(JSON.stringify(json)).not.toContain('apiKey');
@@ -139,8 +139,8 @@ describe('podcast script generation', () => {
   });
 
   it('applies speaker metadata changes without changing referenced turns', async () => {
-    const controller = createPodcastController({ chat: chatReturning(validScript) });
-    await controller.generateScript('source text', prefs, chatProvider);
+    const controller = createPodcastController({ textGeneration: textReturning(validScript) });
+    await controller.generateScript('source text', prefs, textProvider);
     const script = controller.store.get().script;
     const updated = controller.applyEditedScript({
       ...script,
@@ -155,8 +155,8 @@ describe('podcast script generation', () => {
   });
 
   it('rejects invalid script imports without changing the current script', async () => {
-    const controller = createPodcastController({ chat: chatReturning(validScript) });
-    await controller.generateScript('source text', prefs, chatProvider);
+    const controller = createPodcastController({ textGeneration: textReturning(validScript) });
+    await controller.generateScript('source text', prefs, textProvider);
     const original = controller.store.get().script;
     expect(() => controller.importScript('{not json')).toThrowError(/not valid JSON/);
     expect(controller.store.get().script).toEqual(original);
@@ -167,11 +167,11 @@ describe('podcast rendering', () => {
   it('renders all segments, persists blobs, assembles output', async () => {
     const speech = speechOk();
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech,
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     await controller.startRender(ttsProvider, 'tts-1');
     const state = controller.store.get();
     expect(state.renderStatus).toBe('ready');
@@ -200,11 +200,11 @@ describe('podcast rendering', () => {
       return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
     });
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech,
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     await controller.startRender(ttsProvider, 'tts-1');
     expect(controller.store.get().renderStatus).toBe('failed');
     const job = await loadJob();
@@ -214,7 +214,7 @@ describe('podcast rendering', () => {
     // Simulate reload: brand-new controller resumes from IndexedDB.
     const speech2 = speechOk();
     const resumed = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speech2,
       decode: fakeDecode,
     });
@@ -239,11 +239,11 @@ describe('podcast rendering', () => {
       });
     });
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech,
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     const run = controller.startRender(ttsProvider, 'tts-1');
     await vi.waitFor(() => expect(call).toBe(2));
     controller.cancelRender();
@@ -266,11 +266,11 @@ describe('podcast rendering', () => {
       return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
     });
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech,
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     await controller.startRender(ttsProvider, 'tts-1');
     expect(controller.store.get().renderStatus).toBe('failed');
 
@@ -287,11 +287,11 @@ describe('podcast rendering', () => {
 
   it('successful export clears recovery data; failure retains it', async () => {
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     await controller.startRender(ttsProvider, 'tts-1');
     expect(await loadJob()).toBeTruthy();
 
@@ -303,11 +303,11 @@ describe('podcast rendering', () => {
 
   it('discard removes recoverable data', async () => {
     const controller = createPodcastController({
-      chat: chatReturning(validScript),
+      textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
     });
-    await controller.generateScript('source', prefs, chatProvider);
+    await controller.generateScript('source', prefs, textProvider);
     await controller.startRender(ttsProvider, 'tts-1');
     await controller.discardRender();
     expect(await loadJob()).toBeNull();

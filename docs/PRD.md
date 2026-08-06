@@ -12,7 +12,7 @@ vxPods is a static, client-side application that turns source text into speech o
 R1 provides two focused workflows:
 
 1. **Text to Speech** converts pasted or uploaded text directly into audio.
-2. **Podcast** uses a Chat Completions model to create a source-grounded JSON script, then uses text-to-speech models to render its speaker turns and assemble final audio.
+2. **Podcast** uses the configured Chat Completions or Responses API to create a source-grounded JSON script, then uses text-to-speech models to render its speaker turns and assemble final audio.
 
 ## 2. Product principles
 
@@ -29,7 +29,7 @@ R1 provides two focused workflows:
 R1 must let users:
 
 - Save reusable provider URL/API-key configurations locally.
-- Select separate saved configurations for Chat Completions and TTS.
+- Select separate saved configurations for text generation and TTS.
 - Paste text or import UTF-8 `.txt` and `.md` files.
 - Generate direct speech from text.
 - Generate a source-grounded podcast script for one or two speakers.
@@ -64,9 +64,9 @@ Primary jobs:
 - Each configuration contains a user-visible name, base URL, and API key.
 - Base URLs target an OpenAI-compatible `/v1` API root.
 - R1 includes presets for OpenAI and OpenRouter plus a manual URL option.
-- Each saved configuration includes locally editable Chat-model and TTS-model option lists, with voices configured per TTS model. They are not inferred from provider APIs and each list contains at least one value.
+- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation and TTS-model option lists, with voices configured per TTS model. They are not inferred from provider APIs and each list contains at least one value.
 - Configurations persist in `localStorage` until deleted by the user or browser.
-- Chat Completions and TTS selectors are independent and may reference different saved configurations.
+- Text-generation and TTS selectors are independent and may reference different saved configurations.
 - API keys are masked after entry and can be replaced.
 - A connection test reports success, authentication failure, CORS/network failure, unsupported endpoint, or invalid response.
 - Credential handling keeps API keys inside selected request authorization and persisted configuration.
@@ -120,7 +120,7 @@ Users can configure:
 - Intended audience.
 - One or two speaker names and roles.
 - Voice assignment for each speaker.
-- Chat Completions model.
+- Text-generation model from the selected configuration.
 - TTS model.
 - Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
@@ -137,7 +137,7 @@ Users may override prompt wording after an explicit warning; generated scripts s
 
 ### FR-5 Podcast script generation
 
-- R1 calls an OpenAI-compatible `POST /chat/completions` endpoint.
+- R1 calls the configured OpenAI-compatible `POST /chat/completions` or `POST /responses` endpoint.
 - Model output must conform to the versioned JSON schema defined in `docs/ARCHITECTURE.md`.
 - The application validates and normalizes output before enabling TTS rendering.
 - Validation catches unknown speakers, missing text, empty segments, invalid field types, and schema-version mismatch.
@@ -145,7 +145,7 @@ Users may override prompt wording after an explicit warning; generated scripts s
 - Script review/edit is available but skippable.
 - Script JSON can be downloaded before or after audio rendering.
 - Exported JSON excludes provider credentials and internal recovery metadata.
-- Users can import canonical script JSON without a Chat provider. The file is validated before replacing workflow state; replacing an existing script or unfinished render requires confirmation.
+- Users can import canonical script JSON without a text-generation configuration. The file is validated before replacing workflow state; replacing an existing script or unfinished render requires confirmation.
 
 Acceptance:
 

@@ -9,7 +9,7 @@ import { openProviderSettings } from './provider-form.js';
 
 /**
  * @param {Object} args
- * @param {'chat'|'tts'} args.slot
+ * @param {'text'|'tts'} args.slot
  * @param {() => import('../../storage/local-settings.js').ProviderConfig | null} args.getSelected
  * @param {() => void} args.refresh
  * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void | Promise<void>} args.onReady

@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createChatCompletion } from '../../src/services/chat-completions-client.js';
+import { createResponse } from '../../src/services/responses-client.js';
+import { generateText } from '../../src/services/text-generation-client.js';
 import { createSpeech } from '../../src/services/speech-client.js';
 
 const provider = { baseUrl: 'https://api.test/v1', apiKey: 'sk-secret' };
@@ -40,6 +42,7 @@ describe('createChatCompletion', () => {
     expect(init.method).toBe('POST');
     expect(init.headers.authorization).toBe('Bearer sk-secret');
     expect(JSON.parse(init.body).response_format).toEqual({ type: 'json_object' });
+    expect(JSON.parse(init.body).store).toBe(false);
   });
 
   it('normalizes 401 to auth error', async () => {
@@ -94,6 +97,96 @@ describe('createChatCompletion', () => {
     });
     controller.abort();
     await expect(promise).rejects.toMatchObject({ kind: 'cancelled' });
+  });
+});
+
+describe('createResponse', () => {
+  it('constructs a Responses request and extracts ordered typed text output', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      model: 'gpt-5.6-luna',
+      status: 'completed',
+      output: [
+        { type: 'reasoning', content: [] },
+        { type: 'message', content: [
+          { type: 'output_text', text: '{"ok":' },
+          { type: 'output_text', text: 'true}' },
+        ] },
+      ],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await createResponse({
+      provider,
+      model: 'gpt-5.6-luna',
+      messages: [{ role: 'user', content: 'hi' }],
+      jsonMode: true,
+    });
+    expect(result).toEqual({ content: '{"ok":true}', model: 'gpt-5.6-luna' });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://api.test/v1/responses');
+    expect(JSON.parse(init.body)).toMatchObject({
+      model: 'gpt-5.6-luna',
+      input: [{ role: 'user', content: 'hi' }],
+      store: false,
+      text: { format: { type: 'json_object' } },
+    });
+  });
+
+  it.each([
+    [{ status: 'incomplete', output: [] }, /incomplete/],
+    [{ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }] }, /refused/],
+    [{ status: 'completed', output: [] }, /empty/],
+    [{ status: 'completed' }, /malformed/],
+  ])('rejects unsuccessful success payload %#', async (body, message) => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(body)));
+    await expect(createResponse({ provider, model: 'm', messages: [] }))
+      .rejects.toMatchObject({ kind: 'provider', retryable: false, message: expect.stringMatching(message) });
+  });
+
+  it('normalizes HTTP, network, and cancellation failures through shared transport', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
+    await expect(createResponse({ provider, model: 'm', messages: [] }))
+      .rejects.toMatchObject({ kind: 'auth' });
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
+    await expect(createResponse({ provider, model: 'm', messages: [] }))
+      .rejects.toMatchObject({ kind: 'network' });
+
+    const controller = new AbortController();
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, init) => new Promise((_, reject) => {
+      init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    })));
+    const promise = createResponse({ provider, model: 'm', messages: [], signal: controller.signal });
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({ kind: 'cancelled' });
+  });
+
+  it('normalizes request timeout through shared transport', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url, init) => new Promise((_, reject) => {
+      init.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    })));
+    await expect(createResponse({ provider, model: 'm', messages: [], timeoutMs: 1 }))
+      .rejects.toMatchObject({ kind: 'network', retryable: true, message: expect.stringMatching(/timed out/) });
+  });
+});
+
+describe('generateText', () => {
+  it('dispatches using the configuration-bound API', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({
+      output: [{ type: 'message', content: [{ type: 'output_text', text: 'ok' }] }],
+    })));
+    await generateText({
+      provider: { ...provider, textGeneration: { api: 'responses', models: ['m'] } },
+      model: 'm',
+      messages: [],
+    });
+    expect(fetch.mock.calls[0][0]).toBe('https://api.test/v1/responses');
+  });
+
+  it('rejects an unknown configured API', () => {
+    expect(() => generateText({
+      provider: { ...provider, textGeneration: { api: 'unknown', models: ['m'] } },
+      model: 'm', messages: [],
+    })).toThrowError(/not supported/);
   });
 });
 

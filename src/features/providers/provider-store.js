@@ -11,9 +11,11 @@ import {
   validateSettingsBackup as validateSettingsBackupDocument,
 } from '../../storage/local-settings.js';
 import {
-  DEFAULT_CHAT_MODELS,
   DEFAULT_TTS_MODELS,
   DEFAULT_VOICES,
+  TEXT_GENERATION_APIS,
+  defaultTextModels,
+  isTextGenerationApi,
   normalizeSuggestions,
   normalizeVoicesByTtsModel,
 } from './provider-suggestions.js';
@@ -62,8 +64,7 @@ export function normalizeBaseUrl(input) {
 
 /**
  * Validate a candidate provider record. Returns normalized copy.
- * @param {{ name: string, baseUrl: string, apiKey: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
- * @returns {{ name: string, baseUrl: string, apiKey: string, chatModels: string[], ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
+ * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
  * @throws {AppError} validation kind
  */
 export function validateProviderInput(input) {
@@ -72,14 +73,16 @@ export function validateProviderInput(input) {
   const apiKey = String(input.apiKey ?? '').trim();
   if (!apiKey) throw validationError('API key is required.');
   const baseUrl = normalizeBaseUrl(input.baseUrl);
-  const chatModels = requiredSuggestions(input.chatModels, DEFAULT_CHAT_MODELS, 'Chat model');
+  const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
+  if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
+  const textModels = requiredSuggestions(input.textGeneration?.models, defaultTextModels(api), 'Text generation model');
   const ttsModels = requiredSuggestions(input.ttsModels, DEFAULT_TTS_MODELS, 'TTS model');
   const voicesByTtsModel = requiredVoicesByTtsModel(input.voicesByTtsModel, ttsModels);
   return {
     name,
     baseUrl,
     apiKey,
-    chatModels,
+    textGeneration: { api, models: textModels },
     ttsModels,
     voicesByTtsModel,
   };
@@ -175,7 +178,7 @@ export function getProvider(id) {
 
 /**
  * Create a provider. Returns the stored record.
- * @param {{ name: string, baseUrl: string, apiKey: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
  */
 export function addProvider(input) {
   const valid = validateProviderInput(input);
@@ -191,7 +194,7 @@ export function addProvider(input) {
  * Update an existing provider. API key is replaced only when a new
  * non-empty key is supplied (masked-field behavior).
  * @param {string} id
- * @param {{ name: string, baseUrl: string, apiKey?: string, chatModels?: unknown, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @param {{ name: string, baseUrl: string, apiKey?: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
  */
 export function updateProvider(id, input) {
   const settings = loadSettings();
@@ -202,7 +205,7 @@ export function updateProvider(id, input) {
     name: input.name,
     baseUrl: input.baseUrl,
     apiKey: input.apiKey?.trim() ? input.apiKey : existing.apiKey,
-    chatModels: input.chatModels ?? existing.chatModels,
+    textGeneration: input.textGeneration ?? existing.textGeneration,
     ttsModels: input.ttsModels ?? existing.ttsModels,
     voicesByTtsModel: input.voicesByTtsModel ?? existing.voicesByTtsModel,
   });
@@ -219,14 +222,14 @@ export function updateProvider(id, input) {
 export function deleteProvider(id) {
   const settings = loadSettings();
   settings.providers = settings.providers.filter((p) => p.id !== id);
-  if (settings.selectedChatProviderId === id) settings.selectedChatProviderId = null;
+  if (settings.selectedTextProviderId === id) settings.selectedTextProviderId = null;
   if (settings.selectedTtsProviderId === id) settings.selectedTtsProviderId = null;
   saveSettings(settings);
   notifyProviders();
 }
 
 /**
- * @param {'chat'|'tts'} slot
+ * @param {'text'|'tts'} slot
  * @param {string | null} id
  */
 export function selectProvider(slot, id) {
@@ -234,19 +237,19 @@ export function selectProvider(slot, id) {
   if (id !== null && !settings.providers.some((p) => p.id === id)) {
     throw validationError('Configuration not found.');
   }
-  if (slot === 'chat') settings.selectedChatProviderId = id;
+  if (slot === 'text') settings.selectedTextProviderId = id;
   else settings.selectedTtsProviderId = id;
   saveSettings(settings);
   notifyProviders();
 }
 
 /**
- * @param {'chat'|'tts'} slot
+ * @param {'text'|'tts'} slot
  * @returns {string | null}
  */
 export function getSelectedProviderId(slot) {
   const settings = loadSettings();
-  return slot === 'chat' ? settings.selectedChatProviderId : settings.selectedTtsProviderId;
+  return slot === 'text' ? settings.selectedTextProviderId : settings.selectedTtsProviderId;
 }
 
 /**

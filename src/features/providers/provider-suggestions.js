@@ -4,21 +4,49 @@
  * `/models` responses do not communicate TTS or voice capabilities.
  */
 
-export const DEFAULT_CHAT_MODELS = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'];
+export const TEXT_GENERATION_APIS = {
+  chatCompletions: 'chat-completions',
+  responses: 'responses',
+};
+
+export const TEXT_GENERATION_API_LABELS = {
+  [TEXT_GENERATION_APIS.chatCompletions]: 'Chat Completions',
+  [TEXT_GENERATION_APIS.responses]: 'Responses',
+};
+
+export const DEFAULT_TEXT_MODELS_BY_API = {
+  [TEXT_GENERATION_APIS.chatCompletions]: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  [TEXT_GENERATION_APIS.responses]: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6'],
+};
+
 export const DEFAULT_TTS_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'];
 export const DEFAULT_VOICES = [
   'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
 ];
 
 /**
- * @returns {{ chatModels: string[], ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
+ * @returns {{ textGeneration: { api: 'chat-completions', models: string[] }, ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
  */
 export function defaultProviderSuggestions() {
   return {
-    chatModels: [...DEFAULT_CHAT_MODELS],
+    textGeneration: {
+      api: TEXT_GENERATION_APIS.chatCompletions,
+      models: defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
+    },
     ttsModels: [...DEFAULT_TTS_MODELS],
     voicesByTtsModel: voicesForTtsModels(DEFAULT_TTS_MODELS),
   };
+}
+
+/** @param {unknown} api */
+export function isTextGenerationApi(api) {
+  return api === TEXT_GENERATION_APIS.chatCompletions || api === TEXT_GENERATION_APIS.responses;
+}
+
+/** @param {unknown} api */
+export function defaultTextModels(api) {
+  const validApi = isTextGenerationApi(api) ? api : TEXT_GENERATION_APIS.chatCompletions;
+  return [...DEFAULT_TEXT_MODELS_BY_API[validApi]];
 }
 
 /**

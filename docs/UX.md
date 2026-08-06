@@ -81,7 +81,7 @@ Essential controls:
 - Format: Solo or Conversation.
 - Tone.
 - Audience.
-- Chat and TTS providers, plus their model selects. Options come from the selected provider configurations.
+- Script and TTS configurations, plus their model selects. Options come from the selected provider configurations.
 
 All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. The lists are never presented as discovered provider capabilities.
 
@@ -89,8 +89,8 @@ Step 3, “Generate or update script”, is the single source of truth for speak
 
 ### Step 3: Generate or update script
 
-- Summary names selected Chat provider/model. Generated title and spoken turns preserve the source language unless the source explicitly requests translation.
-- Actions: “Generate script”, “Apply speaker changes to script”, and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a Chat provider. Replacing an existing script or unfinished render requires confirmation.
+- Summary names the selected script configuration, text-generation API, and model. Generated title and spoken turns preserve the source language unless the source explicitly requests translation.
+- Actions: “Generate script”, “Apply speaker changes to script”, and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a text-generation configuration. Replacing an existing script or unfinished render requires confirmation.
 - Status explains “Writing and validating JSON script”.
 - Invalid output offers “Repair script” once; then “Generate again”.
 
@@ -155,15 +155,16 @@ Configuration form:
 - Name.
 - Base URL.
 - API key with Show/Hide toggle.
-- Compact Chat-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s voices. Each list requires at least one value; copy states that these are local hints, not API-discovered capabilities.
-- “Test Chat” and “Test Speech” actions when useful.
+- Text generation API: Chat Completions or Responses; each configuration binds exactly one.
+- Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s voices. Each list requires at least one value; copy states that these are local hints, not API-discovered capabilities.
+- “Test generation” and “Test Speech” actions when useful.
 - Save.
 
 Explain once: “Configurations stay in this browser and requests go directly to the selected provider.”
 
-Chat and TTS selectors elsewhere display saved configuration name plus endpoint host. An unsupported speech endpoint reports failure without changing saved configuration.
+Script and TTS selectors elsewhere display saved configuration name plus endpoint host; the Script selector also displays its API. Unsupported endpoints report failure without changing saved configuration.
 
-When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required Chat or TTS slot and resumes the action.
+When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required text-generation or TTS slot and resumes the action.
 
 Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates selected JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, and prompt templates without merging.
 
@@ -304,7 +305,7 @@ Examples:
 ## 12. UX release checklist
 
 - New user can configure OpenAI and generate speech from visible interface guidance.
-- User can identify separate Chat and TTS configurations.
+- User can identify separate text-generation and TTS configurations and the selected text-generation API.
 - Podcast can be rendered directly after script validation.
 - User can edit speaker turns through structured editor.
 - Partial failure preserves and exposes completed work.

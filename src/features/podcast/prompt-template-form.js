@@ -44,7 +44,7 @@ export function renderPromptTemplateSettings(body, options) {
   const lead = document.createElement('p');
   lead.className = 'prompt-editor-lead';
   lead.textContent =
-    'Each page maps to one Chat Completions message. Saved changes stay only in this browser.';
+    'Each page maps to one text-generation message. Saved changes stay only in this browser.';
   const heroActions = document.createElement('div');
   heroActions.className = 'prompt-editor-hero-actions';
   const previewToggle = document.createElement('button');

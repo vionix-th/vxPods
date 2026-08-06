@@ -20,7 +20,7 @@ const SOURCE_LANGUAGE_POLICY = [
  * @property {string} tone
  * @property {string} audience
  * @property {{ name: string, role: string, voice: string }[]} speakers 1 or 2
- * @property {string} chatModel
+ * @property {string} textModel
  * @property {string} ttsModel
  */
 
@@ -36,7 +36,7 @@ const SOURCE_LANGUAGE_POLICY = [
  */
 
 /**
- * Build Chat Completions messages for source-grounded script generation.
+ * Build API-neutral messages for source-grounded script generation.
  * Source text is clearly delimited from instructions.
  *
  * @param {string} source

@@ -15,11 +15,17 @@ import { confirmDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
 import { subscribeProviders } from '../providers/provider-store.js';
 import { createVoicePreview } from '../../components/voice-preview.js';
-import { DEFAULT_CHAT_MODELS, DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
+import {
+  DEFAULT_TTS_MODELS,
+  DEFAULT_VOICES,
+  TEXT_GENERATION_API_LABELS,
+  TEXT_GENERATION_APIS,
+  defaultTextModels,
+} from '../providers/provider-suggestions.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 
-const KNOWN_CHAT_MODELS = DEFAULT_CHAT_MODELS;
+const KNOWN_TEXT_MODELS = defaultTextModels(TEXT_GENERATION_APIS.chatCompletions);
 const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
 const KNOWN_VOICES = DEFAULT_VOICES;
 
@@ -105,11 +111,11 @@ export function createPodcastView({ controller, isOnline }) {
   });
   const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
-  const chatProviderSelect = createProviderSelect({ slot: 'chat', label: 'Chat provider' });
-  const chatModelField = selectField({
-    label: 'Chat model',
-    options: KNOWN_CHAT_MODELS,
-    value: KNOWN_CHAT_MODELS[0],
+  const textProviderSelect = createProviderSelect({ slot: 'text', label: 'Script configuration' });
+  const textModelField = selectField({
+    label: 'Script model',
+    options: KNOWN_TEXT_MODELS,
+    value: KNOWN_TEXT_MODELS[0],
   });
   const ttsProviderSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
   const ttsModelField = selectField({
@@ -125,9 +131,9 @@ export function createPodcastView({ controller, isOnline }) {
     formatField.wrapper,
     toneField.wrapper,
     audienceField.wrapper,
-    chatProviderSelect.element,
+    textProviderSelect.element,
     ttsProviderSelect.element,
-    chatModelField.wrapper,
+    textModelField.wrapper,
     ttsModelField.wrapper,
   );
 
@@ -185,7 +191,7 @@ export function createPodcastView({ controller, isOnline }) {
   });
 
   function refreshProviderSuggestions() {
-    chatModelField.setOptions(chatProviderSelect.getSelected()?.chatModels ?? KNOWN_CHAT_MODELS);
+    textModelField.setOptions(textProviderSelect.getSelected()?.textGeneration.models ?? KNOWN_TEXT_MODELS);
     ttsModelField.setOptions(ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS);
     speakerValues = readSpeakers();
     renderSpeakerCards();
@@ -194,7 +200,7 @@ export function createPodcastView({ controller, isOnline }) {
     const provider = ttsProviderSelect.getSelected();
     return provider?.voicesByTtsModel?.[ttsModelField.input.value] ?? KNOWN_VOICES;
   }
-  chatProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
+  textProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsModelField.input.addEventListener('change', () => {
     speakerValues = readSpeakers();
@@ -515,19 +521,20 @@ export function createPodcastView({ controller, isOnline }) {
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: readSpeakers(),
-      chatModel: chatModelField.input.value.trim() || KNOWN_CHAT_MODELS[0],
+      textModel: textModelField.input.value.trim() || KNOWN_TEXT_MODELS[0],
       ttsModel: ttsModelField.input.value.trim() || KNOWN_TTS_MODELS[0],
     };
   }
 
   function updateScriptSummary() {
-    const provider = chatProviderSelect.getSelected();
+    const provider = textProviderSelect.getSelected();
+    const api = provider ? TEXT_GENERATION_API_LABELS[provider.textGeneration.api] : '';
     scriptSummary.textContent = provider
-      ? `Generate with ${provider.name} (${chatModelField.input.value || KNOWN_CHAT_MODELS[0]}).`
-      : 'Add a Chat provider configuration first.';
+      ? `Generate with ${provider.name} · ${api} · ${textModelField.input.value || KNOWN_TEXT_MODELS[0]}.`
+      : 'Add a script configuration first.';
   }
-  chatProviderSelect.element.addEventListener('change', updateScriptSummary);
-  chatModelField.input.addEventListener('input', updateScriptSummary);
+  textProviderSelect.element.addEventListener('change', updateScriptSummary);
+  textModelField.input.addEventListener('input', updateScriptSummary);
   updateScriptSummary();
 
   source.element.addEventListener('input', () => syncStepper(controller.store.get()));
@@ -537,9 +544,9 @@ export function createPodcastView({ controller, isOnline }) {
   generateScriptButton.addEventListener('click', async () => {
     clearError(scriptErrorRegion);
     requireProvider({
-      slot: 'chat',
-      getSelected: chatProviderSelect.getSelected,
-      refresh: chatProviderSelect.refresh,
+      slot: 'text',
+      getSelected: textProviderSelect.getSelected,
+      refresh: textProviderSelect.refresh,
       onReady: (provider) => controller.generateScript(source.getText(), readPrefs(), provider),
     });
   });

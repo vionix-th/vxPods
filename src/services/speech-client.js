@@ -1,4 +1,5 @@
-import { appError, httpStatusToAppError, parseRetryAfter } from './errors.js';
+import { appError } from './errors.js';
+import { sendProviderRequest } from './provider-http.js';
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
@@ -27,78 +28,14 @@ export async function createSpeech(args) {
   if (typeof args.speed === 'number' && Number.isFinite(args.speed)) {
     body.speed = args.speed;
   }
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-    throw appError({
-      kind: 'offline',
-      message: 'Browser is offline. Connect to the internet to generate.',
-      retryable: false,
-      status: undefined,
-    });
-  }
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort('timeout'), args.timeoutMs ?? DEFAULT_TIMEOUT_MS);
-  const signal = args.signal;
-  const onAbort = () => controller.abort(signal?.reason);
-  if (signal) {
-    if (signal.aborted) {
-      clearTimeout(timeout);
-      throw appError({
-        kind: 'cancelled',
-        message: 'Request cancelled.',
-        retryable: false,
-        status: undefined,
-      });
-    }
-    signal.addEventListener('abort', onAbort, { once: true });
-  }
-  let response;
-  try {
-    response = await fetch(`${provider.baseUrl}/audio/speech`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${provider.apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (controller.signal.aborted && controller.signal.reason === 'timeout') {
-      throw appError({
-        kind: 'network',
-        message: 'Speech request timed out.',
-        retryable: true,
-        status: undefined,
-        cause: err,
-      });
-    }
-    if (signal?.aborted) {
-      throw appError({
-        kind: 'cancelled',
-        message: 'Request cancelled.',
-        retryable: false,
-        status: undefined,
-        cause: err,
-      });
-    }
-    throw appError({
-      kind: 'network',
-      message:
-        'Network or CORS failure. Check the provider URL, endpoint CORS support, and connection.',
-      retryable: true,
-      status: undefined,
-      cause: err,
-    });
-  } finally {
-    clearTimeout(timeout);
-    signal?.removeEventListener('abort', onAbort);
-  }
-  if (!response.ok) {
-    const bodyText = await safeReadText(response);
-    throw httpStatusToAppError(response.status, bodyText, {
-      retryAfterSeconds: parseRetryAfter(response.headers.get('retry-after')),
-    });
-  }
+  const response = await sendProviderRequest({
+    url: `${provider.baseUrl}/audio/speech`,
+    provider,
+    body,
+    signal: args.signal,
+    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    timeoutMessage: 'Speech request timed out.',
+  });
   const contentType = response.headers.get('content-type') || 'audio/mpeg';
   let audio;
   try {
@@ -139,16 +76,4 @@ export async function testSpeechConnection(provider, model, voice, signal) {
     timeoutMs: 30_000,
     signal,
   });
-}
-
-/**
- * @param {Response} response
- * @returns {Promise<string>}
- */
-async function safeReadText(response) {
-  try {
-    return await response.text();
-  } catch {
-    return '';
-  }
 }

@@ -35,6 +35,7 @@ describe('local-settings', () => {
       name: 'OpenAI',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-x',
+      textGeneration: { api: 'chat-completions', models: ['gpt-4o-mini'] },
     });
     doc.selectedTtsProviderId = 'p1';
     doc.preferences.mode = 'podcast';
@@ -45,7 +46,7 @@ describe('local-settings', () => {
     expect(loaded.selectedTtsProviderId).toBe('p1');
     expect(loaded.preferences.mode).toBe('podcast');
     expect(loaded.promptTemplates.repairUser).toBe('Errors: {{validationErrors}}');
-    expect(loaded.providers[0].chatModels).toContain('gpt-4o-mini');
+    expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
   it('migrates v1 settings and preserves provider configuration', () => {
@@ -93,7 +94,10 @@ describe('local-settings', () => {
     );
     const loaded = loadSettings();
     expect(loaded.providers[0]).toMatchObject({
-      chatModels: expect.arrayContaining(['gpt-4o-mini']),
+      textGeneration: {
+        api: 'chat-completions',
+        models: expect.arrayContaining(['gpt-4o-mini']),
+      },
       ttsModels: expect.arrayContaining(['gpt-4o-mini-tts']),
       voicesByTtsModel: expect.any(Object),
     });
@@ -112,9 +116,33 @@ describe('local-settings', () => {
       }),
     );
     const [provider] = loadSettings().providers;
-    expect(provider.chatModels).not.toHaveLength(0);
+    expect(provider.textGeneration.models).not.toHaveLength(0);
     expect(provider.ttsModels).not.toHaveLength(0);
     expect(provider.voicesByTtsModel[provider.ttsModels[0]]).not.toHaveLength(0);
+  });
+
+  it('migrates v6 chat configuration and selection to the neutral text contract', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 6,
+        providers: [{
+          id: 'p1', name: 'Provider', baseUrl: 'https://api.example/v1', apiKey: 'key',
+          chatModels: ['custom-chat'], ttsModels: ['tts'], voicesByTtsModel: { tts: ['voice'] },
+        }],
+        selectedChatProviderId: 'p1',
+        selectedTtsProviderId: null,
+        preferences: { mode: 'podcast' },
+        promptTemplates: {},
+      }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.selectedTextProviderId).toBe('p1');
+    expect(loaded.providers[0].textGeneration).toEqual({
+      api: 'chat-completions',
+      models: ['custom-chat'],
+    });
+    expect(loaded.providers[0]).not.toHaveProperty('chatModels');
   });
 
   it('drops an invalid template override without discarding valid overrides', () => {
@@ -143,18 +171,29 @@ describe('local-settings', () => {
       JSON.stringify({
         schemaVersion: SETTINGS_SCHEMA_VERSION,
         providers: [
-          { id: 'ok', name: 'A', baseUrl: 'https://a.example/v1', apiKey: 'k' },
+          { id: 'ok', name: 'A', baseUrl: 'https://a.example/v1', apiKey: 'k', textGeneration: { api: 'chat-completions', models: ['m'] } },
           { id: 'bad', name: '', baseUrl: 'https://b.example/v1' }, // missing key, empty name
         ],
-        selectedChatProviderId: 'bad',
+        selectedTextProviderId: 'bad',
         selectedTtsProviderId: 'ok',
         preferences: { mode: 'tts' },
       }),
     );
     const loaded = loadSettings();
     expect(loaded.providers.map((p) => p.id)).toEqual(['ok']);
-    expect(loaded.selectedChatProviderId).toBeNull();
+    expect(loaded.selectedTextProviderId).toBeNull();
     expect(loaded.selectedTtsProviderId).toBe('ok');
+  });
+
+  it('drops a version 7 provider with an invalid text-generation API', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      ...defaultSettings(),
+      providers: [{
+        id: 'bad', name: 'Bad', baseUrl: 'https://api.example/v1', apiKey: 'key',
+        textGeneration: { api: 'legacy', models: ['m'] },
+      }],
+    }));
+    expect(loadSettings().providers).toEqual([]);
   });
 
   it('surfaces quota errors as storage kind', () => {

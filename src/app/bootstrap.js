@@ -15,6 +15,8 @@ import { openSettings } from '../features/providers/provider-form.js';
 import { icon } from '../components/icon.js';
 import { notify } from '../components/error-message.js';
 
+const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
+
 /**
  * @param {HTMLElement} root
  */
@@ -80,7 +82,7 @@ export async function bootstrap(root) {
 
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     try {
-      await navigator.serviceWorker.register(new URL('service-worker.js', import.meta.env.BASE_URL));
+      await navigator.serviceWorker.register(`${import.meta.env.BASE_URL}service-worker.js`);
     } catch {
       // Offline shell is an enhancement; registration failure is non-fatal.
     }
@@ -135,7 +137,7 @@ function buildShell() {
   brand.rel = 'noopener noreferrer';
   brand.setAttribute('aria-label', 'Vionix vxPods — vionix.cloud');
   const logo = document.createElement('img');
-  logo.src = '/assets/img/logo.png';
+  logo.src = LOGO_URL;
   logo.alt = '';
   logo.width = 36;
   logo.height = 36;
@@ -200,7 +202,7 @@ function buildShell() {
   const footerBrandRow = document.createElement('div');
   footerBrandRow.className = 'footer-brand-row';
   const footerLogo = document.createElement('img');
-  footerLogo.src = '/assets/img/logo.png';
+  footerLogo.src = LOGO_URL;
   footerLogo.alt = '';
   footerLogo.width = 32;
   footerLogo.height = 32;

@@ -1,5 +1,5 @@
 /**
- * Provider selector: saved configurations for one slot (chat or tts).
+ * Provider selector: saved configurations for one slot (text generation or TTS).
  * Provider management is available from the persistent app header.
  */
 
@@ -19,7 +19,7 @@ import {
 
 /**
  * @param {Object} args
- * @param {'chat'|'tts'} args.slot
+ * @param {'text'|'tts'} args.slot
  * @param {string} args.label
  * @returns {ProviderSelectHandle}
  */
@@ -52,7 +52,8 @@ export function createProviderSelect({ slot, label }) {
     for (const provider of providers) {
       const opt = document.createElement('option');
       opt.value = provider.id;
-      opt.textContent = `${provider.name} (${hostOf(provider.baseUrl)})`;
+      const api = slot === 'text' ? ` · ${apiLabel(provider.textGeneration.api)}` : '';
+      opt.textContent = `${provider.name} (${hostOf(provider.baseUrl)})${api}`;
       select.append(opt);
     }
     const target =
@@ -80,6 +81,11 @@ export function createProviderSelect({ slot, label }) {
     },
     refresh,
   };
+}
+
+/** @param {'chat-completions'|'responses'} api */
+function apiLabel(api) {
+  return api === 'responses' ? 'Responses' : 'Chat Completions';
 }
 
 /**

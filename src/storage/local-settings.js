@@ -7,17 +7,19 @@
 import { AppError } from '../services/errors.js';
 import { TEMPLATE_IDS, validatePromptTemplate } from '../features/podcast/prompt-templates.js';
 import {
-  DEFAULT_CHAT_MODELS,
   DEFAULT_TTS_MODELS,
   DEFAULT_VOICES,
+  TEXT_GENERATION_APIS,
   defaultProviderSuggestions,
+  defaultTextModels,
+  isTextGenerationApi,
   normalizeSuggestions,
   normalizeVoicesByTtsModel,
   voicesForTtsModels,
 } from '../features/providers/provider-suggestions.js';
 
 const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 6;
+export const SETTINGS_SCHEMA_VERSION = 7;
 
 /**
  * @typedef {Object} ProviderConfig
@@ -25,7 +27,7 @@ export const SETTINGS_SCHEMA_VERSION = 6;
  * @property {string} name
  * @property {string} baseUrl normalized API root ending in /v1
  * @property {string} apiKey
- * @property {string[]} chatModels locally managed chat model suggestions
+ * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration locally managed text-generation contract and model suggestions
  * @property {string[]} ttsModels locally managed TTS model suggestions
  * @property {Record<string, string[]>} voicesByTtsModel locally managed voices keyed by TTS model
  */
@@ -34,7 +36,7 @@ export const SETTINGS_SCHEMA_VERSION = 6;
  * @typedef {Object} SettingsDocument
  * @property {number} schemaVersion
  * @property {ProviderConfig[]} providers
- * @property {string | null} selectedChatProviderId
+ * @property {string | null} selectedTextProviderId
  * @property {string | null} selectedTtsProviderId
  * @property {{ mode: 'tts' | 'podcast' }} preferences
  * @property {Partial<Record<import('../features/podcast/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
@@ -47,7 +49,7 @@ export function defaultSettings() {
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     providers: [],
-    selectedChatProviderId: null,
+    selectedTextProviderId: null,
     selectedTtsProviderId: null,
     preferences: { mode: 'tts' },
     promptTemplates: {},
@@ -112,12 +114,15 @@ export function validateSettingsBackup(backup) {
   if (!Number.isInteger(version) || version < 1 || version > SETTINGS_SCHEMA_VERSION) {
     throw validationError('Settings file has an unsupported schema version.');
   }
-  if (!Array.isArray(document.providers) || document.providers.some((provider) => !isValidProviderRecord(provider))) {
+  if (!Array.isArray(document.providers) || document.providers.some((provider) => !isValidProviderIdentity(provider))) {
     throw validationError('Settings file contains an invalid provider configuration.');
   }
   while (version < SETTINGS_SCHEMA_VERSION) {
     document = MIGRATIONS[version](document);
     version += 1;
+  }
+  if (document.providers.some((provider) => !isValidProviderRecord(provider))) {
+    throw validationError('Settings file contains an invalid provider configuration.');
   }
   return validateDocument(document);
 }
@@ -198,6 +203,23 @@ const MIGRATIONS = {
         })
       : doc.providers,
   }),
+  6: (doc) => ({
+    ...doc,
+    schemaVersion: 7,
+    providers: Array.isArray(doc.providers)
+      ? doc.providers.map((provider) => {
+          const { chatModels, ...rest } = provider;
+          return {
+            ...rest,
+            textGeneration: {
+              api: TEXT_GENERATION_APIS.chatCompletions,
+              models: normalizeSuggestions(chatModels, defaultTextModels(TEXT_GENERATION_APIS.chatCompletions)),
+            },
+          };
+        })
+      : doc.providers,
+    selectedTextProviderId: doc.selectedChatProviderId ?? null,
+  }),
 };
 
 /**
@@ -227,9 +249,9 @@ function validateDocument(doc) {
     ? doc.providers.filter(isValidProviderRecord).map(normalizeProviderRecord)
     : [];
   const ids = new Set(providers.map((p) => p.id));
-  const selectedChatProviderId =
-    typeof doc.selectedChatProviderId === 'string' && ids.has(doc.selectedChatProviderId)
-      ? doc.selectedChatProviderId
+  const selectedTextProviderId =
+    typeof doc.selectedTextProviderId === 'string' && ids.has(doc.selectedTextProviderId)
+      ? doc.selectedTextProviderId
       : null;
   const selectedTtsProviderId =
     typeof doc.selectedTtsProviderId === 'string' && ids.has(doc.selectedTtsProviderId)
@@ -240,7 +262,7 @@ function validateDocument(doc) {
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     providers,
-    selectedChatProviderId,
+    selectedTextProviderId,
     selectedTtsProviderId,
     preferences: { mode },
     promptTemplates,
@@ -268,6 +290,13 @@ function validPromptTemplateOverrides(value) {
  * @returns {value is ProviderConfig}
  */
 function isValidProviderRecord(value) {
+  if (!isValidProviderIdentity(value)) return false;
+  const v = /** @type {Record<string, any>} */ (value);
+  return isTextGenerationApi(v.textGeneration?.api) && Array.isArray(v.textGeneration?.models);
+}
+
+/** @param {unknown} value */
+function isValidProviderIdentity(value) {
   if (!value || typeof value !== 'object') return false;
   const v = /** @type {Record<string, unknown>} */ (value);
   return (
@@ -284,12 +313,16 @@ function isValidProviderRecord(value) {
 
 /** @param {ProviderConfig} provider */
 function normalizeProviderRecord(provider) {
-  const chatModels = normalizeSuggestions(provider.chatModels, DEFAULT_CHAT_MODELS);
+  const api = provider.textGeneration.api;
+  const textModels = normalizeSuggestions(provider.textGeneration.models, defaultTextModels(api));
   const ttsModels = normalizeSuggestions(provider.ttsModels, DEFAULT_TTS_MODELS);
   const validTtsModels = ttsModels.length ? ttsModels : [...DEFAULT_TTS_MODELS];
   return {
     ...provider,
-    chatModels: chatModels.length ? chatModels : [...DEFAULT_CHAT_MODELS],
+    textGeneration: {
+      api,
+      models: textModels.length ? textModels : defaultTextModels(api),
+    },
     ttsModels: validTtsModels,
     voicesByTtsModel: normalizeVoicesByTtsModel(provider.voicesByTtsModel, validTtsModels),
   };

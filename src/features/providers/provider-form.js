@@ -5,7 +5,7 @@
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
 import { renderError, clearError, notify } from '../../components/error-message.js';
-import { testChatConnection } from '../../services/chat-completions-client.js';
+import { testTextGenerationConnection } from '../../services/text-generation-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
 import { downloadJson } from '../../utils/download.js';
@@ -21,13 +21,14 @@ import {
   validateSettingsBackup,
 } from './provider-store.js';
 import {
-  DEFAULT_CHAT_MODELS,
   DEFAULT_TTS_MODELS,
   DEFAULT_VOICES,
+  TEXT_GENERATION_APIS,
+  TEXT_GENERATION_API_LABELS,
+  defaultTextModels,
   normalizeSuggestions,
 } from './provider-suggestions.js';
 
-const DEFAULT_CHAT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
 const DEFAULT_VOICE = 'alloy';
 
@@ -317,7 +318,7 @@ function renderProviderRow(provider, body, options) {
   url.title = provider.baseUrl;
   const keyState = document.createElement('span');
   keyState.className = 'provider-key-state';
-  keyState.textContent = 'Key saved';
+  keyState.textContent = `Key saved · ${TEXT_GENERATION_API_LABELS[provider.textGeneration.api]}`;
   info.append(name, url, keyState);
 
   const actions = document.createElement('div');
@@ -366,7 +367,7 @@ function renderForm(body, options, existing) {
   pageTitle.textContent = existing ? 'Edit provider' : 'Add provider';
   const pageLead = document.createElement('p');
   pageLead.className = 'help-text';
-  pageLead.textContent = 'Save a configuration for direct Chat and speech requests from this browser.';
+  pageLead.textContent = 'Save a configuration for direct text generation and speech requests from this browser.';
   pageCopy.append(pageTitle, pageLead);
   pageHeader.append(pageCopy);
 
@@ -448,6 +449,26 @@ function renderForm(body, options, existing) {
   keyRow.append(keyInput, toggle);
   keyWrapper.append(keyLabel, keyRow);
 
+  const textApiField = fieldset('Text generation API');
+  const textApiName = `text-api-${Math.random().toString(36).slice(2, 8)}`;
+  let selectedTextApi = existing?.textGeneration.api ?? TEXT_GENERATION_APIS.chatCompletions;
+  /** @type {HTMLInputElement[]} */
+  const textApiRadios = [];
+  for (const api of Object.values(TEXT_GENERATION_APIS)) {
+    const label = document.createElement('label');
+    label.className = 'radio-option';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = textApiName;
+    radio.value = api;
+    radio.checked = api === selectedTextApi;
+    textApiRadios.push(radio);
+    const text = document.createElement('span');
+    text.textContent = TEXT_GENERATION_API_LABELS[api];
+    label.append(radio, text);
+    textApiField.append(label);
+  }
+
   const capabilityEditor = document.createElement('section');
   capabilityEditor.className = 'capability-editor';
   const editorTitle = document.createElement('h3');
@@ -456,12 +477,12 @@ function renderForm(body, options, existing) {
   editorLead.className = 'help-text';
   editorLead.textContent =
     'Maintain the exact identifiers accepted by this provider. Voice options belong to a specific TTS model and appear automatically in the generation workflows.';
-  const chatModelsEditor = createIdentifierListEditor({
-    title: 'Chat models',
+  const textModelsEditor = createIdentifierListEditor({
+    title: 'Text generation models',
     description: 'Used for podcast script generation.',
-    itemLabel: 'Chat model',
-    addLabel: 'Add chat model',
-    values: existing?.chatModels ?? DEFAULT_CHAT_MODELS,
+    itemLabel: 'Text generation model',
+    addLabel: 'Add text generation model',
+    values: existing?.textGeneration.models ?? defaultTextModels(selectedTextApi),
   });
   const ttsModelsEditor = createTtsModelEditor({
     models: existing?.ttsModels ?? DEFAULT_TTS_MODELS,
@@ -474,17 +495,17 @@ function renderForm(body, options, existing) {
   restoreDefaults.addEventListener('click', async () => {
     const confirmed = await confirmDialog({
       title: 'Restore all model and voice defaults',
-      message: 'This replaces every configured Chat model, TTS model, and model-specific voice list for this provider. Save the configuration to keep the restored values.',
+      message: 'This replaces every configured text generation model, TTS model, and model-specific voice list for this provider. Save the configuration to keep the restored values.',
       confirmLabel: 'Restore all defaults',
     });
     if (!confirmed) return;
-    chatModelsEditor.reset(DEFAULT_CHAT_MODELS);
+    textModelsEditor.reset(defaultTextModels(selectedTextApi));
     ttsModelsEditor.reset(DEFAULT_TTS_MODELS);
   });
   capabilityEditor.append(
     editorTitle,
     editorLead,
-    chatModelsEditor.element,
+    textModelsEditor.element,
     ttsModelsEditor.element,
     restoreDefaults,
   );
@@ -499,10 +520,10 @@ function renderForm(body, options, existing) {
   back.textContent = 'Back';
   back.addEventListener('click', options.openProviders);
 
-  const testChat = document.createElement('button');
-  testChat.type = 'button';
-  testChat.className = 'button button-secondary';
-  testChat.textContent = 'Test Chat';
+  const testText = document.createElement('button');
+  testText.type = 'button';
+  testText.className = 'button button-secondary';
+  testText.textContent = 'Test generation';
 
   const testSpeech = document.createElement('button');
   testSpeech.type = 'button';
@@ -514,13 +535,13 @@ function renderForm(body, options, existing) {
   save.className = 'button button-primary';
   save.textContent = existing ? 'Save changes' : 'Save configuration';
 
-  actions.append(back, testChat, testSpeech, save);
+  actions.append(back, testText, testSpeech, save);
 
   const status = document.createElement('p');
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, capabilityEditor, errorRegion, status, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, textApiField, capabilityEditor, errorRegion, status, actions);
   body.append(pageHeader, form);
 
   function currentPreset() {
@@ -535,13 +556,34 @@ function renderForm(body, options, existing) {
   }
   urlField.input.disabled = currentPreset() !== 'manual';
 
+  for (const radio of textApiRadios) {
+    radio.addEventListener('change', async () => {
+      if (!radio.checked || radio.value === selectedTextApi) return;
+      const nextApi = radio.value;
+      const confirmed = await confirmDialog({
+        title: 'Change text generation API',
+        message: `Changing to ${TEXT_GENERATION_API_LABELS[nextApi]} replaces the configured text generation model list with its standard defaults.`,
+        confirmLabel: 'Change API',
+      });
+      if (!confirmed) {
+        for (const option of textApiRadios) option.checked = option.value === selectedTextApi;
+        return;
+      }
+      selectedTextApi = nextApi;
+      textModelsEditor.reset(defaultTextModels(selectedTextApi));
+    });
+  }
+
   function readForm() {
     const { ttsModels, voicesByTtsModel } = ttsModelsEditor.values();
     return {
       name: nameField.input.value,
       baseUrl: urlField.input.value,
       apiKey: keyInput.value,
-      chatModels: chatModelsEditor.values(),
+      textGeneration: {
+        api: selectedTextApi,
+        models: textModelsEditor.values(),
+      },
       ttsModels,
       voicesByTtsModel,
     };
@@ -549,15 +591,17 @@ function renderForm(body, options, existing) {
 
   async function runTest(kind) {
     clearError(errorRegion);
-    status.textContent = `Testing ${kind === 'chat' ? 'Chat' : 'Speech'}…`;
+    const capability = kind === 'text' ? TEXT_GENERATION_API_LABELS[selectedTextApi] : 'Speech';
+    status.textContent = `Testing ${capability}…`;
     const values = readForm();
     const provider = {
       baseUrl: values.baseUrl.trim(),
       apiKey: values.apiKey.trim() || existing?.apiKey || '',
     };
     try {
-      if (kind === 'chat') {
-        await testChatConnection(provider, values.chatModels[0] || DEFAULT_CHAT_MODEL);
+      if (kind === 'text') {
+        provider.textGeneration = values.textGeneration;
+        await testTextGenerationConnection(provider, values.textGeneration.models[0]);
       } else {
         await testSpeechConnection(
           provider,
@@ -565,11 +609,11 @@ function renderForm(body, options, existing) {
           values.voicesByTtsModel[values.ttsModels[0]]?.[0] || DEFAULT_VOICE,
         );
       }
-      status.textContent = `${kind === 'chat' ? 'Chat' : 'Speech'} endpoint reachable.`;
+      status.textContent = `${capability} endpoint reachable.`;
       notify({
         type: 'success',
         title: 'Connection verified',
-        message: `${kind === 'chat' ? 'Chat' : 'Speech'} endpoint is reachable.`,
+        message: `${capability} endpoint is reachable.`,
       });
     } catch (err) {
       status.textContent = '';
@@ -577,7 +621,7 @@ function renderForm(body, options, existing) {
     }
   }
 
-  testChat.addEventListener('click', () => runTest('chat'));
+  testText.addEventListener('click', () => runTest('text'));
   testSpeech.addEventListener('click', () => runTest('speech'));
 
   form.addEventListener('submit', (event) => {

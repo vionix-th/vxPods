@@ -7,7 +7,7 @@
 import { createStore, assertTransition } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { withRetry, throwIfAborted } from '../../services/retry.js';
-import { createChatCompletion } from '../../services/chat-completions-client.js';
+import { generateText } from '../../services/text-generation-client.js';
 import { createSpeech } from '../../services/speech-client.js';
 import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
 import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
@@ -42,14 +42,14 @@ const SAMPLE_RATE = 44100;
 
 /**
  * @param {Object} [deps]
- * @param {typeof createChatCompletion} [deps.chat]
+ * @param {typeof generateText} [deps.textGeneration]
  * @param {typeof createSpeech} [deps.speech]
  * @param {typeof decodeToPcm} [deps.decode]
  * @param {typeof jobStore} [deps.jobs]
  * @param {number} [deps.maxChunkChars]
  */
 export function createPodcastController(deps = {}) {
-  const chat = deps.chat || createChatCompletion;
+  const textGeneration = deps.textGeneration || generateText;
   const speech = deps.speech || createSpeech;
   const decode = deps.decode || decodeToPcm;
   const jobs = deps.jobs || jobStore;
@@ -78,7 +78,7 @@ export function createPodcastController(deps = {}) {
   /** @type {string} */
   let lastSource = '';
   /** @type {{ baseUrl: string, apiKey: string } | null} */
-  let lastChatProvider = null;
+  let lastTextProvider = null;
   /** @type {string} */
   let lastRawOutput = '';
 
@@ -86,9 +86,9 @@ export function createPodcastController(deps = {}) {
    * Generate a script from source + preferences.
    * @param {string} source
    * @param {import('./podcast-script.js').PodcastPreferences} prefs
-   * @param {{ baseUrl: string, apiKey: string }} chatProvider
+   * @param {{ baseUrl: string, apiKey: string, textGeneration: { api: 'chat-completions'|'responses', models: string[] } }} textProvider
    */
-  async function generateScript(source, prefs, chatProvider) {
+  async function generateScript(source, prefs, textProvider) {
     const trimmed = String(source ?? '').trim();
     if (!trimmed) {
       throw new AppError({
@@ -108,11 +108,11 @@ export function createPodcastController(deps = {}) {
     });
     lastPrefs = prefs;
     lastSource = trimmed;
-    lastChatProvider = chatProvider;
+    lastTextProvider = textProvider;
     try {
-      const { content } = await chat({
-        provider: chatProvider,
-        model: prefs.chatModel,
+      const { content } = await textGeneration({
+        provider: textProvider,
+        model: prefs.textModel,
         messages: buildScriptPrompt(trimmed, prefs),
         jsonMode: true,
       });
@@ -138,12 +138,12 @@ export function createPodcastController(deps = {}) {
    * The one allowed model repair attempt with validation errors + prior output.
    */
   async function repairScript() {
-    if (!store.get().repairAvailable || !lastPrefs || !lastChatProvider) return;
+    if (!store.get().repairAvailable || !lastPrefs || !lastTextProvider) return;
     store.set({ status: 'generating', error: null, repairAvailable: false });
     try {
-      const { content } = await chat({
-        provider: lastChatProvider,
-        model: lastPrefs.chatModel,
+      const { content } = await textGeneration({
+        provider: lastTextProvider,
+        model: lastPrefs.textModel,
         messages: buildRepairMessages(lastRawOutput, store.get().validationErrors),
         jsonMode: true,
       });

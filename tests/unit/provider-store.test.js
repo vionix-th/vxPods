@@ -64,7 +64,8 @@ describe('validateProviderInput', () => {
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-test',
     });
-    expect(out.chatModels).toContain('gpt-4o-mini');
+    expect(out.textGeneration).toMatchObject({ api: 'chat-completions' });
+    expect(out.textGeneration.models).toContain('gpt-4o-mini');
     expect(out.ttsModels).toContain('gpt-4o-mini-tts');
     expect(out.voicesByTtsModel['gpt-4o-mini-tts']).toContain('alloy');
   });
@@ -87,11 +88,22 @@ describe('validateProviderInput', () => {
         name: 'x',
         baseUrl: 'https://api.openai.com/v1',
         apiKey: 'k',
-        chatModels: [],
+        textGeneration: { api: 'responses', models: [] },
         ttsModels: ['tts'],
         voicesByTtsModel: { tts: ['voice'] },
       }),
-    ).toThrowError(/Chat model/);
+    ).toThrowError(/Text generation model/);
+  });
+
+  it('accepts Responses models and rejects unknown text-generation APIs', () => {
+    expect(validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      textGeneration: { api: 'responses', models: [' gpt-5.6-luna ', 'gpt-5.6-luna'] },
+    }).textGeneration).toEqual({ api: 'responses', models: ['gpt-5.6-luna'] });
+    expect(() => validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      textGeneration: { api: 'legacy', models: ['m'] },
+    })).toThrowError(/supported text generation API/);
   });
 });
 
@@ -116,11 +128,11 @@ describe('provider CRUD', () => {
   it('exports every local setting and restores as a full replacement', () => {
     const original = addProvider({
       ...input,
-      chatModels: ['custom-chat'],
+      textGeneration: { api: 'responses', models: ['custom-response'] },
       ttsModels: ['custom-tts'],
       voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
     });
-    selectProvider('chat', original.id);
+    selectProvider('text', original.id);
     const backup = exportSettingsBackup();
     backup.promptTemplates = {
       scriptUser:
@@ -133,11 +145,11 @@ describe('provider CRUD', () => {
     expect(listProviders()).toHaveLength(1);
     expect(listProviders()[0].apiKey).toBe('sk-1');
     expect(listProviders()[0]).toMatchObject({
-      chatModels: ['custom-chat'],
+      textGeneration: { api: 'responses', models: ['custom-response'] },
       ttsModels: ['custom-tts'],
       voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
     });
-    expect(getSelectedProviderId('chat')).toBe(original.id);
+    expect(getSelectedProviderId('text')).toBe(original.id);
     expect(exportSettingsBackup().promptTemplates.scriptUser).toBe(
       'Write {{formatDescription}} for {{audience}} in a {{tone}} tone. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     );
@@ -146,6 +158,9 @@ describe('provider CRUD', () => {
   it('rejects invalid backups without replacing current settings', () => {
     addProvider(input);
     expect(() => restoreSettingsBackup('{not json')).toThrowError(/valid JSON/);
+    const invalidApi = exportSettingsBackup();
+    invalidApi.providers[0].textGeneration.api = 'legacy';
+    expect(() => restoreSettingsBackup(invalidApi)).toThrowError(/invalid provider configuration/);
     expect(listProviders()).toHaveLength(1);
   });
 
@@ -159,12 +174,12 @@ describe('provider CRUD', () => {
   it('stores normalized, provider-specific model and voice suggestions', () => {
     const record = addProvider({
       ...input,
-      chatModels: [' custom-chat ', 'custom-chat', ''],
+      textGeneration: { api: 'responses', models: [' custom-response ', 'custom-response', ''] },
       ttsModels: ['custom-tts'],
       voicesByTtsModel: { 'custom-tts': [' voice-a ', 'voice-a'] },
     });
     expect(record).toMatchObject({
-      chatModels: ['custom-chat'],
+      textGeneration: { api: 'responses', models: ['custom-response'] },
       ttsModels: ['custom-tts'],
       voicesByTtsModel: { 'custom-tts': ['voice-a'] },
     });
@@ -172,11 +187,11 @@ describe('provider CRUD', () => {
 
   it('delete clears selections referencing it', () => {
     const record = addProvider(input);
-    selectProvider('chat', record.id);
+    selectProvider('text', record.id);
     selectProvider('tts', record.id);
     deleteProvider(record.id);
     expect(listProviders()).toHaveLength(0);
-    expect(getSelectedProviderId('chat')).toBeNull();
+    expect(getSelectedProviderId('text')).toBeNull();
     expect(getSelectedProviderId('tts')).toBeNull();
   });
 
@@ -184,10 +199,10 @@ describe('provider CRUD', () => {
     const record = addProvider(input);
     selectProvider('tts', record.id);
     expect(getSelectedProviderId('tts')).toBe(record.id);
-    expect(getSelectedProviderId('chat')).toBeNull();
+    expect(getSelectedProviderId('text')).toBeNull();
   });
 
   it('rejects selection of unknown provider', () => {
-    expect(() => selectProvider('chat', 'nope')).toThrowError(/not found/);
+    expect(() => selectProvider('text', 'nope')).toThrowError(/not found/);
   });
 });

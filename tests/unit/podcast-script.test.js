@@ -21,7 +21,7 @@ const prefs = {
     { name: 'Host', role: 'Guides', voice: 'alloy' },
     { name: 'Guest', role: 'Explains', voice: 'verse' },
   ],
-  chatModel: 'gpt-4o-mini',
+  textModel: 'gpt-4o-mini',
   ttsModel: 'tts-1',
 };
 

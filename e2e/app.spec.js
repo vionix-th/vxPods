@@ -51,7 +51,7 @@ const SCRIPT = {
 
 /** Route all provider traffic to mocks. Returns call counters. */
 async function mockProviders(page, { failSpeechAtCall } = {}) {
-  const counters = { chat: 0, speech: 0 };
+  const counters = { chat: 0, responses: 0, speech: 0 };
   await page.route('**/v1/chat/completions', async (route) => {
     counters.chat += 1;
     await route.fulfill({
@@ -60,6 +60,18 @@ async function mockProviders(page, { failSpeechAtCall } = {}) {
       body: JSON.stringify({
         choices: [{ message: { content: JSON.stringify(SCRIPT) } }],
         model: 'mock-chat',
+      }),
+    });
+  });
+  await page.route('**/v1/responses', async (route) => {
+    counters.responses += 1;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        status: 'completed',
+        output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(SCRIPT) }] }],
+        model: 'mock-response',
       }),
     });
   });
@@ -79,13 +91,20 @@ async function mockProviders(page, { failSpeechAtCall } = {}) {
 }
 
 /** Add a provider configuration through the dialog. */
-async function addProvider(page, name = 'Mock') {
+async function addProvider(page, name = 'Mock', api = 'chat-completions') {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Add configuration' }).click();
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill(name);
   await dialog.getByLabel(/Base URL/).fill('https://mock.provider/v1');
   await dialog.getByLabel(/API key/).fill('sk-synthetic');
+  if (api === 'responses') {
+    await dialog.getByLabel('Responses').check();
+    await page
+      .getByRole('dialog', { name: 'Change text generation API' })
+      .getByRole('button', { name: 'Change API' })
+      .click();
+  }
   await dialog.getByRole('button', { name: 'Save configuration' }).click();
   await expect(dialog.getByText(name, { exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Close dialog' }).click();
@@ -112,12 +131,12 @@ test('provider setup persists across reload', async ({ page }) => {
 test('provider-managed model and voice suggestions populate TTS fields', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Add configuration' }).click();
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill('Custom provider');
   await dialog.getByLabel(/Base URL/).fill('https://custom.provider/v1');
   await dialog.getByLabel(/API key/).fill('sk-synthetic');
   await dialog.getByRole('button', { name: 'gpt-4o-mini', exact: true }).click();
-  await dialog.getByLabel('Chat model identifier').fill('custom-chat');
+  await dialog.getByLabel('Text generation model identifier').fill('custom-chat');
   await dialog.getByRole('button', { name: 'gpt-4o-mini-tts', exact: true }).click();
   await dialog.getByLabel('TTS model identifier').fill('custom-tts-a');
   await dialog.getByLabel('Add voice').fill('voice-a');
@@ -152,7 +171,7 @@ test('prompt templates use dedicated pages and validate edits', async ({ page })
   await expect(dialog.getByRole('tab', { name: 'Repair brief' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Preview rendered prompt' }).click();
   await expect(dialog.getByRole('heading', { name: 'Rendered generation request' })).toBeVisible();
-  await expect(dialog.getByText('Approximate duration: 5 minutes.')).toBeVisible();
+  await expect(dialog.getByText(/Tone: conversational\. Audience: general\./)).toBeVisible();
   await dialog.getByRole('button', { name: 'Edit templates' }).last().click();
   const scriptUser = dialog.getByLabel('Script user instructions');
   await expect(scriptUser).toHaveAttribute('readonly', '');
@@ -202,6 +221,24 @@ test('podcast: generate script, render, export JSON and WAV', async ({ page }) =
   expect((await wavDownload).suggestedFilename()).toMatch(/\.wav$/);
 });
 
+test('podcast: Responses configuration selects API-specific models and generates script', async ({ page }) => {
+  const counters = await mockProviders(page);
+  await addProvider(page, 'Responses provider', 'responses');
+  await page.reload();
+  await page.getByRole('button', { name: 'Podcast' }).click();
+  const panel = page.locator('#panel-podcast');
+  await expect(panel.getByLabel('Script configuration')).toContainText('Responses');
+  await expect(panel.getByLabel('Script model').locator('option')).toHaveText([
+    'gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6',
+  ]);
+  await expect(panel.getByText(/Responses provider · Responses · gpt-5.6-luna/)).toBeVisible();
+  await panel.getByLabel(/Text to speak/).fill('Source material for Responses.');
+  await panel.getByRole('button', { name: 'Generate script' }).click();
+  await expect(panel.getByText('E2E Show')).toBeVisible();
+  expect(counters.responses).toBe(1);
+  expect(counters.chat).toBe(0);
+});
+
 test('reload during partial render offers resume and resumes', async ({ page }) => {
   const counters = await mockProviders(page, { failSpeechAtCall: 2 });
   await addProvider(page);
@@ -211,7 +248,7 @@ test('reload during partial render offers resume and resumes', async ({ page }) 
   await panel.getByRole('button', { name: 'Generate script' }).click();
   await panel.getByRole('button', { name: 'Render audio' }).click();
   // segment 2 fails -> render failed with segment 1 completed
-  await expect(panel.getByText(/failed/i).first()).toBeVisible();
+  await expect(panel.getByText('Turn 2 failed.')).toBeVisible();
 
   await page.reload();
   await page.getByRole('button', { name: 'Podcast' }).click();
@@ -240,9 +277,8 @@ test('offline shell disables generation with explanation', async ({ page, contex
   // service worker active and controlling the page (production build)
   await page.waitForFunction(() => Boolean(navigator.serviceWorker?.controller));
 
-  // Live offline transition: badge, explanation, disabled generation.
+  // Live offline transition: explanation and disabled generation.
   await context.setOffline(true);
-  await expect(page.locator('#online-status')).toHaveText('Offline');
   await expect(page.getByText('Generation is disabled while offline.')).toBeVisible();
   await expect(page.locator('#panel-tts').getByRole('button', { name: 'Generate speech' })).toBeDisabled();
 
@@ -303,13 +339,13 @@ test('podcast: structured editor and raw JSON view', async ({ page }) => {
   parsed.title = 'Retitled Show';
   await jsonArea.fill(JSON.stringify(parsed, null, 2));
   await panel.getByRole('button', { name: 'Apply JSON' }).click();
-  await expect(panel.getByText(/Retitled Show/)).toBeVisible();
+  await expect(panel.getByText('Retitled Show — Host, Guest · 2 turns')).toBeVisible();
 
   // Invalid JSON is rejected with an error and keeps the current script.
   await panel.getByRole('button', { name: 'Edit JSON' }).click();
   await jsonArea.fill('{ not json');
   await panel.getByRole('button', { name: 'Apply JSON' }).click();
-  await expect(panel.getByText('Not valid JSON. Check syntax and retry.')).toBeVisible();
+  await expect(page.getByText('Not valid JSON. Check syntax and retry.')).toBeVisible();
   await panel.getByRole('button', { name: 'Discard changes' }).click();
   await expect(panel.locator('.script-json')).toContainText('Retitled Show');
 });
