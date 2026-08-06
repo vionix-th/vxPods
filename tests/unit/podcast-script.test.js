@@ -8,9 +8,15 @@ import {
   estimateDurationSeconds,
   exportableScript,
 } from '../../src/features/podcast/podcast-script.js';
+import {
+  DEFAULT_PROMPT_TEMPLATES,
+  resolvePromptTemplates,
+  validatePromptTemplate,
+} from '../../src/features/podcast/prompt-templates.js';
 
 const prefs = {
   format: 'conversation',
+  targetMinutes: 5,
   tone: 'conversational',
   audience: 'general',
   speakers: [
@@ -48,7 +54,15 @@ describe('buildScriptPrompt', () => {
     expect(messages[1].content).toContain('SOURCE>>>');
     expect(messages[1].content).toContain('speaker-1');
     expect(messages[1].content).toContain('alloy');
-    expect(messages[1].content).not.toContain('Approximate duration');
+    expect(messages[1].content).toContain('Approximate duration: 5 minutes.');
+  });
+
+  it('uses a valid local template override without persisting source text', () => {
+    const messages = buildScriptPrompt('SOURCE TEXT HERE', prefs, {
+      scriptUser: 'Custom {{formatDescription}} {{durationMinutes}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+    });
+    expect(messages[1].content).toContain('Custom');
+    expect(messages[1].content).toContain('SOURCE TEXT HERE');
   });
 });
 
@@ -57,6 +71,27 @@ describe('buildRepairMessages', () => {
     const messages = buildRepairMessages('{"bad":true}', ['title missing']);
     expect(messages.some((m) => m.content.includes('{"bad":true}'))).toBe(true);
     expect(messages.some((m) => m.content.includes('title missing'))).toBe(true);
+  });
+
+  it('uses a valid repair override', () => {
+    const messages = buildRepairMessages('{"bad":true}', ['title missing'], {
+      repairUser: 'Fix these: {{validationErrors}}',
+    });
+    expect(messages[2].content).toBe('Fix these: - title missing');
+  });
+});
+
+describe('prompt templates', () => {
+  it('falls back to bundled default for invalid local overrides', () => {
+    expect(resolvePromptTemplates({ scriptUser: 'missing placeholders' }).scriptUser).toBe(
+      DEFAULT_PROMPT_TEMPLATES.scriptUser,
+    );
+  });
+
+  it('identifies required placeholders', () => {
+    const result = validatePromptTemplate('repairUser', 'No errors here');
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.errors.join(' ')).toContain('{{validationErrors}}');
   });
 });
 

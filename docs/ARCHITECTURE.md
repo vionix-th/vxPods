@@ -35,7 +35,7 @@ User
   |
   v
 Static vxPods application
-  |-- localStorage: provider configurations + preferences
+  |-- localStorage: provider configurations + preferences + prompt-template overrides
   |-- IndexedDB: one recoverable render job + audio segments
   |-- Cache Storage: versioned application shell
   |
@@ -336,15 +336,18 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   providers: ProviderConfig[],
   selectedChatProviderId: string | null,
   selectedTtsProviderId: string | null,
-  preferences: { mode: 'tts' | 'podcast' }
+  preferences: { mode: 'tts' | 'podcast' },
+  promptTemplates: { /* valid per-template local overrides only */ }
 }
 ```
 
 Read through validation. Corrupt records fall back safely. Key or semantic changes use sequential tested migrations.
+Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB
 
@@ -390,7 +393,7 @@ Provider API keys use plaintext `localStorage`. Controls:
 - User/model strings enter DOM through text nodes or safe form values.
 - File imports decode `.txt` and `.md` as data.
 - Export filenames pass sanitization.
-- Settings exposes clear-local-data control.
+- Settings exposes provider management, prompt-template editing, and clear-local-data control.
 
 ## 14. Accessibility architecture
 

@@ -117,6 +117,7 @@ Users can configure:
 - Voice assignment for each speaker.
 - Chat Completions model.
 - TTS model.
+- Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
 Defaults:
 
@@ -127,6 +128,7 @@ Defaults:
 - One TTS request at a time.
 
 Source-grounded generation is mandatory in R1. Factual claims must remain traceable to supplied source. Natural transitions, introductions, and summaries may connect or restate source material.
+Users may override prompt wording after an explicit warning; generated scripts still require normal JSON/schema validation.
 
 ### FR-5 Podcast script generation
 

@@ -38,11 +38,40 @@ describe('local-settings', () => {
     });
     doc.selectedTtsProviderId = 'p1';
     doc.preferences.mode = 'podcast';
+    doc.promptTemplates.repairUser = 'Errors: {{validationErrors}}';
     saveSettings(doc);
     const loaded = loadSettings();
     expect(loaded.providers).toHaveLength(1);
     expect(loaded.selectedTtsProviderId).toBe('p1');
     expect(loaded.preferences.mode).toBe('podcast');
+    expect(loaded.promptTemplates.repairUser).toBe('Errors: {{validationErrors}}');
+  });
+
+  it('migrates v1 settings and preserves provider configuration', () => {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        providers: [{ id: 'p1', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' }],
+        selectedChatProviderId: 'p1',
+        selectedTtsProviderId: null,
+        preferences: { mode: 'podcast' },
+      }),
+    );
+    const loaded = loadSettings();
+    expect(loaded.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
+    expect(loaded.providers).toHaveLength(1);
+    expect(loaded.promptTemplates).toEqual({});
+  });
+
+  it('drops an invalid template override without discarding valid overrides', () => {
+    const doc = defaultSettings();
+    doc.promptTemplates = {
+      scriptUser: 'invalid',
+      repairUser: 'Errors: {{validationErrors}}',
+    };
+    saveSettings(doc);
+    expect(loadSettings().promptTemplates).toEqual({ repairUser: 'Errors: {{validationErrors}}' });
   });
 
   it('falls back safely on corrupt JSON', () => {

@@ -8,6 +8,7 @@ import { renderError, clearError, notify } from '../../components/error-message.
 import { testChatConnection } from '../../services/chat-completions-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
+import { renderPromptTemplateSettings } from '../podcast/prompt-template-form.js';
 import {
   PROVIDER_PRESETS,
   addProvider,
@@ -28,16 +29,37 @@ const DEFAULT_VOICE = 'alloy';
  * @param {boolean} [options.closeOnSave] close dialog after a successful save
  * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void} [options.onSaved]
  */
-export function openProviderSettings(options = {}) {
+export function openSettings(options = {}) {
   const handle = openDialog({
-    title: 'Provider settings',
-    className: 'provider-dialog',
+    title: 'Settings',
+    className: 'settings-dialog',
     render(body) {
-      if (options.startCreate) renderForm(body, options, null);
-      else renderManager(body, options);
+      if (options.startCreate) renderForm(body, withTemplateNavigation(body, options), null);
+      else renderManager(body, withTemplateNavigation(body, options));
     },
   });
   return handle;
+}
+
+/** Backward-compatible provider-focused entry point. */
+export function openProviderSettings(options = {}) {
+  return openSettings(options);
+}
+
+/**
+ * @param {HTMLElement} body
+ * @param {Object} options
+ */
+function withTemplateNavigation(body, options) {
+  return {
+    ...options,
+    openPromptTemplates: () =>
+      renderPromptTemplateSettings(body, {
+        onBack: () => renderManager(body, withTemplateNavigation(body, options)),
+        onChange: options.onChange,
+        getPromptPreview: options.getPromptPreview,
+      }),
+  };
 }
 
 /**
@@ -72,7 +94,13 @@ function renderManager(body, options) {
   addButton.textContent = 'Add configuration';
   addButton.addEventListener('click', () => renderForm(body, options, null));
 
-  body.append(explainer, list, addButton);
+  const templatesButton = document.createElement('button');
+  templatesButton.type = 'button';
+  templatesButton.className = 'button button-secondary';
+  templatesButton.textContent = 'Prompt templates';
+  templatesButton.addEventListener('click', () => options.openPromptTemplates?.());
+
+  body.append(explainer, list, addButton, templatesButton);
 }
 
 /**

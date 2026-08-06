@@ -3,6 +3,9 @@
  * schema validation, and normalization. Pure functions; no I/O.
  */
 
+import { renderPromptTemplate, resolvePromptTemplates } from './prompt-templates.js';
+import { loadSettings } from '../../storage/local-settings.js';
+
 export const SCRIPT_SCHEMA_VERSION = 1;
 export const SUPPORTED_LANGUAGES = ['en'];
 export const MAX_PAUSE_MS = 5000;
@@ -10,6 +13,7 @@ export const MAX_PAUSE_MS = 5000;
 /**
  * @typedef {Object} PodcastPreferences
  * @property {'solo'|'conversation'} format
+ * @property {number} [targetMinutes] approximate duration
  * @property {string} tone
  * @property {string} audience
  * @property {{ name: string, role: string, voice: string }[]} speakers 1 or 2
@@ -36,7 +40,22 @@ export const MAX_PAUSE_MS = 5000;
  * @param {PodcastPreferences} prefs
  * @returns {{ role: 'system'|'user', content: string }[]}
  */
-export function buildScriptPrompt(source, prefs) {
+export function buildScriptPrompt(source, prefs, templateOverrides = loadSettings().promptTemplates) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  const values = buildScriptPromptValues(source, prefs);
+  return [
+    { role: 'system', content: renderPromptTemplate(templates.scriptSystem, values) },
+    { role: 'user', content: renderPromptTemplate(templates.scriptUser, values) },
+  ];
+}
+
+/**
+ * Build runtime values for script prompt rendering and preview. Values remain
+ * request-scoped; callers must not persist source text.
+ * @param {string} source
+ * @param {PodcastPreferences} prefs
+ */
+export function buildScriptPromptValues(source, prefs) {
   const speakerList = prefs.speakers
     .map((s, i) => `speaker ${i + 1}: name "${s.name}", role "${s.role}"`)
     .join('; ');
@@ -44,37 +63,17 @@ export function buildScriptPrompt(source, prefs) {
     prefs.format === 'solo'
       ? 'a solo narration by the single speaker'
       : 'a natural two-speaker conversation between the two speakers';
-  const system = [
-    'You write podcast scripts as strict JSON only.',
-    'Output exactly one JSON object with this shape and no other text:',
-    '{"schemaVersion":1,"title":string,"language":"en","format":"' +
-      prefs.format +
-      '","sourceGrounded":true,' +
-      '"speakers":[{"id":string,"name":string,"role":string,"voice":string}],' +
-      '"segments":[{"id":string,"speakerId":string,"text":string,"pauseAfterMs":number}]}',
-    'Rules:',
-    '- Every factual claim must come from the supplied source. Do not invent facts.',
-    '- Introductions, transitions, and summaries may restate source material.',
-    '- Write natural, speech-ready plain text. No markdown, no stage directions.',
-    '- pauseAfterMs is an integer from 0 to 5000.',
-    '- Use the exact speaker ids and voices given by the user.',
-  ].join('\n');
-  const user = [
-    `Write ${formatText}.`,
-    `Tone: ${prefs.tone}. Audience: ${prefs.audience}.`,
-    `Speakers (use these exactly): ${speakerList}.`,
-    `Speaker ids: ${prefs.speakers.map((_, i) => `speaker-${i + 1}`).join(', ')}.`,
-    `Voices: ${prefs.speakers.map((s, i) => `speaker-${i + 1} uses voice "${s.voice}"`).join('; ')}.`,
-    '',
-    'SOURCE TEXT (between the markers):',
-    '<<<SOURCE',
+  return {
+    format: prefs.format,
+    formatDescription: formatText,
+    durationMinutes: prefs.targetMinutes ?? 5,
+    tone: prefs.tone,
+    audience: prefs.audience,
+    speakers: speakerList,
+    speakerIds: prefs.speakers.map((_, i) => `speaker-${i + 1}`).join(', '),
+    voices: prefs.speakers.map((s, i) => `speaker-${i + 1} uses voice "${s.voice}"`).join('; '),
     source,
-    'SOURCE>>>',
-  ].join('\n');
-  return [
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ];
+  };
 }
 
 /**
@@ -83,17 +82,19 @@ export function buildScriptPrompt(source, prefs) {
  * @param {string[]} errors
  * @returns {{ role: 'system'|'user'|'assistant', content: string }[]}
  */
-export function buildRepairMessages(priorOutput, errors) {
+export function buildRepairMessages(priorOutput, errors, templateOverrides = loadSettings().promptTemplates) {
+  const templates = resolvePromptTemplates(templateOverrides);
   return [
     {
       role: 'system',
-      content:
-        'Fix the JSON podcast script so it passes validation. Output the corrected JSON object only, no other text.',
+      content: renderPromptTemplate(templates.repairSystem, {}),
     },
     { role: 'assistant', content: priorOutput },
     {
       role: 'user',
-      content: `Validation errors:\n${errors.map((e) => `- ${e}`).join('\n')}\nReturn the corrected JSON only.`,
+      content: renderPromptTemplate(templates.repairUser, {
+        validationErrors: errors.map((e) => `- ${e}`).join('\n'),
+      }),
     },
   ];
 }

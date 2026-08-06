@@ -5,9 +5,10 @@
  */
 
 import { AppError } from '../services/errors.js';
+import { TEMPLATE_IDS, validatePromptTemplate } from '../features/podcast/prompt-templates.js';
 
 const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 1;
+export const SETTINGS_SCHEMA_VERSION = 2;
 
 /**
  * @typedef {Object} ProviderConfig
@@ -24,6 +25,7 @@ export const SETTINGS_SCHEMA_VERSION = 1;
  * @property {string | null} selectedChatProviderId
  * @property {string | null} selectedTtsProviderId
  * @property {{ mode: 'tts' | 'podcast' }} preferences
+ * @property {Partial<Record<import('../features/podcast/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
  */
 
 /**
@@ -36,6 +38,7 @@ export function defaultSettings() {
     selectedChatProviderId: null,
     selectedTtsProviderId: null,
     preferences: { mode: 'tts' },
+    promptTemplates: {},
   };
 }
 
@@ -111,7 +114,7 @@ function migrateAndValidate(raw) {
  * @type {Record<number, (doc: Record<string, unknown>) => Record<string, unknown>>}
  */
 const MIGRATIONS = {
-  // 1 -> 2 reserved for the first future schema change.
+  1: (doc) => ({ ...doc, schemaVersion: 2, promptTemplates: {} }),
 };
 
 /**
@@ -134,13 +137,31 @@ function validateDocument(doc) {
       ? doc.selectedTtsProviderId
       : null;
   const mode = doc.preferences?.mode === 'podcast' ? 'podcast' : 'tts';
+  const promptTemplates = validPromptTemplateOverrides(doc.promptTemplates);
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     providers,
     selectedChatProviderId,
     selectedTtsProviderId,
     preferences: { mode },
+    promptTemplates,
   };
+}
+
+/**
+ * Invalid overrides are dropped independently so a corrupt edited template
+ * cannot discard valid provider configuration or other prompt overrides.
+ * @param {unknown} value
+ */
+function validPromptTemplateOverrides(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const input = /** @type {Record<string, unknown>} */ (value);
+  /** @type {SettingsDocument['promptTemplates']} */
+  const overrides = {};
+  for (const id of TEMPLATE_IDS) {
+    if (validatePromptTemplate(id, input[id]).valid) overrides[id] = /** @type {string} */ (input[id]);
+  }
+  return overrides;
 }
 
 /**

@@ -11,7 +11,7 @@ import { createTtsView } from '../features/tts/tts-view.js';
 import { createPodcastController } from '../features/podcast/podcast-controller.js';
 import { createPodcastView } from '../features/podcast/podcast-view.js';
 import { createModeSwitch } from './routes.js';
-import { openProviderSettings } from '../features/providers/provider-form.js';
+import { openSettings } from '../features/providers/provider-form.js';
 import { confirmDialog } from '../components/dialog.js';
 import { icon } from '../components/icon.js';
 import { notify } from '../components/error-message.js';
@@ -39,11 +39,13 @@ export async function bootstrap(root) {
     notify({ type: 'warning', title: 'Offline', message: 'Generation is unavailable until connection returns.' }),
   );
 
-  // Provider settings button
+  // Application settings button
   const settingsButton = /** @type {HTMLButtonElement} */ (
-    root.querySelector('#provider-settings-button')
+    root.querySelector('#settings-button')
   );
-  settingsButton.addEventListener('click', () => openProviderSettings());
+  settingsButton.addEventListener('click', () =>
+    openSettings({ getPromptPreview: podcastView.getPromptPreview }),
+  );
 
   // Clear local data
   const clearButton = /** @type {HTMLButtonElement} */ (root.querySelector('#clear-data-button'));
@@ -157,10 +159,10 @@ function buildShell() {
   const headerActions = document.createElement('div');
   headerActions.className = 'header-actions';
   const settingsButton = document.createElement('button');
-  settingsButton.id = 'provider-settings-button';
+  settingsButton.id = 'settings-button';
   settingsButton.type = 'button';
   settingsButton.className = 'button button-secondary button-small';
-  settingsButton.textContent = 'Provider settings';
+  settingsButton.textContent = 'Settings';
   headerActions.append(settingsButton);
   branding.append(brand, headerActions);
   header.append(topbar, branding);
@@ -220,7 +222,7 @@ function buildShell() {
   footerBrandRow.append(footerLogo, sitename);
   const localData = document.createElement('p');
   localData.textContent =
-    'Provider settings and unfinished work stay in this browser. Generation requests go directly to the provider you select.';
+    'Settings and unfinished work stay in this browser. Generation requests go directly to the provider you select.';
   const clearButton = document.createElement('button');
   clearButton.id = 'clear-data-button';
   clearButton.type = 'button';

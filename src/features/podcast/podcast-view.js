@@ -103,6 +103,7 @@ export function createPodcastView({ controller, isOnline }) {
     options: ['conversation', 'solo'],
     value: 'conversation',
   });
+  const durationField = textField({ label: 'Approximate duration (minutes)', value: '5' });
   const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
   const chatProviderSelect = createProviderSelect({ slot: 'chat', label: 'Chat provider' });
@@ -140,6 +141,7 @@ export function createPodcastView({ controller, isOnline }) {
 
   prefsCard.append(
     formatField.wrapper,
+    durationField.wrapper,
     toneField.wrapper,
     audienceField.wrapper,
     chatProviderSelect.element,
@@ -427,8 +429,10 @@ export function createPodcastView({ controller, isOnline }) {
   // ---------- Preferences behavior
 
   function readPrefs() {
+    const minutes = Number(durationField.input.value);
     return {
       format: /** @type {'solo'|'conversation'} */ (formatField.input.value),
+      targetMinutes: Number.isFinite(minutes) && minutes > 0 ? minutes : 5,
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: readSpeakers(),
@@ -996,5 +1000,11 @@ export function createPodcastView({ controller, isOnline }) {
   setJsonMode(false);
   syncStepper(controller.store.get());
 
-  return { element: root, checkRecovery };
+  return {
+    element: root,
+    checkRecovery,
+    getPromptPreview() {
+      return { source: source.getText(), prefs: readPrefs() };
+    },
+  };
 }

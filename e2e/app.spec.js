@@ -80,7 +80,7 @@ async function mockProviders(page, { failSpeechAtCall } = {}) {
 
 /** Add a provider configuration through the dialog. */
 async function addProvider(page, name = 'Mock') {
-  await page.getByRole('button', { name: 'Provider settings' }).click();
+  await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Add configuration' }).click();
   await dialog.getByLabel(/Name/).fill(name);
@@ -102,11 +102,32 @@ test.beforeEach(async ({ page }) => {
 test('provider setup persists across reload', async ({ page }) => {
   await addProvider(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Provider settings' }).click();
+  await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Mock', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Key saved')).toBeVisible();
   await expect(dialog.getByText('https://mock.provider/v1')).toBeVisible();
+});
+
+test('prompt templates use dedicated pages and validate edits', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Prompt templates' }).click();
+  await expect(dialog.getByRole('tab', { name: 'Script rules' })).toBeVisible();
+  await expect(dialog.getByRole('tab', { name: 'Repair brief' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Preview rendered prompt' }).click();
+  await expect(dialog.getByRole('heading', { name: 'Rendered generation request' })).toBeVisible();
+  await expect(dialog.getByText('Approximate duration: 5 minutes.')).toBeVisible();
+  await dialog.getByRole('button', { name: 'Edit templates' }).last().click();
+  const scriptUser = dialog.getByLabel('Script user instructions');
+  await expect(scriptUser).toHaveAttribute('readonly', '');
+  await dialog.getByRole('button', { name: 'Unlock editing' }).click();
+  await scriptUser.fill('Missing required values');
+  await dialog.getByRole('button', { name: 'Save this template' }).click();
+  await expect(page.getByText(/Missing required placeholder/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Restore this default' }).click();
+  await page.getByRole('button', { name: 'Restore default' }).last().click();
+  await expect(scriptUser).toHaveAttribute('readonly', '');
 });
 
 test('direct TTS happy path: generate, play, download', async ({ page }) => {
@@ -198,17 +219,17 @@ test('offline shell disables generation with explanation', async ({ page, contex
   await context.setOffline(false);
 });
 
-test('keyboard-only: provider dialog opens, traps focus, closes with Escape', async ({ page }) => {
-  // Tab to the Provider settings button (past topbar/branding links).
+test('keyboard-only: settings dialog opens, traps focus, closes with Escape', async ({ page }) => {
+  // Tab to the Settings button (past topbar/branding links).
   for (let i = 0; i < 10; i += 1) {
     const focused = await page.evaluate(
       () => `${document.activeElement?.tagName}|${document.activeElement?.textContent}`,
     );
-    if (focused.startsWith('BUTTON') && focused.includes('Provider settings')) break;
+    if (focused.startsWith('BUTTON') && focused.includes('Settings')) break;
     await page.keyboard.press('Tab');
   }
   const focusedNow = await page.evaluate(() => document.activeElement?.textContent);
-  expect(focusedNow).toContain('Provider settings');
+  expect(focusedNow).toContain('Settings');
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -216,7 +237,7 @@ test('keyboard-only: provider dialog opens, traps focus, closes with Escape', as
   await expect(dialog).not.toBeVisible();
   // focus restored to the invoking button
   const restored = await page.evaluate(() => document.activeElement?.textContent);
-  expect(restored).toContain('Provider settings');
+  expect(restored).toContain('Settings');
 });
 
 test('podcast: structured editor and raw JSON view', async ({ page }) => {

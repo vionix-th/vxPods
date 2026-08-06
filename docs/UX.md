@@ -138,9 +138,9 @@ On startup with one unfinished render:
 - Discard requires confirmation because completed segments will be removed.
 - Missing saved provider configuration blocks resume and links directly to provider settings while preserving work.
 
-## 6. Provider settings
+## 6. Settings
 
-Provider settings use one responsive dialog or full-height mobile sheet.
+Settings use one responsive dialog or full-height mobile sheet.
 
 Saved configuration list:
 
@@ -164,13 +164,15 @@ Chat and TTS selectors elsewhere display saved configuration name plus endpoint 
 
 When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required Chat or TTS slot and resumes the action.
 
+Prompt templates are available from Settings. Each script-generation and repair message layer has its own keyboard-operable tab/page and is read-only until explicitly unlocked. A preview toggle replaces template editing with a full-width rendered view of final script system and user messages using current Podcast source and settings; unsaved editor changes are included and the user may refresh inputs explicitly. Returning to editing restores the selected template page. Saving modified instructions requires confirmation. Each template and all templates together can restore bundled defaults. Missing required runtime placeholders prevent save and identify exact missing placeholder.
+
 ## 7. Responsive behavior
 
 ### Mobile: 320–767 px
 
 - Single column.
 - Sticky bottom primary action may be used when it does not cover errors or audio controls.
-- Provider settings uses full-height sheet/dialog.
+- Settings uses full-height sheet/dialog.
 - Speaker cards stack.
 - Progress details collapse behind a labeled disclosure.
 - Long URLs and model names wrap or truncate with accessible full value.
