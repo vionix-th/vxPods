@@ -172,6 +172,8 @@ POST {baseUrl}/audio/speech
 
 Each configuration binds one text-generation API; users create a second configuration to use both routes with the same endpoint. A configuration is usable for TTS when its endpoint implements the OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
 
+Speech requests explicitly set `response_format: 'mp3'`. This avoids endpoint-specific defaults, such as raw PCM, and gives every rendering path a consistently decodable response format.
+
 Request clients return application results or throw a normalized `AppError`:
 
 ```js

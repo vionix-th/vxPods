@@ -191,7 +191,7 @@ describe('generateText', () => {
 });
 
 describe('createSpeech', () => {
-  it('posts to /audio/speech and returns audio bytes', async () => {
+  it('posts an MP3 speech request to /audio/speech and returns audio bytes', async () => {
     const bytes = new Uint8Array([1, 2, 3]).buffer;
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(bytes, { status: 200, headers: { 'content-type': 'audio/mpeg' } }),
@@ -209,7 +209,13 @@ describe('createSpeech', () => {
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.test/v1/audio/speech');
     const body = JSON.parse(init.body);
-    expect(body).toMatchObject({ model: 'tts-1', voice: 'alloy', input: 'hello', speed: 1.2 });
+    expect(body).toEqual({
+      model: 'tts-1',
+      voice: 'alloy',
+      input: 'hello',
+      response_format: 'mp3',
+      speed: 1.2,
+    });
   });
 
   it('omits speed when not provided', async () => {
@@ -217,6 +223,7 @@ describe('createSpeech', () => {
     vi.stubGlobal('fetch', fetchMock);
     await createSpeech({ provider, model: 'tts-1', voice: 'alloy', input: 'hi' });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.response_format).toBe('mp3');
     expect('speed' in body).toBe(false);
   });
 

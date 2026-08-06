@@ -24,7 +24,9 @@ const DEFAULT_TIMEOUT_MS = 180_000;
  */
 export async function createSpeech(args) {
   const { provider, model, voice, input } = args;
-  const body = { model, voice, input };
+  // OpenAI defaults to MP3 while some compatible endpoints default to raw PCM.
+  // Request MP3 explicitly so every caller receives a consistently decodable format.
+  const body = { model, voice, input, response_format: 'mp3' };
   if (typeof args.speed === 'number' && Number.isFinite(args.speed)) {
     body.speed = args.speed;
   }
