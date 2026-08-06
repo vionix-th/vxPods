@@ -140,6 +140,24 @@ test('settings validation feedback stays visible inside the dialog', async ({ pa
   await expect(page.locator('#notification-stack .notification-error')).toHaveCount(0);
 });
 
+test('OpenRouter and Manual presets start with empty model and voice lists', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
+
+  await dialog.getByLabel('OpenRouter').check();
+  await page.getByRole('dialog', { name: 'Apply preset defaults' }).getByRole('button', { name: 'Apply defaults' }).click();
+  await expect(dialog.getByLabel('Base URL')).toHaveValue('https://openrouter.ai/api/v1');
+  await expect(dialog.locator('.identifier-list-editor .model-chip')).toHaveCount(0);
+  await expect(dialog.locator('.tts-model-editor .model-chip')).toHaveCount(0);
+
+  await dialog.getByLabel('Manual URL').check();
+  await page.getByRole('dialog', { name: 'Apply preset defaults' }).getByRole('button', { name: 'Apply defaults' }).click();
+  await expect(dialog.getByLabel('Base URL')).toHaveValue('');
+  await expect(dialog.locator('.identifier-list-editor .model-chip')).toHaveCount(0);
+  await expect(dialog.locator('.tts-model-editor .model-chip')).toHaveCount(0);
+});
+
 test('provider-managed model and voice suggestions populate TTS fields', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');

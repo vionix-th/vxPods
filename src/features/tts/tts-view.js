@@ -159,18 +159,27 @@ export function createTtsView({ controller, isOnline }) {
   function readSettings(provider) {
     const speedRaw = speedField.input.value.trim();
     const speed = speedRaw === '' ? undefined : Number(speedRaw);
+    const model = modelField.input.value.trim();
+    if (!model) {
+      throw new AppError({
+        kind: 'validation',
+        message: 'No TTS models are configured. Add a model in provider settings.',
+        retryable: false,
+        status: undefined,
+      });
+    }
     const voice = voiceField.input.value.trim();
     if (!voice) {
       throw new AppError({
         kind: 'validation',
-        message: `No voices are configured for ${modelField.input.value.trim() || 'this TTS model'}. Add a voice in provider settings.`,
+        message: `No voices are configured for ${model}. Add a voice in provider settings.`,
         retryable: false,
         status: undefined,
       });
     }
     return {
       provider,
-      model: modelField.input.value.trim() || KNOWN_TTS_MODELS[0],
+      model,
       voice,
       speed: Number.isFinite(speed) ? speed : undefined,
     };

@@ -49,6 +49,21 @@ export function defaultProviderSuggestions() {
   };
 }
 
+/**
+ * Defaults are preset-specific hints, never discovered provider capability.
+ * Manual and OpenRouter begin empty in R1 so users explicitly choose models
+ * supported by their account and desired route.
+ * @param {'openai'|'openrouter'|'manual'} preset
+ */
+export function providerSuggestionsForPreset(preset) {
+  if (preset === 'openai') return defaultProviderSuggestions();
+  return {
+    textGeneration: { api: TEXT_GENERATION_APIS.chatCompletions, models: [] },
+    ttsModels: [],
+    voicesByTtsModel: {},
+  };
+}
+
 /** @param {unknown} api */
 export function isTextGenerationApi(api) {
   return api === TEXT_GENERATION_APIS.chatCompletions || api === TEXT_GENERATION_APIS.responses;

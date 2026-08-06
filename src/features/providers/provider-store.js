@@ -74,8 +74,8 @@ export function validateProviderInput(input) {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
   if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
-  const textModels = requiredSuggestions(input.textGeneration?.models, defaultTextModels(api), 'Text generation model');
-  const ttsModels = requiredSuggestions(input.ttsModels, DEFAULT_TTS_MODELS, 'TTS model');
+  const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
+  const ttsModels = normalizeSuggestions(input.ttsModels, DEFAULT_TTS_MODELS);
   const voicesByTtsModel = requiredVoicesByTtsModel(input.voicesByTtsModel, ttsModels);
   return {
     name,
@@ -85,17 +85,6 @@ export function validateProviderInput(input) {
     ttsModels,
     voicesByTtsModel,
   };
-}
-
-/**
- * @param {unknown} values
- * @param {string[]} fallback
- * @param {string} label
- */
-function requiredSuggestions(values, fallback, label) {
-  const suggestions = normalizeSuggestions(values, fallback);
-  if (suggestions.length === 0) throw validationError(`At least one ${label} is required.`);
-  return suggestions;
 }
 
 /** @param {unknown} values @param {string[]} ttsModels */

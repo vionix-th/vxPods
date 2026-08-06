@@ -176,6 +176,7 @@ export function createPodcastView({ controller, isOnline }) {
         getVoice: () => voice.input.value,
         getSample: () => `Hello, I am ${name.input.value.trim() || `Speaker ${i + 1}`}. This is a short voice preview.`,
       });
+      preview.button.disabled = voiceOptions().length === 0;
       clearVoicePreviewHandlers.add(preview.clear);
       voiceControls.append(voice.input, preview.button);
       voice.wrapper.append(voiceControls, preview.player);
@@ -524,8 +525,8 @@ export function createPodcastView({ controller, isOnline }) {
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: readSpeakers(),
-      textModel: textModelField.input.value.trim() || KNOWN_TEXT_MODELS[0],
-      ttsModel: ttsModelField.input.value.trim() || KNOWN_TTS_MODELS[0],
+      textModel: textModelField.input.value.trim(),
+      ttsModel: ttsModelField.input.value.trim(),
     };
   }
 
@@ -533,7 +534,9 @@ export function createPodcastView({ controller, isOnline }) {
     const provider = textProviderSelect.getSelected();
     const api = provider ? TEXT_GENERATION_API_LABELS[provider.textGeneration.api] : '';
     scriptSummary.textContent = provider
-      ? `Generate with ${provider.name} · ${api} · ${textModelField.input.value || KNOWN_TEXT_MODELS[0]}.`
+      ? textModelField.input.value
+        ? `Generate with ${provider.name} · ${api} · ${textModelField.input.value}.`
+        : `Add a script model to ${provider.name} in provider settings.`
       : 'Add a script configuration first.';
   }
   textProviderSelect.element.addEventListener('change', updateScriptSummary);
@@ -550,7 +553,19 @@ export function createPodcastView({ controller, isOnline }) {
       slot: 'text',
       getSelected: textProviderSelect.getSelected,
       refresh: textProviderSelect.refresh,
-      onReady: (provider) => controller.generateScript(source.getText(), readPrefs(), provider),
+      onReady: (provider) => {
+        const prefs = readPrefs();
+        if (!prefs.textModel) {
+          renderError(scriptErrorRegion, new AppError({
+            kind: 'validation',
+            message: 'No script models are configured. Add a model in provider settings.',
+            retryable: false,
+            status: undefined,
+          }), { onDismiss: () => {} });
+          return;
+        }
+        return controller.generateScript(source.getText(), prefs, provider);
+      },
     });
   });
 
@@ -868,6 +883,15 @@ export function createPodcastView({ controller, isOnline }) {
       refresh: ttsProviderSelect.refresh,
       onReady: async (provider) => {
         const model = readPrefs().ttsModel;
+        if (!model) {
+          renderError(reviewErrorRegion, new AppError({
+            kind: 'validation',
+            message: 'No TTS models are configured. Add a model in provider settings.',
+            retryable: false,
+            status: undefined,
+          }), { onDismiss: () => {} });
+          return;
+        }
         if (!(provider.voicesByTtsModel?.[model] ?? []).length) {
           renderError(reviewErrorRegion, new AppError({
             kind: 'validation',

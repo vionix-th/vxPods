@@ -196,9 +196,11 @@ const MIGRATIONS = {
     providers: Array.isArray(doc.providers)
       ? doc.providers.map((provider) => {
           const ttsModels = normalizeSuggestions(provider.ttsModels, DEFAULT_TTS_MODELS);
+          const validTtsModels = ttsModels.length ? ttsModels : DEFAULT_TTS_MODELS;
           return {
             ...provider,
-            voicesByTtsModel: voicesForTtsModels(ttsModels.length ? ttsModels : DEFAULT_TTS_MODELS, normalizeSuggestions(provider.voices, DEFAULT_VOICES)),
+            ttsModels: validTtsModels,
+            voicesByTtsModel: voicesForTtsModels(validTtsModels, normalizeSuggestions(provider.voices, DEFAULT_VOICES)),
           };
         })
       : doc.providers,
@@ -209,11 +211,15 @@ const MIGRATIONS = {
     providers: Array.isArray(doc.providers)
       ? doc.providers.map((provider) => {
           const { chatModels, ...rest } = provider;
+          const models = normalizeSuggestions(
+            chatModels,
+            defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
+          );
           return {
             ...rest,
             textGeneration: {
               api: TEXT_GENERATION_APIS.chatCompletions,
-              models: normalizeSuggestions(chatModels, defaultTextModels(TEXT_GENERATION_APIS.chatCompletions)),
+              models: models.length ? models : defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
             },
           };
         })
@@ -317,15 +323,14 @@ function normalizeProviderRecord(provider) {
   const api = provider.textGeneration.api;
   const textModels = normalizeSuggestions(provider.textGeneration.models, defaultTextModels(api));
   const ttsModels = normalizeSuggestions(provider.ttsModels, DEFAULT_TTS_MODELS);
-  const validTtsModels = ttsModels.length ? ttsModels : [...DEFAULT_TTS_MODELS];
   return {
     ...provider,
     textGeneration: {
       api,
-      models: textModels.length ? textModels : defaultTextModels(api),
+      models: textModels,
     },
-    ttsModels: validTtsModels,
-    voicesByTtsModel: normalizeVoicesByTtsModel(provider.voicesByTtsModel, validTtsModels),
+    ttsModels,
+    voicesByTtsModel: normalizeVoicesByTtsModel(provider.voicesByTtsModel, ttsModels),
   };
 }
 

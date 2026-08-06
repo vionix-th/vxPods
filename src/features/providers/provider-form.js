@@ -21,15 +21,14 @@ import {
   validateSettingsBackup,
 } from './provider-store.js';
 import {
-  DEFAULT_TTS_MODELS,
   TEXT_GENERATION_APIS,
   TEXT_GENERATION_API_LABELS,
   defaultTextModels,
   normalizeSuggestions,
+  providerSuggestionsForPreset,
   voicesForTtsModel,
 } from './provider-suggestions.js';
 
-const DEFAULT_TTS_MODEL = 'gpt-4o-mini-tts';
 const DEFAULT_VOICE = 'alloy';
 
 /**
@@ -381,7 +380,7 @@ function renderForm(body, options, existing) {
   // Preset selector
   const presetField = fieldset('Preset');
   const presetName = `preset-${Math.random().toString(36).slice(2, 8)}`;
-  let selectedPreset = 'manual';
+  let selectedPreset = 'openai';
   if (existing) {
     selectedPreset =
       Object.entries(PROVIDER_PRESETS).find(([, p]) => p.baseUrl === existing.baseUrl)?.[0] ||
@@ -482,11 +481,11 @@ function renderForm(body, options, existing) {
     description: 'Used for podcast script generation.',
     itemLabel: 'Text generation model',
     addLabel: 'Add text generation model',
-    values: existing?.textGeneration.models ?? defaultTextModels(selectedTextApi),
+    values: existing?.textGeneration.models ?? providerSuggestionsForPreset(selectedPreset).textGeneration.models,
   });
   const ttsModelsEditor = createTtsModelEditor({
-    models: existing?.ttsModels ?? DEFAULT_TTS_MODELS,
-    voicesByTtsModel: existing?.voicesByTtsModel ?? {},
+    models: existing?.ttsModels ?? providerSuggestionsForPreset(selectedPreset).ttsModels,
+    voicesByTtsModel: existing?.voicesByTtsModel ?? providerSuggestionsForPreset(selectedPreset).voicesByTtsModel,
   });
   const restoreDefaults = document.createElement('button');
   restoreDefaults.type = 'button';
@@ -495,12 +494,11 @@ function renderForm(body, options, existing) {
   restoreDefaults.addEventListener('click', async () => {
     const confirmed = await confirmDialog({
       title: 'Restore all model and voice defaults',
-      message: 'This replaces every configured text generation model, TTS model, and model-specific voice list for this provider. Save the configuration to keep the restored values.',
+      message: 'This replaces every configured text generation model, TTS model, and model-specific voice list with defaults for the selected preset. Save the configuration to keep them.',
       confirmLabel: 'Restore all defaults',
     });
     if (!confirmed) return;
-    textModelsEditor.reset(defaultTextModels(selectedTextApi));
-    ttsModelsEditor.reset(DEFAULT_TTS_MODELS);
+    applySuggestionDefaults();
   });
   capabilityEditor.append(
     editorTitle,
@@ -518,7 +516,7 @@ function renderForm(body, options, existing) {
   back.type = 'button';
   back.className = 'button button-ghost';
   back.textContent = 'Back';
-  back.addEventListener('click', options.openProviders);
+  back.addEventListener('click', () => options.openProviders());
 
   const testText = document.createElement('button');
   testText.type = 'button';
@@ -548,13 +546,34 @@ function renderForm(body, options, existing) {
     return presetRadios.find((r) => r.checked)?.value ?? 'manual';
   }
   for (const radio of presetRadios) {
-    radio.addEventListener('change', () => {
-      const preset = PROVIDER_PRESETS[currentPreset()];
-      if (preset.baseUrl) urlField.input.value = preset.baseUrl;
-      urlField.input.disabled = currentPreset() !== 'manual';
+    radio.addEventListener('change', async () => {
+      if (!radio.checked || radio.value === selectedPreset) return;
+      const nextPreset = /** @type {'openai'|'openrouter'|'manual'} */ (radio.value);
+      const confirmed = await confirmDialog({
+        title: 'Apply preset defaults',
+        message: `Changing to ${PROVIDER_PRESETS[nextPreset].label} replaces configured model and voice lists with this preset’s defaults.`,
+        confirmLabel: 'Apply defaults',
+      });
+      if (!confirmed) {
+        for (const option of presetRadios) option.checked = option.value === selectedPreset;
+        return;
+      }
+      selectedPreset = nextPreset;
+      const preset = PROVIDER_PRESETS[selectedPreset];
+      urlField.input.value = preset.baseUrl;
+      urlField.input.disabled = selectedPreset !== 'manual';
+      applySuggestionDefaults();
     });
   }
   urlField.input.disabled = currentPreset() !== 'manual';
+
+  function applySuggestionDefaults() {
+    const defaults = providerSuggestionsForPreset(selectedPreset);
+    selectedTextApi = defaults.textGeneration.api;
+    for (const option of textApiRadios) option.checked = option.value === selectedTextApi;
+    textModelsEditor.reset(defaults.textGeneration.models);
+    ttsModelsEditor.reset(defaults.ttsModels);
+  }
 
   for (const radio of textApiRadios) {
     radio.addEventListener('change', async () => {
@@ -594,6 +613,16 @@ function renderForm(body, options, existing) {
     const capability = kind === 'text' ? TEXT_GENERATION_API_LABELS[selectedTextApi] : 'Speech';
     status.textContent = `Testing ${capability}…`;
     const values = readForm();
+    const model = kind === 'text' ? values.textGeneration.models[0] : values.ttsModels[0];
+    if (!model) {
+      status.textContent = '';
+      notice.show({
+        type: 'error',
+        title: 'Input problem',
+        message: `Add a ${kind === 'text' ? 'text generation' : 'TTS'} model before testing this endpoint.`,
+      });
+      return;
+    }
     const provider = {
       baseUrl: values.baseUrl.trim(),
       apiKey: values.apiKey.trim() || existing?.apiKey || '',
@@ -601,12 +630,12 @@ function renderForm(body, options, existing) {
     try {
       if (kind === 'text') {
         provider.textGeneration = values.textGeneration;
-        await testTextGenerationConnection(provider, values.textGeneration.models[0]);
+        await testTextGenerationConnection(provider, model);
       } else {
         await testSpeechConnection(
           provider,
-          values.ttsModels[0] || DEFAULT_TTS_MODEL,
-          values.voicesByTtsModel[values.ttsModels[0]]?.[0] || DEFAULT_VOICE,
+          model,
+          values.voicesByTtsModel[model]?.[0] || DEFAULT_VOICE,
         );
       }
       status.textContent = `${capability} endpoint reachable.`;

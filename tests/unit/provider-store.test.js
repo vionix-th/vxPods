@@ -11,6 +11,7 @@ import {
   listProviders,
   restoreSettingsBackup,
 } from '../../src/features/providers/provider-store.js';
+import { providerSuggestionsForPreset } from '../../src/features/providers/provider-suggestions.js';
 
 beforeEach(() => {
   localStorage.clear();
@@ -82,17 +83,16 @@ describe('validateProviderInput', () => {
     ).toThrowError(/Name/);
   });
 
-  it('requires at least one entry for every select-backed option list', () => {
-    expect(() =>
-      validateProviderInput({
-        name: 'x',
-        baseUrl: 'https://api.openai.com/v1',
-        apiKey: 'k',
-        textGeneration: { api: 'responses', models: [] },
-        ttsModels: ['tts'],
-        voicesByTtsModel: { tts: ['voice'] },
-      }),
-    ).toThrowError(/Text generation model/);
+  it('preserves empty model and voice lists', () => {
+    const out = validateProviderInput({
+      name: 'x', baseUrl: 'https://manual.example/v1', apiKey: 'k',
+      textGeneration: { api: 'responses', models: [] },
+      ttsModels: [], voicesByTtsModel: {},
+    });
+    expect(out).toMatchObject({
+      textGeneration: { api: 'responses', models: [] },
+      ttsModels: [], voicesByTtsModel: {},
+    });
   });
 
   it('leaves an unknown TTS model without voices', () => {
@@ -122,6 +122,18 @@ describe('validateProviderInput', () => {
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
       textGeneration: { api: 'legacy', models: ['m'] },
     })).toThrowError(/supported text generation API/);
+  });
+});
+
+describe('provider preset suggestions', () => {
+  it('starts OpenRouter and Manual without model or voice suggestions', () => {
+    for (const preset of ['openrouter', 'manual']) {
+      expect(providerSuggestionsForPreset(preset)).toEqual({
+        textGeneration: { api: 'chat-completions', models: [] },
+        ttsModels: [],
+        voicesByTtsModel: {},
+      });
+    }
   });
 });
 
