@@ -47,6 +47,7 @@ describe('buildScriptPrompt', () => {
     expect(messages[0].role).toBe('system');
     expect(messages[0].content).toContain('schemaVersion');
     expect(messages[0].content).toContain('factual claim');
+    expect(messages[0].content).toContain('Do not translate');
     expect(messages[1].content).toContain('<<<SOURCE');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
     expect(messages[1].content).toContain('SOURCE>>>');
@@ -60,6 +61,7 @@ describe('buildScriptPrompt', () => {
       scriptUser: 'Custom {{formatDescription}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     });
     expect(messages[1].content).toContain('Custom');
+    expect(messages[0].content).toContain('source language');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
   });
 });
@@ -156,6 +158,20 @@ describe('validateScript', () => {
     bad.segments[0].pauseAfterMs = 6000;
     expect(validateScript(bad).valid).toBe(false);
     bad.segments[0].pauseAfterMs = 3.5;
+    expect(validateScript(bad).valid).toBe(false);
+  });
+
+  it('accepts and canonicalizes non-English BCP 47 language tags', () => {
+    const thai = structuredClone(validScript);
+    thai.language = 'TH';
+    const result = validateScript(thai);
+    expect(result.valid).toBe(true);
+    if (result.valid) expect(result.script.language).toBe('th');
+  });
+
+  it('rejects invalid language tags', () => {
+    const bad = structuredClone(validScript);
+    bad.language = 'not a language';
     expect(validateScript(bad).valid).toBe(false);
   });
 

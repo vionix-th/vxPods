@@ -16,11 +16,13 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
   scriptSystem: [
     'You write podcast scripts as strict JSON only.',
     'Output exactly one JSON object with this shape and no other text:',
-    '{"schemaVersion":1,"title":string,"language":"en","format":"{{format}}","sourceGrounded":true,' +
+    '{"schemaVersion":1,"title":string,"language":string,"format":"{{format}}","sourceGrounded":true,' +
       '"speakers":[{"id":string,"name":string,"role":string,"voice":string}],' +
       '"segments":[{"id":string,"speakerId":string,"text":string,"pauseAfterMs":number}]}',
     'Rules:',
     '- Every factual claim must come from supplied source. Do not invent facts.',
+    '- Write the title and every segment in the source language. Do not translate unless the source explicitly asks for translation.',
+    '- Set language to the source language BCP 47 tag, for example "th" or "en".',
     '- Introductions, transitions, and summaries may restate source material.',
     '- Write natural, speech-ready plain text. No markdown, no stage directions.',
     '- pauseAfterMs is an integer from 0 to 5000.',
@@ -32,6 +34,7 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
     'Speakers (use these exactly): {{speakers}}.',
     'Speaker ids: {{speakerIds}}.',
     'Voices: {{voices}}.',
+    'Preserve the source language in the title and spoken segments. Do not translate it.',
     '',
     'SOURCE TEXT (between markers):',
     '<<<SOURCE',

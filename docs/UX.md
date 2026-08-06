@@ -89,7 +89,7 @@ Step 3, “Generate or update script”, is the single source of truth for speak
 
 ### Step 3: Generate or update script
 
-- Summary names selected Chat provider/model.
+- Summary names selected Chat provider/model. Generated title and spoken turns preserve the source language unless the source explicitly requests translation.
 - Actions: “Generate script”, “Apply speaker changes to script”, and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a Chat provider. Replacing an existing script or unfinished render requires confirmation.
 - Status explains “Writing and validating JSON script”.
 - Invalid output offers “Repair script” once; then “Generate again”.

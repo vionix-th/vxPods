@@ -7,8 +7,12 @@ import { renderPromptTemplate, resolvePromptTemplates } from './prompt-templates
 import { loadSettings } from '../../storage/local-settings.js';
 
 export const SCRIPT_SCHEMA_VERSION = 1;
-export const SUPPORTED_LANGUAGES = ['en'];
 export const MAX_PAUSE_MS = 5000;
+const SOURCE_LANGUAGE_POLICY = [
+  'Language policy: write the title and every spoken segment in the source language.',
+  'Do not translate unless the source explicitly asks for translation.',
+  'Set language to the source language BCP 47 tag, such as th or en.',
+].join(' ');
 
 /**
  * @typedef {Object} PodcastPreferences
@@ -43,7 +47,10 @@ export function buildScriptPrompt(source, prefs, templateOverrides = loadSetting
   const templates = resolvePromptTemplates(templateOverrides);
   const values = buildScriptPromptValues(source, prefs);
   return [
-    { role: 'system', content: renderPromptTemplate(templates.scriptSystem, values) },
+    {
+      role: 'system',
+      content: `${renderPromptTemplate(templates.scriptSystem, values)}\n\n${SOURCE_LANGUAGE_POLICY}`,
+    },
     { role: 'user', content: renderPromptTemplate(templates.scriptUser, values) },
   ];
 }
@@ -151,8 +158,8 @@ export function validateScript(value) {
   if (typeof v.title !== 'string' || v.title.trim() === '') {
     errors.push('title must be a non-empty string.');
   }
-  if (typeof v.language !== 'string' || !SUPPORTED_LANGUAGES.includes(v.language)) {
-    errors.push(`language must be one of: ${SUPPORTED_LANGUAGES.join(', ')}.`);
+  if (!canonicalLanguageTag(v.language)) {
+    errors.push('language must be a valid BCP 47 language tag.');
   }
   if (v.format !== 'solo' && v.format !== 'conversation') {
     errors.push('format must be "solo" or "conversation".');
@@ -240,7 +247,7 @@ export function normalizeScript(v) {
   return {
     schemaVersion: SCRIPT_SCHEMA_VERSION,
     title: String(v.title).trim(),
-    language: String(v.language),
+    language: canonicalLanguageTag(v.language) || '',
     format: /** @type {'solo'|'conversation'} */ (v.format),
     sourceGrounded: true,
     speakers: v.speakers.map((s) => ({
@@ -273,4 +280,18 @@ export function exportableScript(script) {
  */
 function isStableId(id) {
   return typeof id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(id);
+}
+
+/**
+ * Canonicalize a BCP 47 language tag using the platform locale parser.
+ * @param {unknown} value
+ * @returns {string | null}
+ */
+function canonicalLanguageTag(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    return Intl.getCanonicalLocales(value.trim())[0] ?? null;
+  } catch {
+    return null;
+  }
 }

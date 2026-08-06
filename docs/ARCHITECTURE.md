@@ -224,7 +224,7 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 {
   "schemaVersion": 1,
   "title": "Example title",
-  "language": "en",
+  "language": "th",
   "format": "conversation",
   "sourceGrounded": true,
   "speakers": [
@@ -255,7 +255,7 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 Validation rules:
 
 - `schemaVersion` equals `1`.
-- `language` is a supported BCP 47 tag; R1 generation uses `en`.
+- `language` is a valid canonical BCP 47 tag that describes the source and spoken-script language.
 - `format` is `solo` or `conversation`.
 - One speaker for `solo`; exactly two for `conversation`.
 - Speaker and segment IDs are unique, stable ASCII identifiers.
@@ -292,6 +292,7 @@ Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 - Require source-grounded output.
 - Constrain factual claims to supplied source.
 - Ask for natural, speech-ready plain text.
+- Preserve the source language and reject translation unless the source explicitly requests it.
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
