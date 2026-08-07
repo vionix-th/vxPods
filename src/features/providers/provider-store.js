@@ -16,7 +16,7 @@ import {
   defaultTextModels,
   isTextGenerationApi,
   normalizeSuggestions,
-  normalizeVoicesByTtsModel,
+  normalizeTtsModels,
 } from './provider-suggestions.js';
 
 export const PROVIDER_PRESETS = {
@@ -63,7 +63,7 @@ export function normalizeBaseUrl(input) {
 
 /**
  * Validate a candidate provider record. Returns normalized copy.
- * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
  * @throws {AppError} validation kind
  */
 export function validateProviderInput(input) {
@@ -75,21 +75,17 @@ export function validateProviderInput(input) {
   const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
   if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
   const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
-  const ttsModels = normalizeSuggestions(input.ttsModels, DEFAULT_TTS_MODELS);
-  const voicesByTtsModel = requiredVoicesByTtsModel(input.voicesByTtsModel, ttsModels);
+  const ttsModels = normalizeTtsModels(input.ttsModels, DEFAULT_TTS_MODELS);
+  if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
+    throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
+  }
   return {
     name,
     baseUrl,
     apiKey,
     textGeneration: { api, models: textModels },
     ttsModels,
-    voicesByTtsModel,
   };
-}
-
-/** @param {unknown} values @param {string[]} ttsModels */
-function requiredVoicesByTtsModel(values, ttsModels) {
-  return normalizeVoicesByTtsModel(values, ttsModels);
 }
 
 /**
@@ -160,7 +156,7 @@ export function getProvider(id) {
 
 /**
  * Create a provider. Returns the stored record.
- * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
  */
 export function addProvider(input) {
   const valid = validateProviderInput(input);
@@ -176,7 +172,7 @@ export function addProvider(input) {
  * Update an existing provider. API key is replaced only when a new
  * non-empty key is supplied (masked-field behavior).
  * @param {string} id
- * @param {{ name: string, baseUrl: string, apiKey?: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown, voicesByTtsModel?: unknown }} input
+ * @param {{ name: string, baseUrl: string, apiKey?: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
  */
 export function updateProvider(id, input) {
   const settings = loadSettings();
@@ -189,7 +185,6 @@ export function updateProvider(id, input) {
     apiKey: input.apiKey?.trim() ? input.apiKey : existing.apiKey,
     textGeneration: input.textGeneration ?? existing.textGeneration,
     ttsModels: input.ttsModels ?? existing.ttsModels,
-    voicesByTtsModel: input.voicesByTtsModel ?? existing.voicesByTtsModel,
   });
   settings.providers[index] = { ...existing, ...valid };
   saveSettings(settings);

@@ -87,6 +87,36 @@ export async function decodeToPcm(bytes, targetSampleRate = 44100) {
   return { channels: extractChannels(rendered), sampleRate: targetSampleRate };
 }
 
+/** Decode headerless signed 16-bit little-endian interleaved PCM. */
+export function decodePcmS16Le(bytes, format, targetSampleRate = format.sampleRate) {
+  const frameBytes = format.channels * 2;
+  if (bytes.byteLength === 0 || bytes.byteLength % frameBytes !== 0) {
+    throw new Error('Raw PCM byte length is not aligned to complete sample frames.');
+  }
+  const frames = bytes.byteLength / frameBytes;
+  const view = new DataView(bytes);
+  const source = Array.from({ length: format.channels }, () => new Float32Array(frames));
+  for (let frame = 0; frame < frames; frame += 1) {
+    for (let channel = 0; channel < format.channels; channel += 1) {
+      source[channel][frame] = view.getInt16((frame * format.channels + channel) * 2, true) / 32768;
+    }
+  }
+  if (format.sampleRate === targetSampleRate) return { channels: source, sampleRate: targetSampleRate };
+  const outputLength = Math.max(1, Math.round(frames * targetSampleRate / format.sampleRate));
+  const channels = source.map((samples) => {
+    const output = new Float32Array(outputLength);
+    for (let index = 0; index < outputLength; index += 1) {
+      const position = index * format.sampleRate / targetSampleRate;
+      const left = Math.min(Math.floor(position), frames - 1);
+      const right = Math.min(left + 1, frames - 1);
+      const fraction = position - left;
+      output[index] = samples[left] + (samples[right] - samples[left]) * fraction;
+    }
+    return output;
+  });
+  return { channels, sampleRate: targetSampleRate };
+}
+
 /**
  * @param {AudioBuffer} buffer
  * @returns {Float32Array[]}

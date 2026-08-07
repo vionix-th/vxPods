@@ -67,8 +67,9 @@ describe('validateProviderInput', () => {
     });
     expect(out.textGeneration).toMatchObject({ api: 'chat-completions' });
     expect(out.textGeneration.models).toContain('gpt-4o-mini');
-    expect(out.ttsModels).toContain('gpt-4o-mini-tts');
-    expect(out.voicesByTtsModel['gpt-4o-mini-tts']).toContain('alloy');
+    expect(out.ttsModels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ model: 'gpt-4o-mini-tts', voices: expect.arrayContaining(['alloy']), responseFormat: 'mp3' }),
+    ]));
   });
 
   it('rejects empty key', () => {
@@ -83,34 +84,39 @@ describe('validateProviderInput', () => {
     ).toThrowError(/Name/);
   });
 
-  it('preserves empty model and voice lists', () => {
+  it('preserves empty model lists', () => {
     const out = validateProviderInput({
       name: 'x', baseUrl: 'https://manual.example/v1', apiKey: 'k',
       textGeneration: { api: 'responses', models: [] },
-      ttsModels: [], voicesByTtsModel: {},
+      ttsModels: [],
     });
     expect(out).toMatchObject({
       textGeneration: { api: 'responses', models: [] },
-      ttsModels: [], voicesByTtsModel: {},
+      ttsModels: [],
     });
   });
 
   it('leaves an unknown TTS model without voices', () => {
     const out = validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
-      ttsModels: ['unknown-tts'],
-      voicesByTtsModel: {},
+      ttsModels: [{ model: 'unknown-tts', voices: [], responseFormat: 'mp3' }],
     });
-    expect(out.voicesByTtsModel).toEqual({ 'unknown-tts': [] });
+    expect(out.ttsModels).toEqual([{ model: 'unknown-tts', voices: [], responseFormat: 'mp3' }]);
   });
 
   it('accepts an explicit empty voice list for a TTS model', () => {
     const out = validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
-      ttsModels: ['tts-1'],
-      voicesByTtsModel: { 'tts-1': [] },
+      ttsModels: [{ model: 'tts-1', voices: [], responseFormat: 'mp3' }],
     });
-    expect(out.voicesByTtsModel).toEqual({ 'tts-1': [] });
+    expect(out.ttsModels[0].voices).toEqual([]);
+  });
+
+  it('rejects invalid raw PCM metadata', () => {
+    expect(() => validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      ttsModels: [{ model: 'pcm-model', voices: ['voice'], responseFormat: 'pcm', pcm: { sampleRate: 0, channels: 1, encoding: 's16le' } }],
+    })).toThrow(/valid PCM metadata/);
   });
 
   it('accepts Responses models and rejects unknown text-generation APIs', () => {
@@ -131,7 +137,6 @@ describe('provider preset suggestions', () => {
       expect(providerSuggestionsForPreset(preset)).toEqual({
         textGeneration: { api: 'chat-completions', models: [] },
         ttsModels: [],
-        voicesByTtsModel: {},
       });
     }
   });
@@ -159,8 +164,7 @@ describe('provider CRUD', () => {
     const original = addProvider({
       ...input,
       textGeneration: { api: 'responses', models: ['custom-response'] },
-      ttsModels: ['custom-tts'],
-      voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
+      ttsModels: [{ model: 'custom-tts', voices: ['custom-voice'], responseFormat: 'pcm', pcm: { sampleRate: 24000, channels: 1, encoding: 's16le' } }],
     });
     selectProvider('text', original.id);
     const backup = exportSettingsBackup();
@@ -176,8 +180,7 @@ describe('provider CRUD', () => {
     expect(listProviders()[0].apiKey).toBe('sk-1');
     expect(listProviders()[0]).toMatchObject({
       textGeneration: { api: 'responses', models: ['custom-response'] },
-      ttsModels: ['custom-tts'],
-      voicesByTtsModel: { 'custom-tts': ['custom-voice'] },
+      ttsModels: [{ model: 'custom-tts', voices: ['custom-voice'], responseFormat: 'pcm', pcm: { sampleRate: 24000, channels: 1, encoding: 's16le' } }],
     });
     expect(getSelectedProviderId('text')).toBe(original.id);
     expect(exportSettingsBackup().promptTemplates.scriptUser).toBe(
@@ -205,13 +208,11 @@ describe('provider CRUD', () => {
     const record = addProvider({
       ...input,
       textGeneration: { api: 'responses', models: [' custom-response ', 'custom-response', ''] },
-      ttsModels: ['custom-tts'],
-      voicesByTtsModel: { 'custom-tts': [' voice-a ', 'voice-a'] },
+      ttsModels: [{ model: 'custom-tts', voices: [' voice-a ', 'voice-a'], responseFormat: 'mp3' }],
     });
     expect(record).toMatchObject({
       textGeneration: { api: 'responses', models: ['custom-response'] },
-      ttsModels: ['custom-tts'],
-      voicesByTtsModel: { 'custom-tts': ['voice-a'] },
+      ttsModels: [{ model: 'custom-tts', voices: ['voice-a'], responseFormat: 'mp3' }],
     });
   });
 

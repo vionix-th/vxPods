@@ -53,6 +53,7 @@ export async function sendProviderRequest(args) {
         retryable: true,
         status: undefined,
         cause: err,
+        diagnostics: providerRequestDiagnostics(args),
       });
     }
     if (args.signal?.aborted) throw cancelledError(err);
@@ -62,6 +63,7 @@ export async function sendProviderRequest(args) {
       retryable: true,
       status: undefined,
       cause: err,
+      diagnostics: providerRequestDiagnostics(args),
     });
   } finally {
     clearTimeout(timeout);
@@ -72,9 +74,55 @@ export async function sendProviderRequest(args) {
     const bodyText = await safeReadText(response);
     throw httpStatusToAppError(response.status, bodyText, {
       retryAfterSeconds: parseRetryAfter(response.headers.get('retry-after')),
+      diagnostics: providerRequestDiagnostics(args, response),
     });
   }
   return response;
+}
+
+/**
+ * Build request context that is safe to show and paste into a bug report.
+ * Credentials, headers, request input, and response bodies are intentionally excluded.
+ * @param {{ url: string, body: unknown }} args
+ * @param {Response} [response]
+ * @returns {import('./errors.js').ProviderDiagnostics}
+ */
+export function providerRequestDiagnostics(args, response) {
+  const endpoint = safeEndpoint(args.url);
+  const path = endpoint ? new URL(endpoint).pathname : '';
+  const operation = path.endsWith('/audio/speech')
+    ? 'speech synthesis'
+    : path.endsWith('/chat/completions')
+      ? 'chat completion'
+      : path.endsWith('/responses')
+        ? 'response generation'
+        : 'provider request';
+  const model = args.body && typeof args.body === 'object' && typeof args.body.model === 'string'
+    ? args.body.model
+    : undefined;
+  const requestId = response
+    ? response.headers.get('x-request-id')
+      || response.headers.get('x-generation-id')
+      || response.headers.get('cf-ray')
+      || undefined
+    : undefined;
+  return {
+    operation,
+    endpoint,
+    model,
+    status: response?.status,
+    requestId,
+    contentType: response?.headers.get('content-type') || undefined,
+  };
+}
+
+function safeEndpoint(value) {
+  try {
+    const url = new URL(value);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return undefined;
+  }
 }
 
 /** @param {Response} response */

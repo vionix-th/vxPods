@@ -1,0 +1,25 @@
+{
+  "targets": [
+    {
+      "name": "OpenRouter example",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "apiKey": "replace-with-a-dedicated-test-key",
+      "textGeneration": [
+        {
+          "api": "chat-completions",
+          "model": "replace-with-a-current-text-model-slug",
+          "input": "Reply with the word ok."
+        }
+      ],
+      "speech": [
+        {
+          "model": "replace-with-a-current-speech-model-slug",
+          "voices": ["replace-with-a-supported-voice"],
+          "responseFormat": "pcm",
+          "pcm": { "sampleRate": 24000, "channels": 1, "encoding": "s16le" },
+          "input": "Live text to speech connectivity test."
+        }
+      ]
+    }
+  ]
+}

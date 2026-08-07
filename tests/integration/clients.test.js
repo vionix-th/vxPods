@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createChatCompletion } from '../../src/services/chat-completions-client.js';
 import { createResponse } from '../../src/services/responses-client.js';
 import { generateText } from '../../src/services/text-generation-client.js';
-import { createSpeech } from '../../src/services/speech-client.js';
+import { createSpeech, decodeSpeechAudio } from '../../src/services/speech-client.js';
 
 const provider = { baseUrl: 'https://api.test/v1', apiKey: 'sk-secret' };
 
@@ -191,21 +191,33 @@ describe('generateText', () => {
 });
 
 describe('createSpeech', () => {
+  const ttsModel = { model: 'tts-1', voices: ['alloy'], responseFormat: 'mp3' };
   it('posts an MP3 speech request to /audio/speech and returns audio bytes', async () => {
     const bytes = new Uint8Array([1, 2, 3]).buffer;
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(bytes, { status: 200, headers: { 'content-type': 'audio/mpeg' } }),
+      new Response(bytes, {
+        status: 200,
+        headers: { 'content-type': 'audio/mpeg', 'x-generation-id': 'gen-123' },
+      }),
     );
     vi.stubGlobal('fetch', fetchMock);
     const result = await createSpeech({
       provider,
-      model: 'tts-1',
+      ttsModel,
       voice: 'alloy',
       input: 'hello',
       speed: 1.2,
     });
     expect(result.contentType).toBe('audio/mpeg');
     expect(new Uint8Array(result.audio)).toEqual(new Uint8Array([1, 2, 3]));
+    expect(result.diagnostics).toMatchObject({
+      operation: 'speech synthesis',
+      endpoint: 'https://api.test/v1/audio/speech',
+      model: 'tts-1',
+      status: 200,
+      requestId: 'gen-123',
+      contentType: 'audio/mpeg',
+    });
     const [url, init] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.test/v1/audio/speech');
     const body = JSON.parse(init.body);
@@ -221,7 +233,7 @@ describe('createSpeech', () => {
   it('omits speed when not provided', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([9]).buffer));
     vi.stubGlobal('fetch', fetchMock);
-    await createSpeech({ provider, model: 'tts-1', voice: 'alloy', input: 'hi' });
+    await createSpeech({ provider, ttsModel, voice: 'alloy', input: 'hi' });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.response_format).toBe('mp3');
     expect('speed' in body).toBe(false);
@@ -230,14 +242,59 @@ describe('createSpeech', () => {
   it('normalizes 404 to unsupported', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 404)));
     await expect(
-      createSpeech({ provider, model: 'tts-1', voice: 'alloy', input: 'hi' }),
+      createSpeech({ provider, ttsModel, voice: 'alloy', input: 'hi' }),
     ).rejects.toMatchObject({ kind: 'unsupported' });
   });
 
   it('rejects empty audio bodies', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(new ArrayBuffer(0))));
     await expect(
-      createSpeech({ provider, model: 'tts-1', voice: 'alloy', input: 'hi' }),
+      createSpeech({ provider, ttsModel, voice: 'alloy', input: 'hi' }),
     ).rejects.toMatchObject({ kind: 'provider' });
+  });
+
+  it('rejects a successful non-audio response with diagnostics', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ error: 'not audio' }, 200, {
+      'x-request-id': 'req-json',
+    })));
+    await expect(
+      createSpeech({ provider, ttsModel, voice: 'alloy', input: 'hi' }),
+    ).rejects.toMatchObject({
+      kind: 'provider',
+      status: 200,
+      diagnostics: {
+        operation: 'speech synthesis',
+        model: 'tts-1',
+        requestId: 'req-json',
+        contentType: 'application/json',
+      },
+    });
+  });
+
+  it('preserves provider context when browser audio decoding fails', async () => {
+    const result = {
+      audio: new Uint8Array([1, 2, 3]).buffer,
+      contentType: 'audio/mpeg',
+      diagnostics: {
+        operation: 'speech synthesis',
+        endpoint: 'https://api.test/v1/audio/speech',
+        model: 'tts-1',
+        status: 200,
+        requestId: 'gen-decode',
+      },
+      ttsModel,
+    };
+    await expect(
+      decodeSpeechAudio(result, () => Promise.reject(new DOMException('invalid bytes', 'EncodingError')), 44_100),
+    ).rejects.toMatchObject({
+      kind: 'encoding',
+      message: expect.stringMatching(/could not decode/),
+      diagnostics: {
+        operation: 'speech synthesis',
+        model: 'tts-1',
+        requestId: 'gen-decode',
+        contentType: 'audio/mpeg',
+      },
+    });
   });
 });

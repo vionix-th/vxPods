@@ -7,9 +7,9 @@
 import { createStore, assertTransition } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { withRetry, throwIfAborted } from '../../services/retry.js';
-import { createSpeech } from '../../services/speech-client.js';
+import { createSpeech, decodeSpeechAudio } from '../../services/speech-client.js';
 import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
-import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
+import { assembleSegments, decodePcmS16Le, decodeToPcm } from '../../audio/audio-assembler.js';
 import { wavBlob } from '../../audio/wav-writer.js';
 import { encodeMp3 } from '../../audio/mp3-encoder.js';
 import { sanitizeFilename } from '../../utils/download.js';
@@ -19,7 +19,7 @@ const SAMPLE_RATE = 44100;
 /**
  * @typedef {Object} TtsSettings
  * @property {{ id: string, name: string, baseUrl: string, apiKey: string }} provider
- * @property {string} model
+ * @property {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
  * @property {string} voice
  * @property {number | undefined} speed
  */
@@ -109,7 +109,7 @@ export function createTtsController(deps = {}) {
         status: 'ready',
         output: {
           wav,
-          settingsLabel: `${settings.provider.name} · ${settings.model} · ${settings.voice}`,
+          settingsLabel: `${settings.provider.name} · ${settings.ttsModel.model} · ${settings.voice}`,
         },
       });
     } catch (err) {
@@ -136,7 +136,7 @@ export function createTtsController(deps = {}) {
         () =>
           speech({
             provider: settings.provider,
-            model: settings.model,
+            ttsModel: settings.ttsModel,
             voice: settings.voice,
             input: text,
             speed: settings.speed,
@@ -144,7 +144,7 @@ export function createTtsController(deps = {}) {
           }),
         { signal },
       );
-      decodedChunks[index] = (await decode(result.audio, SAMPLE_RATE)).channels;
+      decodedChunks[index] = (await decodeSpeechAudio(result, decode, SAMPLE_RATE, decodePcmS16Le)).channels;
       setChunk(index, { status: 'completed' });
     } catch (err) {
       const normalized = toAppError(err);
@@ -182,7 +182,7 @@ export function createTtsController(deps = {}) {
         status: 'ready',
         output: {
           wav,
-          settingsLabel: `${lastSettings.provider.name} · ${lastSettings.model} · ${lastSettings.voice}`,
+          settingsLabel: `${lastSettings.provider.name} · ${lastSettings.ttsModel.model} · ${lastSettings.voice}`,
         },
       });
     } catch (err) {

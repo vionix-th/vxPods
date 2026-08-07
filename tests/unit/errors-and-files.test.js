@@ -5,6 +5,7 @@ import {
   parseRetryAfter,
   toAppError,
 } from '../../src/services/errors.js';
+import { formatErrorDiagnostics } from '../../src/components/error-message.js';
 import { sanitizeFilename } from '../../src/utils/download.js';
 
 describe('httpStatusToAppError', () => {
@@ -32,8 +33,57 @@ describe('httpStatusToAppError', () => {
   });
 
   it('includes provider body detail without credentials', () => {
-    const err = httpStatusToAppError(400, JSON.stringify({ error: { message: 'bad model' } }));
+    const err = httpStatusToAppError(400, JSON.stringify({ error: { message: 'bad model' } }), {
+      diagnostics: {
+        operation: 'speech synthesis',
+        endpoint: 'https://api.test/v1/audio/speech',
+        model: 'tts-model',
+        status: 400,
+        requestId: 'req-123',
+        contentType: 'application/json',
+      },
+    });
     expect(err.message).toContain('bad model');
+    expect(err.diagnostics).toEqual({
+      operation: 'speech synthesis',
+      endpoint: 'https://api.test/v1/audio/speech',
+      model: 'tts-model',
+      status: 400,
+      requestId: 'req-123',
+      contentType: 'application/json',
+    });
+  });
+
+  it('maps payment-required responses to an actionable provider error', () => {
+    const err = httpStatusToAppError(402);
+    expect(err.kind).toBe('provider');
+    expect(err.message).toMatch(/credits|payment/);
+  });
+});
+
+describe('formatErrorDiagnostics', () => {
+  it('formats only redacted diagnostic fields', () => {
+    const error = new AppError({
+      kind: 'provider',
+      message: 'failed',
+      retryable: false,
+      status: 400,
+      diagnostics: {
+        operation: 'speech synthesis',
+        endpoint: 'https://api.test/v1/audio/speech',
+        model: 'model-a',
+        status: 400,
+        requestId: 'req-a',
+      },
+    });
+    expect(formatErrorDiagnostics(error)).toEqual([
+      { label: 'Category', value: 'provider' },
+      { label: 'Operation', value: 'speech synthesis' },
+      { label: 'HTTP status', value: '400' },
+      { label: 'Endpoint', value: 'https://api.test/v1/audio/speech' },
+      { label: 'Model', value: 'model-a' },
+      { label: 'Provider request ID', value: 'req-a' },
+    ]);
   });
 });
 

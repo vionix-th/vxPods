@@ -1,6 +1,6 @@
 /**
  * Provider settings dialog: saved configuration list plus create/edit form
- * with preset selection, masked key handling, and connection tests.
+ * with preset selection, visible key editing, and connection tests.
  */
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
@@ -24,9 +24,10 @@ import {
   TEXT_GENERATION_APIS,
   TEXT_GENERATION_API_LABELS,
   defaultTextModels,
+  defaultTtsModel,
   normalizeSuggestions,
+  normalizeTtsModels,
   providerSuggestionsForPreset,
-  voicesForTtsModel,
 } from './provider-suggestions.js';
 
 const DEFAULT_VOICE = 'alloy';
@@ -420,33 +421,20 @@ function renderForm(body, options, existing) {
     help: 'OpenAI-compatible API root ending in /v1.',
   });
 
-  // API key with show/hide
+  // API key is intentionally visible: provider settings are browser-local,
+  // plaintext configuration explicitly controlled by the user.
   const keyWrapper = document.createElement('div');
   keyWrapper.className = 'field';
   const keyLabel = document.createElement('label');
   const keyId = `key-${Math.random().toString(36).slice(2, 8)}`;
   keyLabel.setAttribute('for', keyId);
-  keyLabel.textContent = existing ? 'API key (leave empty to keep saved key)' : 'API key';
-  const keyRow = document.createElement('div');
-  keyRow.className = 'key-row';
+  keyLabel.textContent = 'API key';
   const keyInput = document.createElement('input');
   keyInput.id = keyId;
-  keyInput.type = 'password';
+  keyInput.type = 'text';
   keyInput.autocomplete = 'off';
-  keyInput.placeholder = existing ? '••••••••' : '';
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'button button-ghost button-small';
-  toggle.textContent = 'Show';
-  toggle.setAttribute('aria-pressed', 'false');
-  toggle.addEventListener('click', () => {
-    const show = keyInput.type === 'password';
-    keyInput.type = show ? 'text' : 'password';
-    toggle.textContent = show ? 'Hide' : 'Show';
-    toggle.setAttribute('aria-pressed', String(show));
-  });
-  keyRow.append(keyInput, toggle);
-  keyWrapper.append(keyLabel, keyRow);
+  keyInput.value = existing?.apiKey ?? '';
+  keyWrapper.append(keyLabel, keyInput);
 
   const textApiField = fieldset('Text generation API');
   const textApiName = `text-api-${Math.random().toString(36).slice(2, 8)}`;
@@ -485,7 +473,6 @@ function renderForm(body, options, existing) {
   });
   const ttsModelsEditor = createTtsModelEditor({
     models: existing?.ttsModels ?? providerSuggestionsForPreset(selectedPreset).ttsModels,
-    voicesByTtsModel: existing?.voicesByTtsModel ?? providerSuggestionsForPreset(selectedPreset).voicesByTtsModel,
   });
   const restoreDefaults = document.createElement('button');
   restoreDefaults.type = 'button';
@@ -594,7 +581,7 @@ function renderForm(body, options, existing) {
   }
 
   function readForm() {
-    const { ttsModels, voicesByTtsModel } = ttsModelsEditor.values();
+    const ttsModels = ttsModelsEditor.values();
     return {
       name: nameField.input.value,
       baseUrl: urlField.input.value,
@@ -604,7 +591,6 @@ function renderForm(body, options, existing) {
         models: textModelsEditor.values(),
       },
       ttsModels,
-      voicesByTtsModel,
     };
   }
 
@@ -635,7 +621,7 @@ function renderForm(body, options, existing) {
         await testSpeechConnection(
           provider,
           model,
-          values.voicesByTtsModel[model]?.[0] || DEFAULT_VOICE,
+          model.voices[0] || DEFAULT_VOICE,
         );
       }
       status.textContent = `${capability} endpoint reachable.`;
@@ -801,9 +787,9 @@ function createIdentifierListEditor({ title, description, itemLabel, addLabel, v
 }
 
 /**
- * @param {{ models: string[], voicesByTtsModel: Record<string, string[]> }} args
+ * @param {{ models: import('../../storage/local-settings.js').TtsModelConfig[] }} args
  */
-function createTtsModelEditor({ models, voicesByTtsModel }) {
+function createTtsModelEditor({ models }) {
   const element = document.createElement('section');
   element.className = 'tts-model-editor';
   const heading = document.createElement('h4');
@@ -816,7 +802,7 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
   chips.setAttribute('role', 'list');
   const detail = document.createElement('section');
   detail.className = 'tts-model-detail';
-  const entries = models.map((model) => ({ model, voices: [...(voicesByTtsModel[model] ?? voicesForTtsModel(model))] }));
+  const entries = normalizeTtsModels(models).map((entry) => structuredClone(entry));
   let selectedIndex = 0;
 
   function render() {
@@ -841,6 +827,41 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
       entry.model = modelField.input.value;
       chips.children[selectedIndex].textContent = entry.model || 'New TTS model';
     });
+    const formatField = document.createElement('div');
+    formatField.className = 'field';
+    const formatLabel = document.createElement('label');
+    const formatId = `tts-format-${Math.random().toString(36).slice(2, 8)}`;
+    formatLabel.htmlFor = formatId;
+    formatLabel.textContent = 'Response format';
+    const formatSelect = document.createElement('select');
+    formatSelect.id = formatId;
+    for (const [value, label] of [['mp3', 'MP3'], ['pcm', 'Raw PCM']]) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = label;
+      formatSelect.append(option);
+    }
+    formatSelect.value = entry.responseFormat;
+    formatField.append(formatLabel, formatSelect);
+    const pcmFields = document.createElement('div');
+    pcmFields.className = 'pcm-format-fields';
+    const sampleRate = textField({ label: 'PCM sample rate (Hz)', value: String(entry.pcm?.sampleRate ?? 24000), inputmode: 'numeric' });
+    const channels = textField({ label: 'PCM channels', value: String(entry.pcm?.channels ?? 1), inputmode: 'numeric' });
+    const encoding = document.createElement('p');
+    encoding.className = 'help-text';
+    encoding.textContent = 'Encoding: signed 16-bit little-endian (s16le).';
+    pcmFields.append(sampleRate.wrapper, channels.wrapper, encoding);
+    const syncFormat = () => {
+      entry.responseFormat = formatSelect.value;
+      pcmFields.hidden = entry.responseFormat !== 'pcm';
+      if (entry.responseFormat === 'pcm') {
+        entry.pcm = { sampleRate: Number(sampleRate.input.value), channels: Number(channels.input.value), encoding: 's16le' };
+      } else delete entry.pcm;
+    };
+    formatSelect.addEventListener('change', syncFormat);
+    sampleRate.input.addEventListener('input', syncFormat);
+    channels.input.addEventListener('input', syncFormat);
+    syncFormat();
     const voicesHeading = document.createElement('h5');
     voicesHeading.textContent = 'Available voices';
     const voiceChips = document.createElement('div');
@@ -920,17 +941,17 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
         confirmLabel: 'Restore voices',
       });
       if (!confirmed) return;
-      entry.voices = voicesForTtsModel(entry.model.trim());
+      entry.voices = defaultTtsModel(entry.model.trim()).voices;
       renderVoices();
     });
-    detail.append(modelField.wrapper, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
+    detail.append(modelField.wrapper, formatField, pcmFields, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
   }
   const addButton = document.createElement('button');
   addButton.type = 'button';
   addButton.className = 'button button-secondary button-small';
   addButton.textContent = 'Add TTS model';
   addButton.addEventListener('click', () => {
-    entries.push({ model: '', voices: [] });
+    entries.push(defaultTtsModel());
     selectedIndex = entries.length - 1;
     render();
   });
@@ -942,19 +963,16 @@ function createTtsModelEditor({ models, voicesByTtsModel }) {
       entries.splice(
         0,
         entries.length,
-        ...nextModels.map((model) => ({ model, voices: voicesForTtsModel(model) })),
+        ...normalizeTtsModels(nextModels).map((entry) => structuredClone(entry)),
       );
       selectedIndex = 0;
       render();
     },
-    values() {
-      const ttsModels = normalizeSuggestions(entries.map((entry) => entry.model), []);
-      const voicesByTtsModel = Object.fromEntries(
-        entries
-          .filter((entry) => entry.model.trim())
-          .map((entry) => [entry.model.trim(), normalizeSuggestions(entry.voices, [])]),
-      );
-      return { ttsModels, voicesByTtsModel };
-    },
+    values: () => entries.map((entry) => ({
+      ...entry,
+      model: entry.model.trim(),
+      voices: normalizeSuggestions(entry.voices, []),
+      ...(entry.pcm ? { pcm: { ...entry.pcm } } : {}),
+    })),
   };
 }

@@ -4,19 +4,21 @@
  */
 
 import { notify } from './error-message.js';
-import { createSpeech } from '../services/speech-client.js';
+import { createSpeech, decodeSpeechAudio } from '../services/speech-client.js';
+import { decodePcmS16Le, decodeToPcm } from '../audio/audio-assembler.js';
+import { wavBlob } from '../audio/wav-writer.js';
 import { requireProvider } from '../features/providers/provider-requirement.js';
 
 /**
  * @param {Object} args
  * @param {() => import('../storage/local-settings.js').ProviderConfig | null} args.getSelected
  * @param {() => void} args.refresh
- * @param {() => string} args.getModel
+ * @param {() => import('../storage/local-settings.js').TtsModelConfig} args.getTtsModel
  * @param {() => string} args.getVoice
  * @param {() => string} args.getSample
  * @param {() => number | undefined} [args.getSpeed]
  */
-export function createVoicePreview({ getSelected, refresh, getModel, getVoice, getSample, getSpeed }) {
+export function createVoicePreview({ getSelected, refresh, getTtsModel, getVoice, getSample, getSpeed }) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'button button-secondary button-small';
@@ -40,13 +42,23 @@ export function createVoicePreview({ getSelected, refresh, getModel, getVoice, g
           if (!voice) throw new Error('No voices are configured for this TTS model. Add a voice in provider settings.');
           const result = await createSpeech({
             provider,
-            model: getModel(),
+            ttsModel: getTtsModel(),
             voice,
             input: getSample(),
             speed: getSpeed?.(),
           });
           if (objectUrl) URL.revokeObjectURL(objectUrl);
-          objectUrl = URL.createObjectURL(new Blob([result.audio], { type: result.contentType }));
+          let blob = new Blob([result.audio], { type: result.contentType });
+          if (result.ttsModel.responseFormat === 'pcm') {
+            const decoded = await decodeSpeechAudio(
+              result,
+              decodeToPcm,
+              result.ttsModel.pcm.sampleRate,
+              decodePcmS16Le,
+            );
+            blob = wavBlob(decoded);
+          }
+          objectUrl = URL.createObjectURL(blob);
           player.src = objectUrl;
           player.hidden = false;
           await player.play().catch(() => {});

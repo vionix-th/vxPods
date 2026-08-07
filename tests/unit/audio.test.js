@@ -1,6 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { encodeWavPcm16 } from '../../src/audio/wav-writer.js';
-import { assembleSegments } from '../../src/audio/audio-assembler.js';
+import { assembleSegments, decodePcmS16Le } from '../../src/audio/audio-assembler.js';
+
+describe('decodePcmS16Le', () => {
+  it('deinterleaves signed samples and preserves native rate', () => {
+    const bytes = new ArrayBuffer(8);
+    const view = new DataView(bytes);
+    [16384, -16384, 32767, -32768].forEach((value, index) => view.setInt16(index * 2, value, true));
+    const result = decodePcmS16Le(bytes, { sampleRate: 24000, channels: 2, encoding: 's16le' });
+    expect(result.sampleRate).toBe(24000);
+    expect([...result.channels[0]]).toEqual([0.5, 32767 / 32768]);
+    expect([...result.channels[1]]).toEqual([-0.5, -1]);
+  });
+
+  it('resamples and rejects incomplete frames', () => {
+    const bytes = new ArrayBuffer(4);
+    const view = new DataView(bytes);
+    view.setInt16(0, 0, true);
+    view.setInt16(2, 32767, true);
+    expect(decodePcmS16Le(bytes, { sampleRate: 8000, channels: 1, encoding: 's16le' }, 16000).channels[0]).toHaveLength(4);
+    expect(() => decodePcmS16Le(new ArrayBuffer(3), { sampleRate: 8000, channels: 1, encoding: 's16le' })).toThrow(/aligned/);
+  });
+});
 
 describe('encodeWavPcm16', () => {
   it('writes a valid RIFF/WAVE header', () => {

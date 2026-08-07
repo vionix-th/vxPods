@@ -15,7 +15,7 @@ const DB_VERSION = 1;
 const JOB_STORE = 'job';
 const SEGMENT_STORE = 'segments';
 const ACTIVE_JOB_KEY = 'active';
-export const RENDER_JOB_SCHEMA_VERSION = 1;
+export const RENDER_JOB_SCHEMA_VERSION = 2;
 export const RECOVERY_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**

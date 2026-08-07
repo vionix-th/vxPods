@@ -56,6 +56,7 @@ export function createLocalNotice() {
   }
 
   function show({ type, title: nextTitle, message: nextMessage }) {
+    content.querySelector('.error-diagnostics')?.remove();
     element.className = `local-notice local-notice-${type}`;
     element.setAttribute('role', type === 'error' ? 'alert' : 'status');
     element.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
@@ -72,6 +73,7 @@ export function createLocalNotice() {
       title: KIND_LABELS[normalized.kind] || 'Error',
       message: normalized.message,
     });
+    appendDiagnosticDisclosure(content, normalized);
   }
 
   return { element, clear, show, showError };
@@ -100,9 +102,10 @@ function notificationStack() {
  * @param {string} [args.actionLabel]
  * @param {() => void} [args.onAction]
  * @param {number} [args.timeoutMs]
+ * @param {AppError} [args.error]
  * @returns {string | null}
  */
-export function notify({ type, title, message, actionLabel, onAction, timeoutMs }) {
+export function notify({ type, title, message, actionLabel, onAction, timeoutMs, error }) {
   const stack = notificationStack();
   if (!stack) return null;
   const duplicate = [...activeNotifications.values()].find(
@@ -126,6 +129,7 @@ export function notify({ type, title, message, actionLabel, onAction, timeoutMs 
   text.className = 'notification-text';
   text.textContent = message;
   content.append(heading, text);
+  if (error) appendDiagnosticDisclosure(content, error);
 
   const close = document.createElement('button');
   close.type = 'button';
@@ -198,12 +202,55 @@ export function renderError(container, error, options = {}) {
     type: 'error',
     title: KIND_LABELS[normalized.kind] || 'Error',
     message: normalized.message,
+    error: normalized,
     actionLabel: options.actionLabel,
     onAction: options.onAction,
   });
   if (previousId && previousId !== id) dismissNotification(previousId);
   if (container && id) container.dataset.notificationId = id;
   return id;
+}
+
+/**
+ * Produce the deliberately small, redacted context shown under Technical details.
+ * @param {AppError} error
+ * @returns {{ label: string, value: string }[]}
+ */
+export function formatErrorDiagnostics(error) {
+  const diagnostics = error.diagnostics;
+  if (!diagnostics) return [];
+  const values = [
+    ['Category', error.kind],
+    ['Operation', diagnostics.operation],
+    ['HTTP status', diagnostics.status],
+    ['Endpoint', diagnostics.endpoint],
+    ['Model', diagnostics.model],
+    ['Response type', diagnostics.contentType],
+    ['Provider request ID', diagnostics.requestId],
+  ];
+  return values
+    .filter(([, value]) => value !== undefined && value !== null && value !== '')
+    .map(([label, value]) => ({ label: String(label), value: String(value) }));
+}
+
+/** @param {HTMLElement} content @param {AppError} error */
+function appendDiagnosticDisclosure(content, error) {
+  const rows = formatErrorDiagnostics(error);
+  if (rows.length === 0) return;
+  const details = document.createElement('details');
+  details.className = 'error-diagnostics';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Technical details';
+  const list = document.createElement('dl');
+  for (const row of rows) {
+    const term = document.createElement('dt');
+    term.textContent = row.label;
+    const description = document.createElement('dd');
+    description.textContent = row.value;
+    list.append(term, description);
+  }
+  details.append(summary, list);
+  content.append(details);
 }
 
 /** @param {AppError | Error | unknown} error */

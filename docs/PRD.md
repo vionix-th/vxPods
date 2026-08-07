@@ -64,10 +64,10 @@ Primary jobs:
 - Each configuration contains a user-visible name, base URL, and API key.
 - Base URLs target an OpenAI-compatible `/v1` API root.
 - R1 includes presets for OpenAI and OpenRouter plus a manual URL option.
-- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation and TTS-model option lists, with voices configured per TTS model. They are not inferred from provider APIs and each list contains at least one value.
+- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation models plus canonical TTS model objects. Each TTS model owns its voices, requested MP3 or raw-PCM response format, and raw-PCM decoding metadata when applicable. Capabilities are not inferred from provider APIs; empty lists remain explicit and block the affected workflow until configured.
 - Configurations persist in `localStorage` until deleted by the user or browser.
 - Text-generation and TTS selectors are independent and may reference different saved configurations.
-- API keys are masked after entry and can be replaced.
+- API keys remain visible and editable in provider settings after entry.
 - A connection test reports success, authentication failure, CORS/network failure, unsupported endpoint, or invalid response.
 - Credential handling keeps API keys inside selected request authorization and persisted configuration.
 
@@ -204,7 +204,7 @@ Errors must distinguish:
 - Audio assembly or encoding failure.
 - User cancellation.
 
-Errors appear in a global, dismissible notification stack, preserve completed work, and provide a next action where one exists. Errors persist until dismissed; warnings and informational notifications close automatically.
+Errors appear in a global, dismissible notification stack, preserve completed work, and provide a next action where one exists. Errors persist until dismissed; warnings and informational notifications close automatically. Provider failures include an initially collapsed technical-details disclosure containing only reportable, redacted context: error category, operation, endpoint without query or credentials, model, HTTP status, response content type, and provider request ID when supplied and exposed to the browser. API keys, authorization headers, request input, and raw response bodies never appear in this disclosure.
 
 ## 6. UX requirements
 
@@ -248,5 +248,6 @@ R1 is complete when:
 - Offline shell behavior is verified after first online load.
 - Keyboard-only and screen-reader smoke tests pass.
 - Automated unit, integration, accessibility, and end-to-end checks pass.
+- Explicitly enabled live checks can exercise configured text-generation API/model cases and TTS model/voice cases through both the application request clients and a real browser without committing credentials.
 - Production build succeeds from a clean checkout.
 - Documentation matches shipped behavior.

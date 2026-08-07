@@ -1,7 +1,6 @@
 /**
- * Local, provider-specific suggestions for editable model and voice fields.
- * They are deliberately not inferred from provider APIs: OpenAI-compatible
- * `/models` responses do not communicate TTS or voice capabilities.
+ * Local provider suggestions. Model capabilities are explicit user-managed
+ * configuration and are never inferred from a provider's `/models` response.
  */
 
 export const TEXT_GENERATION_APIS = {
@@ -19,90 +18,46 @@ export const DEFAULT_TEXT_MODELS_BY_API = {
   [TEXT_GENERATION_APIS.responses]: ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6'],
 };
 
-export const DEFAULT_TTS_MODELS = ['gpt-4o-mini-tts', 'tts-1', 'tts-1-hd'];
 export const DEFAULT_VOICES = [
   'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
 ];
 
-/**
- * Locally maintained TTS capability hints. Provider APIs do not expose a
- * portable model-to-voice contract, so unknown model identifiers deliberately
- * have no suggested voices.
- */
-export const KNOWN_TTS_VOICES_BY_MODEL = {
-  'gpt-4o-mini-tts': DEFAULT_VOICES,
-  'tts-1': DEFAULT_VOICES,
-  'tts-1-hd': DEFAULT_VOICES,
-};
+/** @type {import('../../storage/local-settings.js').TtsModelConfig[]} */
+export const DEFAULT_TTS_MODELS = [
+  mp3Model('gpt-4o-mini-tts', DEFAULT_VOICES),
+  mp3Model('tts-1', DEFAULT_VOICES),
+  mp3Model('tts-1-hd', DEFAULT_VOICES),
+];
 
-/**
- * @returns {{ textGeneration: { api: 'chat-completions', models: string[] }, ttsModels: string[], voicesByTtsModel: Record<string, string[]> }}
- */
 export function defaultProviderSuggestions() {
   return {
     textGeneration: {
       api: TEXT_GENERATION_APIS.chatCompletions,
       models: defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
     },
-    ttsModels: [...DEFAULT_TTS_MODELS],
-    voicesByTtsModel: voicesForTtsModels(DEFAULT_TTS_MODELS),
+    ttsModels: cloneTtsModels(DEFAULT_TTS_MODELS),
   };
 }
 
-/**
- * Defaults are preset-specific hints, never discovered provider capability.
- * Manual and OpenRouter begin empty in R1 so users explicitly choose models
- * supported by their account and desired route.
- * @param {'openai'|'openrouter'|'manual'} preset
- */
+/** Presets seed local hints only; OpenRouter and Manual start empty. */
 export function providerSuggestionsForPreset(preset) {
   if (preset === 'openai') return defaultProviderSuggestions();
   return {
     textGeneration: { api: TEXT_GENERATION_APIS.chatCompletions, models: [] },
     ttsModels: [],
-    voicesByTtsModel: {},
   };
 }
 
-/** @param {unknown} api */
 export function isTextGenerationApi(api) {
   return api === TEXT_GENERATION_APIS.chatCompletions || api === TEXT_GENERATION_APIS.responses;
 }
 
-/** @param {unknown} api */
 export function defaultTextModels(api) {
   const validApi = isTextGenerationApi(api) ? api : TEXT_GENERATION_APIS.chatCompletions;
   return [...DEFAULT_TEXT_MODELS_BY_API[validApi]];
 }
 
-/**
- * @param {string[]} ttsModels
- * @param {string[]} [fallbackVoices]
- * @returns {Record<string, string[]>}
- */
-export function voicesForTtsModels(ttsModels, fallbackVoices) {
-  return Object.fromEntries(ttsModels.map((model) => [model, voicesForTtsModel(model, fallbackVoices)]));
-}
-
-/**
- * @param {string} model
- * @param {string[]} [fallbackVoices] compatibility fallback for legacy migrations
- * @returns {string[]}
- */
-export function voicesForTtsModel(model, fallbackVoices) {
-  const knownVoices = KNOWN_TTS_VOICES_BY_MODEL[model];
-  if (knownVoices) return [...knownVoices];
-  return fallbackVoices ? [...fallbackVoices] : [];
-}
-
-/**
- * Normalize editable provider suggestions without imposing provider-specific
- * capability rules. Empty lists are valid because all workflow fields permit
- * manual identifiers.
- * @param {unknown} values
- * @param {string[]} fallback
- * @returns {string[]}
- */
+/** Normalize editable string suggestions with stable de-duplication. */
 export function normalizeSuggestions(values, fallback) {
   if (!Array.isArray(values)) return [...fallback];
   const seen = new Set();
@@ -119,24 +74,61 @@ export function normalizeSuggestions(values, fallback) {
 }
 
 /**
- * Normalize model-specific voice lists. Explicit empty lists remain empty.
- * Missing entries receive known voices only for models in local registry.
+ * Normalize canonical TTS model objects. Legacy string/map shapes are
+ * intentionally unsupported after the pre-release schema reset.
  * @param {unknown} values
- * @param {string[]} ttsModels
- * @param {string[]} [fallbackVoices]
- * @returns {Record<string, string[]>}
+ * @param {import('../../storage/local-settings.js').TtsModelConfig[]} [fallback]
  */
-export function normalizeVoicesByTtsModel(values, ttsModels, fallbackVoices) {
-  const input = values && typeof values === 'object' && !Array.isArray(values) ? values : {};
-  return Object.fromEntries(
-    ttsModels.map((model) => {
-      if (Array.isArray(input[model])) return [model, normalizeSuggestions(input[model], [])];
-      return [model, voicesForTtsModel(model, fallbackVoices)];
-    }),
-  );
+export function normalizeTtsModels(values, fallback = []) {
+  if (!Array.isArray(values)) return cloneTtsModels(fallback);
+  const seen = new Set();
+  const normalized = [];
+  for (const value of values) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) continue;
+    const model = typeof value.model === 'string' ? value.model.trim() : '';
+    if (!model || seen.has(model)) continue;
+    const responseFormat = value.responseFormat === 'pcm' ? 'pcm' : value.responseFormat === 'mp3' ? 'mp3' : null;
+    if (!responseFormat) continue;
+    const entry = {
+      model,
+      voices: normalizeSuggestions(value.voices, []),
+      responseFormat,
+    };
+    if (responseFormat === 'pcm') {
+      const sampleRate = Number(value.pcm?.sampleRate);
+      const channels = Number(value.pcm?.channels);
+      if (!Number.isInteger(sampleRate) || sampleRate < 8000 || sampleRate > 192000) continue;
+      if (!Number.isInteger(channels) || channels < 1 || channels > 8) continue;
+      if (value.pcm?.encoding !== 's16le') continue;
+      entry.pcm = { sampleRate, channels, encoding: 's16le' };
+    }
+    seen.add(model);
+    normalized.push(entry);
+    if (normalized.length === 100) break;
+  }
+  return normalized;
 }
 
-/** @param {string} value */
+export function cloneTtsModels(models) {
+  return models.map((entry) => ({
+    model: entry.model,
+    voices: [...entry.voices],
+    responseFormat: entry.responseFormat,
+    ...(entry.pcm ? { pcm: { ...entry.pcm } } : {}),
+  }));
+}
+
+export function defaultTtsModel(model = '') {
+  const known = DEFAULT_TTS_MODELS.find((entry) => entry.model === model);
+  return known
+    ? cloneTtsModels([known])[0]
+    : mp3Model(model, []);
+}
+
+function mp3Model(model, voices) {
+  return { model, voices: [...voices], responseFormat: 'mp3' };
+}
+
 export function suggestionsFromLines(value) {
   return value.split(/\r?\n/);
 }

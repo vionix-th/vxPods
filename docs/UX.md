@@ -54,6 +54,7 @@ Mode changes preserve current input in each mode for current browser session.
 - TTS provider configuration.
 - TTS model select, with options from the selected provider configuration.
 - Voice select, with options for the selected TTS model in the selected provider configuration.
+- Provider settings expose MP3 or raw PCM per TTS model. Raw PCM additionally requires sample rate and channel count; `s16le` is displayed as the fixed supported encoding.
 - Compact Preview action beside Voice; temporary inline audio uses the selected provider, model, voice, and speed.
 - Speed control only when supported by selected request contract.
 
@@ -146,7 +147,7 @@ Saved configuration list:
 
 - Name.
 - Normalized base URL.
-- Masked credential state: “Key saved”.
+- Credential state: “Key saved”.
 - Edit and delete actions.
 
 Configuration form:
@@ -154,7 +155,7 @@ Configuration form:
 - Preset: OpenAI, OpenRouter, Manual.
 - Name.
 - Base URL.
-- API key with Show/Hide toggle.
+- Visible API key field, prefilled when editing a saved configuration.
 - Text generation API: Chat Completions or Responses; each configuration binds exactly one.
 - New configurations start with OpenAI selected and its local defaults. Selecting a preset replaces URL, text-generation models, TTS models, and voices after confirmation. OpenRouter and Manual start with empty model and voice lists in R1; users add identifiers accepted by their configuration. Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Known TTS models prefill their locally maintained voice list; unknown identifiers start with no voices. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s known voices. Model and voice lists may be empty. Copy states that these are local hints, not API-discovered capabilities.
 - “Test generation” and “Test Speech” actions when useful.
@@ -264,6 +265,7 @@ Application adaptation:
 - Errors and dialog-local notices remain visible until dismissed. Global warnings and informational notifications auto-close after six seconds and pause while hovered or focused.
 - Error copy includes what failed and next useful action.
 - User-facing UI presents normalized error category and action.
+- Provider errors with reportable context offer a collapsed “Technical details” disclosure. It contains labeled operation, endpoint, model, status, response type, and request ID values when available; it never shows credentials, submitted text, or a raw response body.
 
 ### Progress
 

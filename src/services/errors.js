@@ -9,6 +9,17 @@
  * @property {number | undefined} status
  * @property {unknown | undefined} cause
  * @property {number | undefined} [retryAfterSeconds]
+ * @property {ProviderDiagnostics | undefined} [diagnostics] redacted request context safe for user reports
+ */
+
+/**
+ * @typedef {Object} ProviderDiagnostics
+ * @property {string | undefined} [operation]
+ * @property {string | undefined} [endpoint]
+ * @property {string | undefined} [model]
+ * @property {number | undefined} [status]
+ * @property {string | undefined} [requestId]
+ * @property {string | undefined} [contentType]
  */
 
 export class AppError extends Error {
@@ -24,6 +35,8 @@ export class AppError extends Error {
     this.cause = shape.cause;
     /** @type {number | undefined} seconds hint supplied via Retry-After */
     this.retryAfterSeconds = shape.retryAfterSeconds;
+    /** @type {ProviderDiagnostics | undefined} redacted context; never contains credentials or request input */
+    this.diagnostics = normalizeDiagnostics(shape.diagnostics);
   }
 }
 
@@ -50,6 +63,7 @@ export function toAppError(err, fallback = {}) {
       retryable: false,
       status: undefined,
       cause: err,
+      diagnostics: fallback.diagnostics,
     });
   }
   const message =
@@ -61,6 +75,7 @@ export function toAppError(err, fallback = {}) {
     retryable: fallback.retryable ?? false,
     status: fallback.status,
     cause: err,
+    diagnostics: fallback.diagnostics,
   });
 }
 
@@ -68,7 +83,7 @@ export function toAppError(err, fallback = {}) {
  * Map an HTTP error response to an AppError category.
  * @param {number} status
  * @param {string} [bodyText] raw provider body, already read as text
- * @param {{ retryAfterSeconds?: number }} [opts]
+ * @param {{ retryAfterSeconds?: number, diagnostics?: ProviderDiagnostics }} [opts]
  * @returns {AppError}
  */
 export function httpStatusToAppError(status, bodyText = '', opts = {}) {
@@ -79,6 +94,7 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
       message: `Authentication failed (${status}). Check the API key for this configuration.${detail}`,
       retryable: false,
       status,
+      diagnostics: opts.diagnostics,
     });
   }
   if (status === 404) {
@@ -87,6 +103,16 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
       message: `Endpoint or model not found (404). This provider may not support this route.${detail}`,
       retryable: false,
       status,
+      diagnostics: opts.diagnostics,
+    });
+  }
+  if (status === 402) {
+    return new AppError({
+      kind: 'provider',
+      message: `Provider account has insufficient credits or requires payment (402).${detail}`,
+      retryable: false,
+      status,
+      diagnostics: opts.diagnostics,
     });
   }
   if (status === 429) {
@@ -98,6 +124,7 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
         : 'Rate limit reached. Retry shortly.',
       retryable: true,
       status,
+      diagnostics: opts.diagnostics,
     });
     err.retryAfterSeconds = wait;
     return err;
@@ -108,6 +135,7 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
       message: `Provider rejected the request (${status}).${detail}`,
       retryable: false,
       status,
+      diagnostics: opts.diagnostics,
     });
   }
   if (status >= 500) {
@@ -116,6 +144,7 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
       message: `Provider error (${status}). Retry may succeed.${detail}`,
       retryable: true,
       status,
+      diagnostics: opts.diagnostics,
     });
   }
   return new AppError({
@@ -123,7 +152,22 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
     message: `Unexpected provider response (${status}).${detail}`,
     retryable: false,
     status,
+    diagnostics: opts.diagnostics,
   });
+}
+
+/** Keep diagnostic metadata small, printable, and credential-free. */
+function normalizeDiagnostics(value) {
+  if (!value || typeof value !== 'object') return undefined;
+  const diagnostics = {};
+  for (const key of ['operation', 'endpoint', 'model', 'requestId', 'contentType']) {
+    const candidate = value[key];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      diagnostics[key] = truncate(candidate.trim(), 300);
+    }
+  }
+  if (Number.isInteger(value.status)) diagnostics.status = value.status;
+  return Object.keys(diagnostics).length ? diagnostics : undefined;
 }
 
 /**

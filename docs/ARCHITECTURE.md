@@ -153,6 +153,7 @@ R1 uses one shared configuration record:
  * @property {string} baseUrl // normalized API root ending in /v1
  * @property {string} apiKey
  * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
+ * @property {{ model: string, voices: string[], responseFormat: 'mp3'|'pcm', pcm?: { sampleRate: number, channels: number, encoding: 's16le' } }[]} ttsModels
  */
 ```
 
@@ -172,7 +173,7 @@ POST {baseUrl}/audio/speech
 
 Each configuration binds one text-generation API; users create a second configuration to use both routes with the same endpoint. A configuration is usable for TTS when its endpoint implements the OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
 
-Speech requests explicitly set `response_format: 'mp3'`. This avoids endpoint-specific defaults, such as raw PCM, and gives every rendering path a consistently decodable response format.
+Speech requests always set `response_format` from the selected TTS model object. MP3 responses use browser decoding. Raw PCM models also declare sample rate, channel count, and `s16le` encoding because the provider byte stream has no container header; the audio boundary parses and resamples those bytes before the shared assembly/export pipeline.
 
 Request clients return application results or throw a normalized `AppError`:
 
@@ -184,10 +185,11 @@ Request clients return application results or throw a normalized `AppError`:
  * @property {boolean} retryable
  * @property {number | undefined} status
  * @property {unknown | undefined} cause
+ * @property {{ operation?: string, endpoint?: string, model?: string, status?: number, requestId?: string, contentType?: string } | undefined} diagnostics
  */
 ```
 
-Raw provider response bodies remain request-scoped. Redacted local-development diagnostics preserve status and error category while credentials stay confined to authorization header.
+Raw provider response bodies remain request-scoped. Normalized provider failures carry a bounded diagnostic record for the collapsed error disclosure and developer reports. It may contain operation, credential-free endpoint, model, HTTP status, response content type, and provider request ID. It never contains an API key, authorization header, request input, query string, or raw response body.
 
 ## 7. Application state
 
@@ -346,7 +348,7 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 8,
+  schemaVersion: 1,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -355,7 +357,7 @@ One versioned document stores:
 }
 ```
 
-Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus possibly empty `ttsModels` and `voicesByTtsModel` lists. These are user-managed UI options rather than inferred capabilities. Presets seed new records only: OpenAI uses local defaults; OpenRouter and Manual begin empty in R1. A maintained local registry supplies voices when a known TTS model is added; unknown models receive an empty list. Empty lists persist and generation requires the user to add a required model and voice. Version 6 records migrate to Chat Completions without changing their selection or model list. Version 8 preserves explicit voice lists, supplies registry voices for missing known-model mappings, and leaves missing unknown-model mappings empty. Read through validation; corrupt records fall back safely and semantic changes use sequential tested migrations.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice. This pre-release schema is reset to version 1; superseded settings documents are discarded rather than migrated.
 Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
@@ -365,7 +367,7 @@ Database stores one `RenderJob` plus segment Blob records keyed by job and segme
 
 ```js
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: string,
   createdAt: string,
   updatedAt: string,
@@ -446,6 +448,8 @@ End-to-end tests cover:
 - Keyboard-only completion at desktop and mobile viewports.
 
 Tests use fixtures, intercepted requests, and synthetic credentials.
+
+Opt-in live provider tests use a git-ignored local target document containing one or more provider roots and dedicated test keys. Each target defines independent text-generation cases—API route, model, and input—and speech cases using the same model, voice, response-format, and PCM metadata contract as application settings. The client layer verifies the production adapters. Chromium independently verifies browser CORS, text response shape, MP3 decoding, or raw PCM frame validity. The aggregate runner executes both layers even if one fails and returns failure if either layer fails. Live tests are excluded from normal test commands, perform billable provider requests only through an explicit command, and must not print API keys.
 
 ## 16. Deployment
 

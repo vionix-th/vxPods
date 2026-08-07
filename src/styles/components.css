@@ -200,6 +200,11 @@
 .notification-content { min-width: 0; }
 .notification-title { color: var(--color-heading); font-weight: 700; margin: 0 0 var(--space-1); }
 .notification-text { color: var(--color-text); margin: 0; overflow-wrap: anywhere; }
+.error-diagnostics { color: var(--color-text-soft); font: 0.85rem var(--font-compact); margin-top: var(--space-2); }
+.error-diagnostics summary { cursor: pointer; font-weight: 600; }
+.error-diagnostics dl { display: grid; gap: var(--space-1) var(--space-2); grid-template-columns: max-content minmax(0, 1fr); margin: var(--space-2) 0 0; }
+.error-diagnostics dt { font-weight: 600; }
+.error-diagnostics dd { margin: 0; overflow-wrap: anywhere; }
 .notification-close {
   color: var(--color-text-soft);
   background: transparent;
@@ -826,16 +831,6 @@
 }
 
 /* Settings and provider management */
-.key-row {
-  display: flex;
-  gap: var(--space-2);
-  align-items: center;
-}
-
-.key-row input {
-  flex: 1;
-}
-
 .voice-control-row {
   align-items: center;
   display: flex;

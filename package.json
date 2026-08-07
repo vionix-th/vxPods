@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:live": "node scripts/run-live-provider-tests.js",
+    "test:live:client": "VXPODS_LIVE_PROVIDER=1 vitest run tests/live/provider-client.live.test.js",
+    "test:live:browser": "VXPODS_LIVE_PROVIDER=1 playwright test e2e/live-provider.spec.js --project=chromium"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

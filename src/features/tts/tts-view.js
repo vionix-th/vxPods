@@ -40,8 +40,8 @@ export function createTtsView({ controller, isOnline }) {
   const providerSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
   const modelField = selectField({
     label: 'Model',
-    options: KNOWN_TTS_MODELS,
-    value: KNOWN_TTS_MODELS[0],
+    options: KNOWN_TTS_MODELS.map((entry) => entry.model),
+    value: KNOWN_TTS_MODELS[0].model,
   });
   const voiceField = selectField({
     label: 'Voice',
@@ -56,7 +56,7 @@ export function createTtsView({ controller, isOnline }) {
   const voicePreview = createVoicePreview({
     getSelected: providerSelect.getSelected,
     refresh: providerSelect.refresh,
-    getModel: () => modelField.input.value.trim() || KNOWN_TTS_MODELS[0],
+    getTtsModel: () => selectedTtsModel(),
     getVoice: () => voiceField.input.value.trim() || 'alloy',
     getSpeed: () => {
       const speed = Number(speedField.input.value.trim());
@@ -70,15 +70,13 @@ export function createTtsView({ controller, isOnline }) {
   voiceField.wrapper.append(voiceControls, voicePreview.player);
   function refreshProviderSuggestions() {
     const provider = providerSelect.getSelected();
-    modelField.setOptions(provider?.ttsModels ?? KNOWN_TTS_MODELS);
+    modelField.setOptions((provider?.ttsModels ?? KNOWN_TTS_MODELS).map((entry) => entry.model));
     refreshVoiceOptions();
     voicePreview.clear();
   }
   function refreshVoiceOptions() {
     const provider = providerSelect.getSelected();
-    const voices = provider
-      ? provider.voicesByTtsModel?.[modelField.input.value] ?? []
-      : KNOWN_VOICES;
+    const voices = provider ? selectedTtsModel()?.voices ?? [] : KNOWN_VOICES;
     voiceField.setOptions(voices);
     voiceField.input.disabled = voices.length === 0;
     voicePreview.button.disabled = voices.length === 0;
@@ -90,6 +88,10 @@ export function createTtsView({ controller, isOnline }) {
   });
   subscribeProviders(refreshProviderSuggestions);
   refreshProviderSuggestions();
+  function selectedTtsModel() {
+    const models = providerSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS;
+    return models.find((entry) => entry.model === modelField.input.value) ?? models[0];
+  }
   settingsCard.append(
     providerSelect.element,
     modelField.wrapper,
@@ -179,7 +181,7 @@ export function createTtsView({ controller, isOnline }) {
     }
     return {
       provider,
-      model,
+      ttsModel: selectedTtsModel(),
       voice,
       speed: Number.isFinite(speed) ? speed : undefined,
     };

@@ -96,7 +96,6 @@ async function addProvider(page, name = 'Mock', api = 'chat-completions') {
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill(name);
-  await dialog.getByLabel(/Base URL/).fill('https://mock.provider/v1');
   await dialog.getByLabel(/API key/).fill('sk-synthetic');
   if (api === 'responses') {
     await dialog.getByLabel('Responses').check();
@@ -125,7 +124,7 @@ test('provider setup persists across reload', async ({ page }) => {
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByText('Mock', { exact: true })).toBeVisible();
   await expect(dialog.getByText('Key saved')).toBeVisible();
-  await expect(dialog.getByText('https://mock.provider/v1')).toBeVisible();
+  await expect(dialog.getByText('https://api.openai.com/v1')).toBeVisible();
 });
 
 test('settings validation feedback stays visible inside the dialog', async ({ page }) => {
@@ -134,10 +133,37 @@ test('settings validation feedback stays visible inside the dialog', async ({ pa
   await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByRole('button', { name: 'Save configuration' }).click();
 
-  const notice = dialog.locator('.local-notice');
+  const notice = dialog.locator('.local-notice:visible');
   await expect(notice).toHaveAttribute('role', 'alert');
   await expect(notice).toContainText('Input problem');
   await expect(page.locator('#notification-stack .notification-error')).toHaveCount(0);
+});
+
+test('provider failures expose compact redacted technical details', async ({ page }) => {
+  await page.route('**/v1/audio/speech', async (route) => {
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      headers: {
+        'x-generation-id': 'gen-reportable-123',
+        'access-control-expose-headers': 'x-generation-id',
+      },
+      body: JSON.stringify({ error: { message: 'Voice is not available for this model.' } }),
+    });
+  });
+  await addProvider(page);
+  const panel = page.locator('#panel-tts');
+  await panel.getByLabel(/Text to speak/).fill('Trigger a provider failure.');
+  await panel.getByRole('button', { name: 'Generate speech' }).click();
+
+  const notification = page.locator('#notification-stack .notification-error');
+  await expect(notification).toContainText('Voice is not available for this model.');
+  await notification.getByText('Technical details').click();
+  await expect(notification).toContainText('speech synthesis');
+  await expect(notification).toContainText('https://api.openai.com/v1/audio/speech');
+  await expect(notification).toContainText('gpt-4o-mini-tts');
+  await expect(notification).toContainText('gen-reportable-123');
+  await expect(notification).not.toContainText('sk-synthetic');
 });
 
 test('OpenRouter and Manual presets start with empty model and voice lists', async ({ page }) => {
@@ -163,7 +189,6 @@ test('provider-managed model and voice suggestions populate TTS fields', async (
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill('Custom provider');
-  await dialog.getByLabel(/Base URL/).fill('https://custom.provider/v1');
   await dialog.getByLabel(/API key/).fill('sk-synthetic');
   await dialog.getByRole('button', { name: 'gpt-4o-mini', exact: true }).click();
   await dialog.getByLabel('Text generation model identifier').fill('custom-chat');

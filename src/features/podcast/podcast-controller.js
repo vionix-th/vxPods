@@ -8,9 +8,9 @@ import { createStore, assertTransition } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { withRetry, throwIfAborted } from '../../services/retry.js';
 import { generateText } from '../../services/text-generation-client.js';
-import { createSpeech } from '../../services/speech-client.js';
+import { createSpeech, decodeSpeechAudio } from '../../services/speech-client.js';
 import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
-import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
+import { assembleSegments, decodePcmS16Le, decodeToPcm } from '../../audio/audio-assembler.js';
 import { wavBlob, encodeWavPcm16 } from '../../audio/wav-writer.js';
 import { encodeMp3 } from '../../audio/mp3-encoder.js';
 import { sanitizeFilename } from '../../utils/download.js';
@@ -22,6 +22,7 @@ import {
   exportableScript,
 } from './podcast-script.js';
 import * as jobStore from '../../storage/render-job-store.js';
+import { RENDER_JOB_SCHEMA_VERSION } from '../../storage/render-job-store.js';
 
 const SAMPLE_RATE = 44100;
 
@@ -264,7 +265,7 @@ export function createPodcastController(deps = {}) {
    * Caller confirms replacement of any existing recoverable job first.
    *
    * @param {{ baseUrl: string, apiKey: string, id?: string, name?: string }} ttsProvider
-   * @param {string} ttsModel
+   * @param {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
    */
   async function startRender(ttsProvider, ttsModel) {
     const script = store.get().script;
@@ -279,7 +280,7 @@ export function createPodcastController(deps = {}) {
     const now = new Date().toISOString();
     /** @type {import('../../storage/render-job-store.js').RenderJob} */
     const job = {
-      schemaVersion: 1,
+      schemaVersion: RENDER_JOB_SCHEMA_VERSION,
       id: `job-${Date.now()}`,
       createdAt: now,
       updatedAt: now,
@@ -391,14 +392,14 @@ export function createPodcastController(deps = {}) {
           () =>
             speech({
               provider: ttsProvider,
-              model: ttsModel,
+            ttsModel,
               voice: speaker.voice,
               input: chunk,
               signal,
             }),
           { signal },
         );
-        pcmParts.push((await decode(result.audio, SAMPLE_RATE)).channels);
+        pcmParts.push((await decodeSpeechAudio(result, decode, SAMPLE_RATE, decodePcmS16Le)).channels);
       }
       const merged = assembleSegments(
         pcmParts.map((channels) => ({ channels })),
@@ -426,7 +427,7 @@ export function createPodcastController(deps = {}) {
    * Retry one failed segment without disturbing completed work.
    * @param {string} segmentId
    * @param {{ baseUrl: string, apiKey: string }} ttsProvider
-   * @param {string} ttsModel
+   * @param {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
    */
   async function retrySegment(segmentId, ttsProvider, ttsModel) {
     if (!activeJob) {

@@ -14,6 +14,7 @@ const ttsProvider = {
   baseUrl: 'https://tts.test/v1',
   apiKey: 'sk-tts',
 };
+const ttsModel = { model: 'tts-1', voices: ['alloy', 'verse'], responseFormat: 'mp3' };
 
 const prefs = {
   format: 'conversation',
@@ -49,7 +50,7 @@ function textReturning(script) {
 }
 
 function speechOk() {
-  return vi.fn().mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+  return vi.fn().mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
 }
 
 function fakeDecode() {
@@ -172,7 +173,7 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    await controller.startRender(ttsProvider, 'tts-1');
+    await controller.startRender(ttsProvider, ttsModel);
     const state = controller.store.get();
     expect(state.renderStatus).toBe('ready');
     expect(state.output.wav).toBeInstanceOf(Blob);
@@ -197,7 +198,7 @@ describe('podcast rendering', () => {
           new AppError({ kind: 'provider', message: 'boom', retryable: false, status: 500 }),
         );
       }
-      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
     });
     const controller = createPodcastController({
       textGeneration: textReturning(validScript),
@@ -205,7 +206,7 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    await controller.startRender(ttsProvider, 'tts-1');
+    await controller.startRender(ttsProvider, ttsModel);
     expect(controller.store.get().renderStatus).toBe('failed');
     const job = await loadJob();
     expect(job.segmentStates['segment-0001']).toBe('completed');
@@ -231,11 +232,11 @@ describe('podcast rendering', () => {
     const speech = vi.fn().mockImplementation(() => {
       call += 1;
       if (call === 1) {
-        return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+        return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
       }
       return new Promise((resolve) => {
         resolvePending = () =>
-          resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+          resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
       });
     });
     const controller = createPodcastController({
@@ -244,7 +245,7 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    const run = controller.startRender(ttsProvider, 'tts-1');
+    const run = controller.startRender(ttsProvider, ttsModel);
     await vi.waitFor(() => expect(call).toBe(2));
     controller.cancelRender();
     resolvePending();
@@ -263,7 +264,7 @@ describe('podcast rendering', () => {
           new AppError({ kind: 'provider', message: 'boom', retryable: false, status: 500 }),
         );
       }
-      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
     });
     const controller = createPodcastController({
       textGeneration: textReturning(validScript),
@@ -271,15 +272,15 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    await controller.startRender(ttsProvider, 'tts-1');
+    await controller.startRender(ttsProvider, ttsModel);
     expect(controller.store.get().renderStatus).toBe('failed');
 
-    speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
-    await controller.retrySegment('segment-0002', ttsProvider, 'tts-1');
+    speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
+    await controller.retrySegment('segment-0002', ttsProvider, ttsModel);
     let job = await loadJob();
     expect(job.segmentStates['segment-0002']).toBe('completed');
 
-    await controller.retrySegment('segment-0003', ttsProvider, 'tts-1');
+    await controller.retrySegment('segment-0003', ttsProvider, ttsModel);
     job = await loadJob();
     expect(job.segmentStates['segment-0003']).toBe('completed');
     expect(controller.store.get().renderStatus).toBe('ready');
@@ -292,7 +293,7 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    await controller.startRender(ttsProvider, 'tts-1');
+    await controller.startRender(ttsProvider, ttsModel);
     expect(await loadJob()).toBeTruthy();
 
     const { blob, filename } = await controller.exportAudio('wav');
@@ -308,7 +309,7 @@ describe('podcast rendering', () => {
       decode: fakeDecode,
     });
     await controller.generateScript('source', prefs, textProvider);
-    await controller.startRender(ttsProvider, 'tts-1');
+    await controller.startRender(ttsProvider, ttsModel);
     await controller.discardRender();
     expect(await loadJob()).toBeNull();
     expect(controller.store.get().renderStatus).toBe('idle');

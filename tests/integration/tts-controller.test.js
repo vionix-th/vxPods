@@ -3,7 +3,8 @@ import { createTtsController } from '../../src/features/tts/tts-controller.js';
 import { AppError } from '../../src/services/errors.js';
 
 const provider = { id: 'p', name: 'Test', baseUrl: 'https://api.test/v1', apiKey: 'sk' };
-const settings = { provider, model: 'tts-1', voice: 'alloy', speed: undefined };
+const ttsModel = { model: 'tts-1', voices: ['alloy'], responseFormat: 'mp3' };
+const settings = { provider, ttsModel, voice: 'alloy', speed: undefined };
 
 /** Minimal PCM decode stub: one Float32 sample per call. */
 function fakeDecode() {
@@ -12,7 +13,7 @@ function fakeDecode() {
 
 /** Encoded-bytes stub. */
 function speechOk() {
-  return vi.fn().mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+  return vi.fn().mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
 }
 
 beforeEach(() => {
@@ -58,7 +59,7 @@ describe('tts controller', () => {
           }),
         );
       }
-      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+      return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
     });
     const controller = createTtsController({ speech, decode: fakeDecode, maxChunkChars: 5 });
     await controller.generate('aaaa bbbb cccc', settings);
@@ -68,7 +69,7 @@ describe('tts controller', () => {
     expect(state.chunks[1].status).toBe('failed');
 
     // fix provider, retry
-    speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+    speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
     const callsBefore = speech.mock.calls.length;
     await controller.retryFailed();
     state = controller.store.get();
@@ -83,7 +84,7 @@ describe('tts controller', () => {
       () =>
         new Promise((resolve) => {
           resolveFirst = () =>
-            resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav' });
+            resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
         }),
     );
     const controller = createTtsController({ speech, decode: fakeDecode, maxChunkChars: 5 });

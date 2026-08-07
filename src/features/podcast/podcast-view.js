@@ -120,8 +120,8 @@ export function createPodcastView({ controller, isOnline }) {
   const ttsProviderSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
   const ttsModelField = selectField({
     label: 'TTS model',
-    options: KNOWN_TTS_MODELS,
-    value: KNOWN_TTS_MODELS[0],
+    options: KNOWN_TTS_MODELS.map((entry) => entry.model),
+    value: KNOWN_TTS_MODELS[0].model,
   });
 
   const speakersContainer = document.createElement('div');
@@ -172,7 +172,7 @@ export function createPodcastView({ controller, isOnline }) {
       const preview = createVoicePreview({
         getSelected: ttsProviderSelect.getSelected,
         refresh: ttsProviderSelect.refresh,
-        getModel: () => ttsModelField.input.value || KNOWN_TTS_MODELS[0],
+        getTtsModel: () => selectedTtsModel(),
         getVoice: () => voice.input.value,
         getSample: () => `Hello, I am ${name.input.value.trim() || `Speaker ${i + 1}`}. This is a short voice preview.`,
       });
@@ -194,15 +194,17 @@ export function createPodcastView({ controller, isOnline }) {
 
   function refreshProviderSuggestions() {
     textModelField.setOptions(textProviderSelect.getSelected()?.textGeneration.models ?? KNOWN_TEXT_MODELS);
-    ttsModelField.setOptions(ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS);
+    ttsModelField.setOptions((ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS).map((entry) => entry.model));
     speakerValues = readSpeakers();
     renderSpeakerCards();
   }
   function voiceOptions() {
     const provider = ttsProviderSelect.getSelected();
-    return provider
-      ? provider.voicesByTtsModel?.[ttsModelField.input.value] ?? []
-      : KNOWN_VOICES;
+    return provider ? selectedTtsModel()?.voices ?? [] : KNOWN_VOICES;
+  }
+  function selectedTtsModel() {
+    const models = ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS;
+    return models.find((entry) => entry.model === ttsModelField.input.value) ?? models[0];
   }
   textProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
@@ -892,7 +894,7 @@ export function createPodcastView({ controller, isOnline }) {
           }), { onDismiss: () => {} });
           return;
         }
-        if (!(provider.voicesByTtsModel?.[model] ?? []).length) {
+        if (!(selectedTtsModel()?.voices ?? []).length) {
           renderError(reviewErrorRegion, new AppError({
             kind: 'validation',
             message: `No voices are configured for ${model}. Add a voice in provider settings.`,
@@ -910,7 +912,7 @@ export function createPodcastView({ controller, isOnline }) {
           });
           if (!confirmed) return;
         }
-        await controller.startRender(provider, model);
+        await controller.startRender(provider, selectedTtsModel());
       },
     });
   });
@@ -1047,7 +1049,7 @@ export function createPodcastView({ controller, isOnline }) {
             slot: 'tts',
             getSelected: ttsProviderSelect.getSelected,
             refresh: ttsProviderSelect.refresh,
-            onReady: (provider) => controller.retrySegment(segment.id, provider, readPrefs().ttsModel),
+            onReady: (provider) => controller.retrySegment(segment.id, provider, selectedTtsModel()),
           });
         });
         item.append(label, retry);
@@ -1101,7 +1103,7 @@ export function createPodcastView({ controller, isOnline }) {
     const updated = new Date(job.updatedAt).toLocaleString();
     meta.textContent =
       `${job.script.title} — ${completedCount(job)} of ${job.script.segments.length} turns completed. ` +
-      `Last updated ${updated}. Requires TTS configuration “${job.settings.ttsProviderName ?? 'unknown'}” and model “${job.settings.ttsModel}”.`;
+      `Last updated ${updated}. Requires TTS configuration “${job.settings.ttsProviderName ?? 'unknown'}” and model “${job.settings.ttsModel.model}”.`;
 
     const actions = document.createElement('div');
     actions.className = 'action-row';

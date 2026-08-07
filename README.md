@@ -53,6 +53,17 @@ npm test
 npm run test:e2e
 ```
 
+### Live provider diagnostics
+
+Live provider tests are opt-in because they send billable requests to real providers. Copy the example target file, then replace its placeholders with a dedicated test key and current text-model, TTS-model, and voice identifiers:
+
+```sh
+cp tests/live/provider-targets.example.json tests/live/provider-targets.local.json
+npm run test:live
+```
+
+Each target can contain multiple `textGeneration` cases using either `chat-completions` or `responses`, plus multiple `speech` model objects with voices and `responseFormat`. PCM cases also declare `pcm.sampleRate`, `pcm.channels`, and `pcm.encoding: "s16le"`. The command exercises vxPods' production clients, then verifies browser CORS, text-response shape, and the configured MP3 or PCM contract in Chromium. Both phases run even when one fails, and the aggregate command fails when either phase fails. Each configured text case and speech voice performs two billable requests. To keep the credential file elsewhere, set `VXPODS_LIVE_PROVIDER_CONFIG` to its path. Never commit the populated file.
+
 ## Deployment
 
 Pushing to `main` deploys the production build to GitHub Pages through
