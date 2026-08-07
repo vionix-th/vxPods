@@ -4,14 +4,12 @@
  * Each mode keeps its own DOM subtree so input is preserved per session.
  */
 
-import { saveMode } from '../features/providers/provider-store.js';
-
 /**
  * @param {Object} args
  * @param {HTMLElement} args.nav container for the mode buttons
  * @param {{ tts: HTMLElement, podcast: HTMLElement }} args.panels
  * @param {'tts'|'podcast'} args.initialMode
- * @param {() => void} [args.onModeChange]
+ * @param {(mode: 'tts'|'podcast') => void} [args.onModeChange]
  */
 export function createModeSwitch({ nav, panels, initialMode, onModeChange }) {
   /** @type {Record<'tts'|'podcast', HTMLButtonElement>} */
@@ -45,8 +43,7 @@ export function createModeSwitch({ nav, panels, initialMode, onModeChange }) {
     }
     panels.tts.hidden = mode !== 'tts';
     panels.podcast.hidden = mode !== 'podcast';
-    saveMode(mode);
-    onModeChange?.();
+    onModeChange?.(mode);
   }
 
   activate(initialMode);

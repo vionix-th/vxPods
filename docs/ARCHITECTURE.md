@@ -53,6 +53,7 @@ Target layout:
 src/
   app/
     bootstrap.js
+    online-state.js
     state.js
     routes.js
   components/
@@ -62,16 +63,25 @@ src/
     fields.js
     provider-select.js
     source-input.js
+    voice-preview.js
+  domain/
+    prompt-templates.js
+    provider-config.js
   features/
     providers/
+      provider-capability-editors.js
+      provider-data-settings.js
       provider-form.js
       provider-store.js
     tts/
       tts-controller.js
       tts-view.js
+      voice-preview-controller.js
     podcast/
       podcast-controller.js
+      podcast-script-review.js
       podcast-script.js
+      podcast-speaker-settings.js
       podcast-view.js
   services/
     text-generation-client.js
@@ -79,11 +89,13 @@ src/
     responses-client.js
     provider-http.js
     speech-client.js
+    speech-renderer.js
   storage/
     local-settings.js
     render-job-store.js
   audio/
     audio-assembler.js
+    mp3-core.js
     mp3-encoder.js
     wav-writer.js
     segmenter.js
@@ -112,7 +124,8 @@ Create each folder with its first owned module.
 
 - Own DOM creation, event binding, focus management, and presentation state.
 - Receive data and callbacks through explicit parameters.
-- Delegate HTTP and persistence through feature controllers.
+- Reusable components do not import feature stores, services, or persistence.
+- Feature views coordinate through feature controllers and feature-owned facades; they do not implement HTTP, codecs, or storage contracts.
 - Insert source, model, provider, and error text through `textContent` or safe form properties.
 
 ### Feature controllers
@@ -193,37 +206,31 @@ Raw provider response bodies remain request-scoped. Normalized provider failures
 
 ## 7. Application state
 
-Keep one in-memory state tree with explicit updates.
+State is divided by owner rather than held in one global tree:
 
-Top-level state:
-
-```js
-{
-  mode: 'tts' | 'podcast',
-  online: boolean,
-  providers: ProviderConfig[],
-  selectedTextProviderId: string | null,
-  selectedTtsProviderId: string | null,
-  tts: { /* source, settings, status, output */ },
-  podcast: { /* source, preferences, script, job status */ }
-}
-```
+- TTS and Podcast controllers each own an observable workflow store.
+- Podcast script generation and audio rendering use separate status fields because rendering can be recovered independently.
+- Provider configuration and selections are exposed through the provider-store facade backed by versioned local settings.
+- One application-level online-state service owns browser connectivity listeners and publishes changes to mounted workflows.
+- Mode is persisted through the provider-store facade; the router receives a persistence callback.
 
 Feature status values are finite and explicit:
 
 ```text
 idle -> validating -> generating -> ready
+  |                               ^
+  `-------------------------------' validated import/recovery
                          |            |
                          v            v
                        failed      exporting
                          ^            |
                          |            v
-                       retry <----- failed
+                         `-- retry  ready
 
 Any active state -> cancelling -> cancelled
 ```
 
-Illegal transitions fail in development and are ignored with a stable error in production.
+Status and related state changes are committed atomically. Illegal transitions throw in development and are rejected without mutating state in production. Reset, validated import, and recovery transitions are explicitly represented.
 
 ## 8. Script schema
 
@@ -358,7 +365,7 @@ One versioned document stores:
 ```
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice. This pre-release schema is reset to version 1; superseded settings documents are discarded rather than migrated.
-Prompt defaults live in `features/podcast/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+Prompt defaults and their canonical contract live in `domain/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB

@@ -11,7 +11,7 @@ import {
   DEFAULT_PROMPT_TEMPLATES,
   resolvePromptTemplates,
   validatePromptTemplate,
-} from '../../src/features/podcast/prompt-templates.js';
+} from '../../src/domain/prompt-templates.js';
 
 const prefs = {
   format: 'conversation',

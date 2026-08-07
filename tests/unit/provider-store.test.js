@@ -11,7 +11,7 @@ import {
   listProviders,
   restoreSettingsBackup,
 } from '../../src/features/providers/provider-store.js';
-import { providerSuggestionsForPreset } from '../../src/features/providers/provider-suggestions.js';
+import { providerSuggestionsForPreset } from '../../src/domain/provider-config.js';
 
 beforeEach(() => {
   localStorage.clear();

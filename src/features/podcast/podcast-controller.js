@@ -4,13 +4,14 @@
  * Dependencies injectable for tests.
  */
 
-import { createStore, assertTransition } from '../../app/state.js';
+import { createStore, setFeatureStatus, setGuardedStatus } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
-import { withRetry, throwIfAborted } from '../../services/retry.js';
+import { throwIfAborted } from '../../services/retry.js';
 import { generateText } from '../../services/text-generation-client.js';
-import { createSpeech, decodeSpeechAudio } from '../../services/speech-client.js';
-import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
-import { assembleSegments, decodePcmS16Le, decodeToPcm } from '../../audio/audio-assembler.js';
+import { createSpeech } from '../../services/speech-client.js';
+import { synthesizeSpeechText } from '../../services/speech-renderer.js';
+import { DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
+import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
 import { wavBlob, encodeWavPcm16 } from '../../audio/wav-writer.js';
 import { encodeMp3 } from '../../audio/mp3-encoder.js';
 import { sanitizeFilename } from '../../utils/download.js';
@@ -23,8 +24,17 @@ import {
 } from './podcast-script.js';
 import * as jobStore from '../../storage/render-job-store.js';
 import { RENDER_JOB_SCHEMA_VERSION } from '../../storage/render-job-store.js';
+import { loadSettings } from '../../storage/local-settings.js';
 
 const SAMPLE_RATE = 44100;
+const RENDER_TRANSITIONS = {
+  idle: ['rendering'],
+  rendering: ['ready', 'failed', 'cancelled', 'idle'],
+  ready: ['rendering', 'exporting', 'failed', 'idle'],
+  exporting: ['ready'],
+  failed: ['rendering', 'idle'],
+  cancelled: ['rendering', 'idle'],
+};
 
 /**
  * @typedef {Object} PodcastState
@@ -33,12 +43,11 @@ const SAMPLE_RATE = 44100;
  * @property {import('../../services/errors.js').AppError | null} error
  * @property {string[]} validationErrors
  * @property {boolean} repairAvailable
- * @property {'idle'|'rendering'|'cancelled'|'failed'|'ready'} renderStatus
+ * @property {'idle'|'rendering'|'cancelled'|'failed'|'ready'|'exporting'} renderStatus
  * @property {Record<string, 'pending'|'active'|'completed'|'failed'>} segmentStates
  * @property {string | null} activeSegmentId
  * @property {import('../../services/errors.js').AppError | null} renderError
  * @property {{ wav: Blob } | null} output
- * @property {boolean} exporting
  */
 
 /**
@@ -48,6 +57,8 @@ const SAMPLE_RATE = 44100;
  * @param {typeof decodeToPcm} [deps.decode]
  * @param {typeof jobStore} [deps.jobs]
  * @param {number} [deps.maxChunkChars]
+ * @param {() => object} [deps.getPromptTemplates]
+ * @param {typeof encodeMp3} [deps.encodeMp3Fn]
  */
 export function createPodcastController(deps = {}) {
   const textGeneration = deps.textGeneration || generateText;
@@ -55,6 +66,8 @@ export function createPodcastController(deps = {}) {
   const decode = deps.decode || decodeToPcm;
   const jobs = deps.jobs || jobStore;
   const maxChunkChars = deps.maxChunkChars || DEFAULT_MAX_CHUNK_CHARS;
+  const getPromptTemplates = deps.getPromptTemplates || (() => loadSettings().promptTemplates);
+  const encodeMp3Audio = deps.encodeMp3Fn || encodeMp3;
 
   const store = createStore(/** @type {PodcastState} */ ({
     status: 'idle',
@@ -67,7 +80,6 @@ export function createPodcastController(deps = {}) {
     activeSegmentId: null,
     renderError: null,
     output: null,
-    exporting: false,
   }));
 
   /** @type {AbortController | null} */
@@ -76,8 +88,6 @@ export function createPodcastController(deps = {}) {
   let activeJob = null;
   /** @type {import('./podcast-script.js').PodcastPreferences | null} */
   let lastPrefs = null;
-  /** @type {string} */
-  let lastSource = '';
   /** @type {{ baseUrl: string, apiKey: string } | null} */
   let lastTextProvider = null;
   /** @type {string} */
@@ -99,38 +109,34 @@ export function createPodcastController(deps = {}) {
         status: undefined,
       });
     }
-    assertTransition(store.get().status, 'generating');
-    store.set({
-      status: 'generating',
+    setFeatureStatus(store, 'generating', {
       error: null,
       validationErrors: [],
       repairAvailable: false,
       script: null,
     });
     lastPrefs = prefs;
-    lastSource = trimmed;
     lastTextProvider = textProvider;
     try {
       const { content } = await textGeneration({
         provider: textProvider,
         model: prefs.textModel,
-        messages: buildScriptPrompt(trimmed, prefs),
+        messages: buildScriptPrompt(trimmed, prefs, getPromptTemplates()),
         jsonMode: true,
       });
       lastRawOutput = content;
       const script = parseAndValidate(content);
-      store.set({ status: 'ready', script });
+      setFeatureStatus(store, 'ready', { script });
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'schema') {
-        store.set({
-          status: 'failed',
+        setFeatureStatus(store, 'failed', {
           error: normalized,
           validationErrors: normalized.cause?.errors || [normalized.message],
           repairAvailable: true,
         });
       } else {
-        store.set({ status: 'failed', error: normalized });
+        setFeatureStatus(store, 'failed', { error: normalized });
       }
     }
   }
@@ -140,21 +146,20 @@ export function createPodcastController(deps = {}) {
    */
   async function repairScript() {
     if (!store.get().repairAvailable || !lastPrefs || !lastTextProvider) return;
-    store.set({ status: 'generating', error: null, repairAvailable: false });
+    setFeatureStatus(store, 'generating', { error: null, repairAvailable: false });
     try {
       const { content } = await textGeneration({
         provider: lastTextProvider,
         model: lastPrefs.textModel,
-        messages: buildRepairMessages(lastRawOutput, store.get().validationErrors),
+        messages: buildRepairMessages(lastRawOutput, store.get().validationErrors, getPromptTemplates()),
         jsonMode: true,
       });
       lastRawOutput = content;
       const script = parseAndValidate(content);
-      store.set({ status: 'ready', script, validationErrors: [] });
+      setFeatureStatus(store, 'ready', { script, validationErrors: [] });
     } catch (err) {
       const normalized = toAppError(err);
-      store.set({
-        status: 'failed',
+      setFeatureStatus(store, 'failed', {
         error: normalized,
         validationErrors: normalized.kind === 'schema' ? normalized.cause?.errors || [] : [],
         repairAvailable: false,
@@ -250,8 +255,7 @@ export function createPodcastController(deps = {}) {
    */
   function importScript(raw) {
     const script = validateImportedScript(raw);
-    store.set({
-      status: 'ready',
+    setFeatureStatus(store, 'ready', {
       script,
       error: null,
       validationErrors: [],
@@ -265,7 +269,7 @@ export function createPodcastController(deps = {}) {
    * Caller confirms replacement of any existing recoverable job first.
    *
    * @param {{ baseUrl: string, apiKey: string, id?: string, name?: string }} ttsProvider
-   * @param {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
+   * @param {import('../../domain/provider-config.js').TtsModelConfig} ttsModel
    */
   async function startRender(ttsProvider, ttsModel) {
     const script = store.get().script;
@@ -295,8 +299,7 @@ export function createPodcastController(deps = {}) {
     };
     await jobs.saveJob(job);
     activeJob = job;
-    store.set({
-      renderStatus: 'rendering',
+    setRenderStatus('rendering', {
       segmentStates: { ...job.segmentStates },
       renderError: null,
       output: null,
@@ -319,10 +322,8 @@ export function createPodcastController(deps = {}) {
       });
     }
     activeJob = job;
-    store.set({
-      script: job.script,
-      status: 'ready',
-      renderStatus: 'rendering',
+    setFeatureStatus(store, 'ready', { script: job.script });
+    setRenderStatus('rendering', {
       segmentStates: { ...job.segmentStates },
       renderError: null,
     });
@@ -349,18 +350,18 @@ export function createPodcastController(deps = {}) {
       }
       activeJob = { ...activeJob, status: 'ready' };
       await jobs.updateJob(activeJob);
-      store.set({ renderStatus: 'ready', activeSegmentId: null });
+      setRenderStatus('ready', { activeSegmentId: null });
       await assembleOutput();
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
         activeJob = { ...activeJob, status: 'cancelled' };
         await jobs.updateJob(activeJob);
-        store.set({ renderStatus: 'cancelled', activeSegmentId: null });
+        setRenderStatus('cancelled', { activeSegmentId: null });
       } else {
         activeJob = { ...activeJob, status: 'failed' };
         await jobs.updateJob(activeJob);
-        store.set({ renderStatus: 'failed', renderError: normalized, activeSegmentId: null });
+        setRenderStatus('failed', { renderError: normalized, activeSegmentId: null });
       }
     } finally {
       renderController = null;
@@ -384,27 +385,17 @@ export function createPodcastController(deps = {}) {
     setSegmentState(segment.id, 'active');
     store.set({ activeSegmentId: segment.id });
     try {
-      const chunks = splitIntoChunks(segment.text, maxChunkChars);
-      const pcmParts = [];
-      for (const chunk of chunks) {
-        throwIfAborted(signal);
-        const result = await withRetry(
-          () =>
-            speech({
-              provider: ttsProvider,
-            ttsModel,
-              voice: speaker.voice,
-              input: chunk,
-              signal,
-            }),
-          { signal },
-        );
-        pcmParts.push((await decodeSpeechAudio(result, decode, SAMPLE_RATE, decodePcmS16Le)).channels);
-      }
-      const merged = assembleSegments(
-        pcmParts.map((channels) => ({ channels })),
-        SAMPLE_RATE,
-      );
+      const merged = await synthesizeSpeechText({
+        provider: ttsProvider,
+        ttsModel,
+        voice: speaker.voice,
+        input: segment.text,
+        signal,
+        targetSampleRate: SAMPLE_RATE,
+        maxChunkChars,
+        speech,
+        decode,
+      });
       const wavBytes = encodeWavPcm16({ channels: merged.channels, sampleRate: SAMPLE_RATE });
       const blob = new Blob([wavBytes], { type: 'audio/wav' });
       activeJob = await jobs.saveSegment(activeJob.id, segment.id, blob, activeJob);
@@ -427,7 +418,7 @@ export function createPodcastController(deps = {}) {
    * Retry one failed segment without disturbing completed work.
    * @param {string} segmentId
    * @param {{ baseUrl: string, apiKey: string }} ttsProvider
-   * @param {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
+   * @param {import('../../domain/provider-config.js').TtsModelConfig} ttsModel
    */
   async function retrySegment(segmentId, ttsProvider, ttsModel) {
     if (!activeJob) {
@@ -437,7 +428,7 @@ export function createPodcastController(deps = {}) {
     }
     const segment = activeJob.script.segments.find((s) => s.id === segmentId);
     if (!segment) return;
-    store.set({ renderStatus: 'rendering', renderError: null });
+    setRenderStatus('rendering', { renderError: null });
     renderController = new AbortController();
     try {
       await renderSegment(segment, ttsProvider, ttsModel, renderController.signal);
@@ -447,15 +438,14 @@ export function createPodcastController(deps = {}) {
       if (allDone) {
         activeJob = { ...activeJob, status: 'ready' };
         await jobs.updateJob(activeJob);
-        store.set({ renderStatus: 'ready', activeSegmentId: null });
+        setRenderStatus('ready', { activeSegmentId: null });
         await assembleOutput();
       } else {
-        store.set({ renderStatus: 'failed', activeSegmentId: null });
+        setRenderStatus('failed', { activeSegmentId: null });
       }
     } catch (err) {
       const normalized = toAppError(err);
-      store.set({
-        renderStatus: normalized.kind === 'cancelled' ? 'cancelled' : 'failed',
+      setRenderStatus(normalized.kind === 'cancelled' ? 'cancelled' : 'failed', {
         renderError: normalized.kind === 'cancelled' ? null : normalized,
         activeSegmentId: null,
       });
@@ -513,12 +503,20 @@ export function createPodcastController(deps = {}) {
         status: undefined,
       });
     }
-    store.set({ exporting: true });
+    if (store.get().renderStatus !== 'ready') {
+      throw new AppError({
+        kind: 'validation',
+        message: 'An export is already in progress.',
+        retryable: false,
+        status: undefined,
+      });
+    }
+    setRenderStatus('exporting');
     try {
       let blob = output.wav;
       if (format === 'mp3') {
         const pcm = await decode(await output.wav.arrayBuffer(), SAMPLE_RATE);
-        blob = await encodeMp3({ channels: pcm.channels, sampleRate: SAMPLE_RATE, onProgress });
+        blob = await encodeMp3Audio({ channels: pcm.channels, sampleRate: SAMPLE_RATE, onProgress });
       }
       const title = activeJob?.script?.title || store.get().script?.title || 'podcast';
       const filename = sanitizeFilename(`vxpods-${title}`, format);
@@ -529,7 +527,7 @@ export function createPodcastController(deps = {}) {
     } catch (err) {
       throw toAppError(err, { kind: 'encoding', message: 'Audio export failed.' });
     } finally {
-      store.set({ exporting: false });
+      setRenderStatus('ready');
     }
   }
 
@@ -560,8 +558,7 @@ export function createPodcastController(deps = {}) {
     renderController?.abort();
     await jobs.deleteJob();
     activeJob = null;
-    store.set({
-      renderStatus: 'idle',
+    setRenderStatus('idle', {
       segmentStates: {},
       activeSegmentId: null,
       renderError: null,
@@ -582,6 +579,10 @@ export function createPodcastController(deps = {}) {
    */
   function setSegmentState(id, state) {
     store.set({ segmentStates: { ...store.get().segmentStates, [id]: state } });
+  }
+
+  function setRenderStatus(status, patch = {}) {
+    return setGuardedStatus(store, 'renderStatus', status, RENDER_TRANSITIONS, patch);
   }
 
   return {

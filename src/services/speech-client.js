@@ -7,7 +7,7 @@ const DEFAULT_TIMEOUT_MS = 180_000;
  * @typedef {Object} SpeechResult
  * @property {ArrayBuffer} audio encoded audio bytes as returned by provider
  * @property {string} contentType provider-reported content type
- * @property {import('../storage/local-settings.js').TtsModelConfig} ttsModel requested audio contract
+ * @property {import('../domain/provider-config.js').TtsModelConfig} ttsModel requested audio contract
  * @property {import('./errors.js').ProviderDiagnostics} diagnostics redacted request context
  */
 
@@ -16,7 +16,7 @@ const DEFAULT_TIMEOUT_MS = 180_000;
  *
  * @param {Object} args
  * @param {{ baseUrl: string, apiKey: string }} args.provider
- * @param {import('../storage/local-settings.js').TtsModelConfig} args.ttsModel
+ * @param {import('../domain/provider-config.js').TtsModelConfig} args.ttsModel
  * @param {string} args.voice
  * @param {string} args.input
  * @param {number} [args.speed]
@@ -80,7 +80,7 @@ export async function createSpeech(args) {
  * @param {SpeechResult} result
  * @param {(bytes: ArrayBuffer, sampleRate: number) => Promise<unknown>} decode
  * @param {number} sampleRate
- * @param {(bytes: ArrayBuffer, format: import('../storage/local-settings.js').PcmFormat, sampleRate: number) => unknown} [decodeRawPcm]
+ * @param {(bytes: ArrayBuffer, format: import('../domain/provider-config.js').PcmFormat, sampleRate: number) => unknown} [decodeRawPcm]
  */
 export async function decodeSpeechAudio(result, decode, sampleRate, decodeRawPcm) {
   try {
@@ -104,7 +104,7 @@ export async function decodeSpeechAudio(result, decode, sampleRate, decodeRawPcm
 /**
  * Minimal capability probe used by "Test Speech".
  * @param {{ baseUrl: string, apiKey: string }} provider
- * @param {import('../storage/local-settings.js').TtsModelConfig} ttsModel
+ * @param {import('../domain/provider-config.js').TtsModelConfig} ttsModel
  * @param {string} voice
  * @param {AbortSignal} [signal]
  */

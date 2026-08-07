@@ -14,6 +14,8 @@ import { createModeSwitch } from './routes.js';
 import { openSettings } from '../features/providers/provider-form.js';
 import { icon } from '../components/icon.js';
 import { notify } from '../components/error-message.js';
+import { saveMode } from '../features/providers/provider-store.js';
+import { createOnlineState } from './online-state.js';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
 
@@ -32,13 +34,11 @@ export async function bootstrap(root) {
   const main = /** @type {HTMLElement} */ (root.querySelector('#main'));
   const modeNav = /** @type {HTMLElement} */ (root.querySelector('#mode-nav'));
 
-  const isOnline = () => navigator.onLine;
-  window.addEventListener('online', () =>
-    notify({ type: 'success', title: 'Back online', message: 'Generation is available again.' }),
-  );
-  window.addEventListener('offline', () =>
-    notify({ type: 'warning', title: 'Offline', message: 'Generation is unavailable until connection returns.' }),
-  );
+  const onlineState = createOnlineState();
+  onlineState.subscribe((online) => notify(online
+    ? { type: 'success', title: 'Back online', message: 'Generation is available again.' }
+    : { type: 'warning', title: 'Offline', message: 'Generation is unavailable until connection returns.' },
+  ));
 
   // Application settings button
   const settingsButton = /** @type {HTMLButtonElement} */ (
@@ -59,10 +59,18 @@ export async function bootstrap(root) {
 
   // Workflows
   const ttsController = createTtsController();
-  const ttsView = createTtsView({ controller: ttsController, isOnline });
+  const ttsView = createTtsView({
+    controller: ttsController,
+    isOnline: onlineState.isOnline,
+    subscribeOnline: onlineState.subscribe,
+  });
 
   const podcastController = createPodcastController();
-  const podcastView = createPodcastView({ controller: podcastController, isOnline });
+  const podcastView = createPodcastView({
+    controller: podcastController,
+    isOnline: onlineState.isOnline,
+    subscribeOnline: onlineState.subscribe,
+  });
 
   const ttsPanel = document.createElement('div');
   ttsPanel.id = 'panel-tts';
@@ -76,6 +84,7 @@ export async function bootstrap(root) {
     nav: modeNav,
     panels: { tts: ttsPanel, podcast: podcastPanel },
     initialMode: settings.preferences.mode,
+    onModeChange: saveMode,
   });
 
   await podcastView.checkRecovery();

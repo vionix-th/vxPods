@@ -1,33 +1,28 @@
 /**
- * Provider selector: saved configurations for one slot (text generation or TTS).
- * Provider management is available from the persistent app header.
+ * Provider selector. Data and persistence callbacks come from feature owner.
  */
-
-import {
-  listProviders,
-  selectProvider,
-  getSelectedProviderId,
-  subscribeProviders,
-} from '../features/providers/provider-store.js';
 
 /**
  * @typedef {Object} ProviderSelectHandle
  * @property {HTMLElement} element
- * @property {() => import('../storage/local-settings.js').ProviderConfig | null} getSelected
+ * @property {() => import('../domain/provider-config.js').ProviderConfig | null} getSelected
  * @property {() => void} refresh re-read saved configurations
  */
 
 /**
  * @param {Object} args
- * @param {'text'|'tts'} args.slot
  * @param {string} args.label
+ * @param {() => import('../domain/provider-config.js').ProviderConfig[]} args.getProviders
+ * @param {() => string | null} args.getSelectedId
+ * @param {(id: string | null) => void} args.onSelect
+ * @param {boolean} [args.showTextApi]
  * @returns {ProviderSelectHandle}
  */
-export function createProviderSelect({ slot, label }) {
+export function createProviderSelect({ label, getProviders, getSelectedId, onSelect, showTextApi = false }) {
   const wrapper = document.createElement('div');
   wrapper.className = 'field provider-select';
 
-  const id = `provider-select-${slot}-${Math.random().toString(36).slice(2, 8)}`;
+  const id = `provider-select-${Math.random().toString(36).slice(2, 8)}`;
   const labelEl = document.createElement('label');
   labelEl.setAttribute('for', id);
   labelEl.textContent = label;
@@ -37,8 +32,8 @@ export function createProviderSelect({ slot, label }) {
   wrapper.append(labelEl, select);
 
   function refresh() {
-    const providers = listProviders();
-    const storedId = getSelectedProviderId(slot);
+    const providers = getProviders();
+    const storedId = getSelectedId();
     select.replaceChildren();
     if (providers.length === 0) {
       const opt = document.createElement('option');
@@ -52,7 +47,7 @@ export function createProviderSelect({ slot, label }) {
     for (const provider of providers) {
       const opt = document.createElement('option');
       opt.value = provider.id;
-      const api = slot === 'text' ? ` · ${apiLabel(provider.textGeneration.api)}` : '';
+      const api = showTextApi ? ` · ${apiLabel(provider.textGeneration.api)}` : '';
       opt.textContent = `${provider.name} (${hostOf(provider.baseUrl)})${api}`;
       select.append(opt);
     }
@@ -60,23 +55,20 @@ export function createProviderSelect({ slot, label }) {
       storedId && providers.some((p) => p.id === storedId) ? storedId : providers[0].id;
     if (select.value !== target || storedId !== target) {
       select.value = target;
-      if (storedId !== target) selectProvider(slot, target);
+      if (storedId !== target) onSelect(target);
     }
   }
 
   select.addEventListener('change', () => {
-    selectProvider(slot, select.value || null);
+    onSelect(select.value || null);
   });
-
-  // Stay in sync with mutations from anywhere (dialog, other selects).
-  subscribeProviders(refresh);
 
   refresh();
 
   return {
     element: wrapper,
     getSelected() {
-      const providers = listProviders();
+      const providers = getProviders();
       return providers.find((p) => p.id === select.value) ?? null;
     },
     refresh,

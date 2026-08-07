@@ -1,6 +1,30 @@
+/** Canonical provider configuration contract and normalization. */
+
+import { AppError } from '../services/errors.js';
+
 /**
- * Local provider suggestions. Model capabilities are explicit user-managed
- * configuration and are never inferred from a provider's `/models` response.
+ * @typedef {Object} PcmFormat
+ * @property {number} sampleRate
+ * @property {number} channels
+ * @property {'s16le'} encoding
+ */
+
+/**
+ * @typedef {Object} TtsModelConfig
+ * @property {string} model
+ * @property {string[]} voices
+ * @property {'mp3'|'pcm'} responseFormat
+ * @property {PcmFormat | undefined} [pcm]
+ */
+
+/**
+ * @typedef {Object} ProviderConfig
+ * @property {string} id
+ * @property {string} name
+ * @property {string} baseUrl
+ * @property {string} apiKey
+ * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
+ * @property {TtsModelConfig[]} ttsModels
  */
 
 export const TEXT_GENERATION_APIS = {
@@ -22,7 +46,7 @@ export const DEFAULT_VOICES = [
   'alloy', 'ash', 'ballad', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer', 'verse',
 ];
 
-/** @type {import('../../storage/local-settings.js').TtsModelConfig[]} */
+/** @type {TtsModelConfig[]} */
 export const DEFAULT_TTS_MODELS = [
   mp3Model('gpt-4o-mini-tts', DEFAULT_VOICES),
   mp3Model('tts-1', DEFAULT_VOICES),
@@ -58,7 +82,7 @@ export function defaultTextModels(api) {
 }
 
 /** Normalize editable string suggestions with stable de-duplication. */
-export function normalizeSuggestions(values, fallback) {
+export function normalizeSuggestions(values, fallback = []) {
   if (!Array.isArray(values)) return [...fallback];
   const seen = new Set();
   const normalized = [];
@@ -73,12 +97,7 @@ export function normalizeSuggestions(values, fallback) {
   return normalized;
 }
 
-/**
- * Normalize canonical TTS model objects. Legacy string/map shapes are
- * intentionally unsupported after the pre-release schema reset.
- * @param {unknown} values
- * @param {import('../../storage/local-settings.js').TtsModelConfig[]} [fallback]
- */
+/** @param {unknown} values @param {TtsModelConfig[]} [fallback] */
 export function normalizeTtsModels(values, fallback = []) {
   if (!Array.isArray(values)) return cloneTtsModels(fallback);
   const seen = new Set();
@@ -91,7 +110,7 @@ export function normalizeTtsModels(values, fallback = []) {
     if (!responseFormat) continue;
     const entry = {
       model,
-      voices: normalizeSuggestions(value.voices, []),
+      voices: normalizeSuggestions(value.voices),
       responseFormat,
     };
     if (responseFormat === 'pcm') {
@@ -109,6 +128,7 @@ export function normalizeTtsModels(values, fallback = []) {
   return normalized;
 }
 
+/** @param {TtsModelConfig[]} models */
 export function cloneTtsModels(models) {
   return models.map((entry) => ({
     model: entry.model,
@@ -120,15 +140,72 @@ export function cloneTtsModels(models) {
 
 export function defaultTtsModel(model = '') {
   const known = DEFAULT_TTS_MODELS.find((entry) => entry.model === model);
-  return known
-    ? cloneTtsModels([known])[0]
-    : mp3Model(model, []);
+  return known ? cloneTtsModels([known])[0] : mp3Model(model, []);
+}
+
+/** Normalize a user-entered OpenAI-compatible API root. */
+export function normalizeBaseUrl(input) {
+  const raw = String(input ?? '').trim();
+  if (!raw) throw validationError('Base URL is required.');
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw validationError('Base URL is not a valid URL.');
+  }
+  const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocalhost)) {
+    throw validationError('Base URL must use HTTPS.');
+  }
+  const path = url.pathname.replace(/\/+$/, '');
+  if (!path.endsWith('/v1')) {
+    throw validationError('Base URL must end with /v1 (OpenAI-compatible API root).');
+  }
+  url.pathname = path;
+  url.search = '';
+  url.hash = '';
+  return url.toString().replace(/\/+$/, '');
+}
+
+/** Validate and normalize editable provider fields. */
+export function validateProviderInput(input) {
+  const name = String(input.name ?? '').trim();
+  if (!name) throw validationError('Name is required.');
+  const apiKey = String(input.apiKey ?? '').trim();
+  if (!apiKey) throw validationError('API key is required.');
+  const baseUrl = normalizeBaseUrl(input.baseUrl);
+  const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
+  if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
+  const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
+  const ttsModels = normalizeTtsModels(input.ttsModels, DEFAULT_TTS_MODELS);
+  if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
+    throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
+  }
+  return { name, baseUrl, apiKey, textGeneration: { api, models: textModels }, ttsModels };
+}
+
+/** @param {unknown} value @returns {value is ProviderConfig} */
+export function isValidProviderRecord(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (typeof value.id !== 'string' || value.id.length === 0) return false;
+  if (!Array.isArray(value.textGeneration?.models) || !Array.isArray(value.ttsModels)) return false;
+  try {
+    validateProviderInput(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** @param {ProviderConfig} provider @returns {ProviderConfig} */
+export function normalizeProviderRecord(provider) {
+  return { id: provider.id, ...validateProviderInput(provider) };
 }
 
 function mp3Model(model, voices) {
   return { model, voices: [...voices], responseFormat: 'mp3' };
 }
 
-export function suggestionsFromLines(value) {
-  return value.split(/\r?\n/);
+function validationError(message) {
+  return new AppError({ kind: 'validation', message, retryable: false, status: undefined });
 }

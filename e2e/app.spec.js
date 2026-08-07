@@ -295,7 +295,7 @@ test('podcast: Responses configuration selects API-specific models and generates
 });
 
 test('reload during partial render offers resume and resumes', async ({ page }) => {
-  const counters = await mockProviders(page, { failSpeechAtCall: 2 });
+  await mockProviders(page, { failSpeechAtCall: 2 });
   await addProvider(page);
   await page.getByRole('button', { name: 'Podcast' }).click();
   const panel = page.locator('#panel-podcast');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isAllowedTransition, assertTransition, createStore } from '../../src/app/state.js';
+import { isAllowedTransition, assertTransition, createStore, setFeatureStatus } from '../../src/app/state.js';
 
 describe('status transitions', () => {
   it('allows the happy path', () => {
@@ -21,14 +21,14 @@ describe('status transitions', () => {
   });
 
   it('rejects illegal jumps', () => {
-    expect(isAllowedTransition('idle', 'ready')).toBe(false);
+    expect(isAllowedTransition('idle', 'ready')).toBe(true); // validated import/recovery
     expect(isAllowedTransition('idle', 'exporting')).toBe(false);
     expect(isAllowedTransition('cancelled', 'exporting')).toBe(false);
   });
 
   it('assertTransition throws on illegal transitions in dev', () => {
     // vitest sets import.meta.env.DEV true
-    expect(() => assertTransition('idle', 'ready')).toThrowError(/Illegal status transition/);
+    expect(() => assertTransition('idle', 'exporting')).toThrowError(/Illegal status transition/);
     expect(assertTransition('idle', 'validating')).toBe(true);
   });
 });
@@ -54,5 +54,17 @@ describe('createStore', () => {
     store.set({ n: 99 });
     expect(store.get().n).toBe(99);
     expect(calls).toBe(1);
+  });
+
+  it('commits valid status transitions atomically', () => {
+    const store = createStore({ status: 'idle', value: 1 });
+    expect(setFeatureStatus(store, 'generating', { value: 2 })).toBe(true);
+    expect(store.get()).toEqual({ status: 'generating', value: 2 });
+  });
+
+  it('allows an atomic patch without changing status', () => {
+    const store = createStore({ status: 'ready', value: 1 });
+    expect(setFeatureStatus(store, 'ready', { value: 2 })).toBe(true);
+    expect(store.get()).toEqual({ status: 'ready', value: 2 });
   });
 });

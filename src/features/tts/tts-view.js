@@ -6,13 +6,19 @@ import { createSourceInput } from '../../components/source-input.js';
 import { createProviderSelect } from '../../components/provider-select.js';
 import { selectField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
-import { renderError, clearError, notify } from '../../components/error-message.js';
+import { createErrorScope, notify } from '../../components/error-message.js';
 import { downloadBlob } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
 import { requireProvider } from '../providers/provider-requirement.js';
-import { subscribeProviders } from '../providers/provider-store.js';
+import {
+  getSelectedProviderId,
+  listProviders,
+  selectProvider,
+  subscribeProviders,
+} from '../providers/provider-store.js';
 import { createVoicePreview } from '../../components/voice-preview.js';
-import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../providers/provider-suggestions.js';
+import { createVoicePreviewAudio } from './voice-preview-controller.js';
+import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../../domain/provider-config.js';
 
 const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
 const KNOWN_VOICES = DEFAULT_VOICES;
@@ -21,9 +27,10 @@ const KNOWN_VOICES = DEFAULT_VOICES;
  * @param {Object} args
  * @param {ReturnType<import('./tts-controller.js').createTtsController>} args.controller
  * @param {() => boolean} args.isOnline
+ * @param {(listener: (online: boolean) => void) => () => void} args.subscribeOnline
  * @returns {{ element: HTMLElement }}
  */
-export function createTtsView({ controller, isOnline }) {
+export function createTtsView({ controller, isOnline, subscribeOnline }) {
   const root = document.createElement('div');
   root.className = 'workflow tts-workflow';
 
@@ -37,7 +44,12 @@ export function createTtsView({ controller, isOnline }) {
   settingsCard.className = 'card';
   settingsCard.append(cardHeader('Voice settings'));
 
-  const providerSelect = createProviderSelect({ slot: 'tts', label: 'TTS provider' });
+  const providerSelect = createProviderSelect({
+    label: 'TTS provider',
+    getProviders: listProviders,
+    getSelectedId: () => getSelectedProviderId('tts'),
+    onSelect: (id) => selectProvider('tts', id),
+  });
   const modelField = selectField({
     label: 'Model',
     options: KNOWN_TTS_MODELS.map((entry) => entry.model),
@@ -54,21 +66,36 @@ export function createTtsView({ controller, isOnline }) {
     help: '0.25 to 4.0. Supported when the provider implements it.',
   });
   const voicePreview = createVoicePreview({
-    getSelected: providerSelect.getSelected,
-    refresh: providerSelect.refresh,
-    getTtsModel: () => selectedTtsModel(),
-    getVoice: () => voiceField.input.value.trim() || 'alloy',
-    getSpeed: () => {
+    loadAudio: async () => {
+      const provider = await requireProvider({
+        slot: 'tts',
+        getSelected: providerSelect.getSelected,
+        refresh: providerSelect.refresh,
+      });
+      if (!provider) return null;
+      const voice = voiceField.input.value.trim();
+      if (!voice) throw new Error('No voices are configured for this TTS model. Add a voice in provider settings.');
       const speed = Number(speedField.input.value.trim());
-      return Number.isFinite(speed) ? speed : undefined;
+      return createVoicePreviewAudio({
+        provider,
+        ttsModel: selectedTtsModel(),
+        voice,
+        speed: Number.isFinite(speed) ? speed : undefined,
+        input: 'This is a short voice preview.',
+      });
     },
-    getSample: () => 'This is a short voice preview.',
+    onError: (err) => notify({
+      type: 'error',
+      title: 'Voice preview failed',
+      message: err instanceof Error ? err.message : 'Could not create voice preview.',
+    }),
   });
   const voiceControls = document.createElement('div');
   voiceControls.className = 'voice-control-row';
   voiceControls.append(voiceField.input, voicePreview.button);
   voiceField.wrapper.append(voiceControls, voicePreview.player);
   function refreshProviderSuggestions() {
+    providerSelect.refresh();
     const provider = providerSelect.getSelected();
     modelField.setOptions((provider?.ttsModels ?? KNOWN_TTS_MODELS).map((entry) => entry.model));
     refreshVoiceOptions();
@@ -118,8 +145,7 @@ export function createTtsView({ controller, isOnline }) {
   offlineNote.textContent = 'Generation is disabled while offline.';
   offlineNote.hidden = true;
 
-  const errorRegion = document.createElement('div');
-  errorRegion.className = 'error-region';
+  const errors = createErrorScope();
 
   const progress = createProgress({ total: 1, unit: 'chunks' });
   progress.element.hidden = true;
@@ -188,23 +214,22 @@ export function createTtsView({ controller, isOnline }) {
   }
 
   generateButton.addEventListener('click', async () => {
-    clearError(errorRegion);
-    requireProvider({
+    errors.clear();
+    const provider = await requireProvider({
       slot: 'tts',
       getSelected: providerSelect.getSelected,
       refresh: providerSelect.refresh,
-      onReady: async (provider) => {
-        try {
-          const settings = readSettings(provider);
-          generateButton.textContent = `Generate with ${settings.provider.name}`;
-          await controller.generate(source.getText(), settings);
-        } catch (err) {
-          renderError(errorRegion, err, { onDismiss: () => {} });
-        } finally {
-          generateButton.textContent = 'Generate speech';
-        }
-      },
     });
+    if (!provider) return;
+    try {
+      const settings = readSettings(provider);
+      generateButton.textContent = `Generate with ${settings.provider.name}`;
+      await controller.generate(source.getText(), settings);
+    } catch (err) {
+      errors.show(err);
+    } finally {
+      generateButton.textContent = 'Generate speech';
+    }
   });
 
   cancelButton.addEventListener('click', () => controller.cancel());
@@ -212,9 +237,11 @@ export function createTtsView({ controller, isOnline }) {
   againButton.addEventListener('click', () => generateButton.click());
 
   async function downloadAudio(format) {
-    clearError(errorRegion);
+    errors.clear();
     const button = format === 'wav' ? downloadWavButton : downloadMp3Button;
-    button.disabled = true;
+    downloadWavButton.disabled = true;
+    downloadMp3Button.disabled = true;
+    againButton.disabled = true;
     const originalLabel = button.textContent;
     button.textContent = format === 'mp3' ? 'Encoding MP3…' : 'Preparing…';
     try {
@@ -224,9 +251,11 @@ export function createTtsView({ controller, isOnline }) {
       });
       downloadBlob(blob, filename);
     } catch (err) {
-      renderError(errorRegion, err, { onDismiss: () => {} });
+      errors.show(err);
     } finally {
-      button.disabled = false;
+      downloadWavButton.disabled = false;
+      downloadMp3Button.disabled = false;
+      againButton.disabled = false;
       button.textContent = originalLabel;
     }
   }
@@ -235,10 +264,15 @@ export function createTtsView({ controller, isOnline }) {
   downloadMp3Button.addEventListener('click', () => downloadAudio('mp3'));
 
   controller.store.subscribe((state) => {
-    const busy = state.status === 'validating' || state.status === 'generating';
+    const generating = state.status === 'validating' || state.status === 'generating';
+    const exporting = state.status === 'exporting';
+    const busy = generating || exporting;
     lastBusy = busy;
     syncOnline();
-    cancelButton.hidden = !busy;
+    cancelButton.hidden = !generating;
+    downloadWavButton.disabled = exporting;
+    downloadMp3Button.disabled = exporting;
+    againButton.disabled = exporting;
 
     if (state.status === 'generating' || state.status === 'validating') {
       progress.element.hidden = false;
@@ -268,13 +302,12 @@ export function createTtsView({ controller, isOnline }) {
     if (state.status === 'failed' && state.error) {
       progress.announce(`Generation failed: ${state.error.message}`);
       const hasPartial = state.chunks.some((c) => c.status === 'completed');
-      renderError(errorRegion, state.error, {
+      errors.show(state.error, {
         actionLabel: hasPartial ? 'Retry failed chunks' : 'Retry',
         onAction: () => {
-          clearError(errorRegion);
+          errors.clear();
           controller.retryFailed();
         },
-        onDismiss: () => {},
       });
     }
 
@@ -283,10 +316,12 @@ export function createTtsView({ controller, isOnline }) {
       progress.element.hidden = true;
       resultCard.hidden = false;
       resultMeta.textContent = `Generated with ${state.output.settingsLabel}`;
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      audioUrl = URL.createObjectURL(state.output.wav);
-      audio.src = audioUrl;
-      if (previousStatus !== 'ready') {
+      if (previousStatus !== 'exporting') {
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        audioUrl = URL.createObjectURL(state.output.wav);
+        audio.src = audioUrl;
+      }
+      if (previousStatus === 'generating' || previousStatus === 'validating') {
         notify({ type: 'success', title: 'Speech ready', message: 'Audio is ready to preview or download.' });
       }
     }
@@ -294,8 +329,7 @@ export function createTtsView({ controller, isOnline }) {
   });
 
   function renderPartialFailure() {
-    renderError(
-      errorRegion,
+    errors.show(
       new AppError({
         kind: 'cancelled',
         message: 'Cancelled. Completed chunks are kept.',
@@ -305,10 +339,9 @@ export function createTtsView({ controller, isOnline }) {
       {
         actionLabel: 'Retry failed chunks',
         onAction: () => {
-          clearError(errorRegion);
+          errors.clear();
           controller.retryFailed();
         },
-        onDismiss: () => {},
       },
     );
   }
@@ -319,8 +352,7 @@ export function createTtsView({ controller, isOnline }) {
     generateButton.disabled = lastBusy || !online;
     offlineNote.hidden = online || lastBusy;
   }
-  window.addEventListener('online', syncOnline);
-  window.addEventListener('offline', syncOnline);
+  subscribeOnline(syncOnline);
   syncOnline();
 
   return { element: root };

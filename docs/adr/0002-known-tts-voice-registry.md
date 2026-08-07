@@ -1,5 +1,8 @@
 # ADR 0002: Consolidate TTS capabilities by model
 
+Status: Accepted
+Date: 2026-08-07
+
 ## Context
 
 Provider model listings do not define portable speech voice or output-format capabilities. Separate model and voice maps can drift, and a format string alone cannot decode headerless PCM because its sample rate and channel count are not carried in the response.

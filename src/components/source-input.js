@@ -4,7 +4,7 @@
  */
 
 import { AppError } from '../services/errors.js';
-import { renderError, clearError as clearNotificationError } from './error-message.js';
+import { createErrorScope } from './error-message.js';
 import { cardHeader } from './fields.js';
 
 const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
@@ -14,7 +14,7 @@ const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
  * @property {HTMLElement} element
  * @property {() => string} getText
  * @property {(text: string) => void} setText
- * @property {HTMLElement} errorRegion
+ * @property {{ show: (error: unknown) => string | null, clear: () => void }} errors
  */
 
 /**
@@ -81,7 +81,7 @@ export function createSourceInput({ title, help }) {
   count.className = 'char-count';
   count.setAttribute('aria-live', 'off');
 
-  const errorRegion = document.createElement('div');
+  const errors = createErrorScope();
   wrapper.append(textareaLabel, fileMeta, textarea, count, actions, fileInput);
 
   function updateCount() {
@@ -148,11 +148,11 @@ export function createSourceInput({ title, help }) {
 
   /** @param {AppError} err */
   function showImportError(err) {
-    renderError(errorRegion, err);
+    errors.show(err);
   }
 
   function clearImportError() {
-    clearNotificationError(errorRegion);
+    errors.clear();
   }
 
   return {
@@ -163,6 +163,6 @@ export function createSourceInput({ title, help }) {
       hideFileMeta();
       updateCount();
     },
-    errorRegion,
+    errors,
   };
 }

@@ -185,30 +185,31 @@ export function dismissNotification(id) {
 }
 
 /**
- * Render a normalized error in the global stack. The container is retained
- * only for call-site compatibility and holds its associated toast id.
- * @param {HTMLElement | null | undefined} container
- * @param {AppError | Error | unknown} error
- * @param {Object} [options]
- * @param {string} [options.actionLabel]
- * @param {() => void} [options.onAction]
- * @param {() => void} [options.onDismiss]
- * @returns {string | null}
+ * Own one replaceable global error notification without fake DOM containers.
+ * @returns {{ show: (error: AppError | Error | unknown, options?: { actionLabel?: string, onAction?: () => void }) => string | null, clear: () => void }}
  */
-export function renderError(container, error, options = {}) {
-  const normalized = normalizeError(error);
-  const previousId = container?.dataset.notificationId;
-  const id = notify({
-    type: 'error',
-    title: KIND_LABELS[normalized.kind] || 'Error',
-    message: normalized.message,
-    error: normalized,
-    actionLabel: options.actionLabel,
-    onAction: options.onAction,
-  });
-  if (previousId && previousId !== id) dismissNotification(previousId);
-  if (container && id) container.dataset.notificationId = id;
-  return id;
+export function createErrorScope() {
+  let notificationId = null;
+  return {
+    show(error, options = {}) {
+      const normalized = normalizeError(error);
+      const previousId = notificationId;
+      notificationId = notify({
+        type: 'error',
+        title: KIND_LABELS[normalized.kind] || 'Error',
+        message: normalized.message,
+        error: normalized,
+        actionLabel: options.actionLabel,
+        onAction: options.onAction,
+      });
+      if (previousId && previousId !== notificationId) dismissNotification(previousId);
+      return notificationId;
+    },
+    clear() {
+      dismissNotification(notificationId);
+      notificationId = null;
+    },
+  };
 }
 
 /**
@@ -264,13 +265,4 @@ function normalizeError(error) {
         status: undefined,
         cause: error,
       });
-}
-
-/**
- * @param {HTMLElement | null | undefined} container
- */
-export function clearError(container) {
-  if (!container) return;
-  dismissNotification(container.dataset.notificationId);
-  delete container.dataset.notificationId;
 }

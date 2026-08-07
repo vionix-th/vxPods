@@ -286,7 +286,7 @@ describe('podcast rendering', () => {
     expect(controller.store.get().renderStatus).toBe('ready');
   });
 
-  it('successful export clears recovery data; failure retains it', async () => {
+  it('successful export clears recovery data', async () => {
     const controller = createPodcastController({
       textGeneration: textReturning(validScript),
       speech: speechOk(),
@@ -300,6 +300,20 @@ describe('podcast rendering', () => {
     expect(blob).toBeInstanceOf(Blob);
     expect(filename).toMatch(/^vxpods-test-show\.wav$/);
     expect(await loadJob()).toBeNull();
+  });
+
+  it('failed export retains recovery data', async () => {
+    const controller = createPodcastController({
+      textGeneration: textReturning(validScript),
+      speech: speechOk(),
+      decode: fakeDecode,
+      encodeMp3Fn: vi.fn().mockRejectedValue(new Error('encoder failed')),
+    });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.startRender(ttsProvider, ttsModel);
+
+    await expect(controller.exportAudio('mp3')).rejects.toMatchObject({ kind: 'encoding' });
+    expect(await loadJob()).toBeTruthy();
   });
 
   it('discard removes recoverable data', async () => {

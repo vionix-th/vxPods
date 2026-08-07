@@ -181,18 +181,6 @@ export async function saveSegment(jobId, segmentId, blob, job) {
 }
 
 /**
- * Load one segment Blob.
- * @param {string} jobId
- * @param {string} segmentId
- * @returns {Promise<Blob | null>}
- */
-export async function getSegment(jobId, segmentId) {
-  const tx = await transaction('readonly', [SEGMENT_STORE]);
-  const record = await requestPromise(tx.objectStore(SEGMENT_STORE).get([jobId, segmentId]));
-  return record?.blob ?? null;
-}
-
-/**
  * Load all segment records for a job, ordered by segmentId.
  * @param {string} jobId
  * @returns {Promise<Array<{ segmentId: string, blob: Blob }>>}

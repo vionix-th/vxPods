@@ -4,12 +4,13 @@
  * Dependencies are injectable for tests.
  */
 
-import { createStore, assertTransition } from '../../app/state.js';
+import { createStore, setFeatureStatus } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
-import { withRetry, throwIfAborted } from '../../services/retry.js';
-import { createSpeech, decodeSpeechAudio } from '../../services/speech-client.js';
+import { throwIfAborted } from '../../services/retry.js';
+import { createSpeech } from '../../services/speech-client.js';
+import { synthesizeSpeechChunk } from '../../services/speech-renderer.js';
 import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
-import { assembleSegments, decodePcmS16Le, decodeToPcm } from '../../audio/audio-assembler.js';
+import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
 import { wavBlob } from '../../audio/wav-writer.js';
 import { encodeMp3 } from '../../audio/mp3-encoder.js';
 import { sanitizeFilename } from '../../utils/download.js';
@@ -19,7 +20,7 @@ const SAMPLE_RATE = 44100;
 /**
  * @typedef {Object} TtsSettings
  * @property {{ id: string, name: string, baseUrl: string, apiKey: string }} provider
- * @property {import('../../storage/local-settings.js').TtsModelConfig} ttsModel
+ * @property {import('../../domain/provider-config.js').TtsModelConfig} ttsModel
  * @property {string} voice
  * @property {number | undefined} speed
  */
@@ -30,20 +31,20 @@ const SAMPLE_RATE = 44100;
  * @property {{ index: number, status: 'pending'|'active'|'completed'|'failed', error?: string }[]} chunks
  * @property {{ wav: Blob | null, settingsLabel: string } | null} output
  * @property {import('../../services/errors.js').AppError | null} error
- * @property {boolean} exporting
  */
 
 /**
  * @param {Object} [deps]
  * @param {typeof createSpeech} [deps.speech]
  * @param {typeof decodeToPcm} [deps.decode]
- * @param {(bytes: ArrayBuffer) => Promise<Blob>} [deps.encodeMp3Fn]
+ * @param {typeof encodeMp3} [deps.encodeMp3Fn]
  * @param {number} [deps.maxChunkChars]
  */
 export function createTtsController(deps = {}) {
   const speech = deps.speech || createSpeech;
   const decode = deps.decode || decodeToPcm;
   const maxChunkChars = deps.maxChunkChars || DEFAULT_MAX_CHUNK_CHARS;
+  const encodeMp3Audio = deps.encodeMp3Fn || encodeMp3;
 
   /** @type {ReturnType<typeof createStore>} */
   const store = createStore(/** @type {TtsState} */ ({
@@ -51,7 +52,6 @@ export function createTtsController(deps = {}) {
     chunks: [],
     output: null,
     error: null,
-    exporting: false,
   }));
 
   /** @type {AbortController | null} */
@@ -62,8 +62,6 @@ export function createTtsController(deps = {}) {
   let lastSettings = null;
   /** @type {string} */
   let lastSource = '';
-
-  const transition = (from, to) => assertTransition(from, to);
 
   /**
    * Validate and start generation.
@@ -80,15 +78,13 @@ export function createTtsController(deps = {}) {
         status: undefined,
       });
     }
-    transition(store.get().status, 'validating');
-    store.set({ status: 'validating', error: null, output: null });
+    setFeatureStatus(store, 'validating', { error: null, output: null });
 
     const chunks = splitIntoChunks(trimmed, maxChunkChars);
     decodedChunks = new Array(chunks.length).fill(null);
     lastSettings = settings;
     lastSource = trimmed;
-    store.set({
-      status: 'generating',
+    setFeatureStatus(store, 'generating', {
       chunks: chunks.map((_, index) => ({ index, status: 'pending' })),
     });
 
@@ -99,14 +95,12 @@ export function createTtsController(deps = {}) {
         throwIfAborted(signal);
         await renderChunk(i, chunks[i], settings, signal);
       }
-      transition(store.get().status, 'ready');
       const pcm = assembleSegments(
         decodedChunks.map((channels) => ({ channels })),
         SAMPLE_RATE,
       );
       const wav = wavBlob({ channels: pcm.channels, sampleRate: SAMPLE_RATE });
-      store.set({
-        status: 'ready',
+      setFeatureStatus(store, 'ready', {
         output: {
           wav,
           settingsLabel: `${settings.provider.name} · ${settings.ttsModel.model} · ${settings.voice}`,
@@ -115,11 +109,9 @@ export function createTtsController(deps = {}) {
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
-        transition(store.get().status, 'cancelled');
-        store.set({ status: 'cancelled', error: null });
+        setFeatureStatus(store, 'cancelled', { error: null });
       } else {
-        transition(store.get().status, 'failed');
-        store.set({ status: 'failed', error: normalized });
+        setFeatureStatus(store, 'failed', { error: normalized });
       }
     } finally {
       activeController = null;
@@ -132,19 +124,17 @@ export function createTtsController(deps = {}) {
   async function renderChunk(index, text, settings, signal) {
     setChunk(index, { status: 'active', error: undefined });
     try {
-      const result = await withRetry(
-        () =>
-          speech({
-            provider: settings.provider,
-            ttsModel: settings.ttsModel,
-            voice: settings.voice,
-            input: text,
-            speed: settings.speed,
-            signal,
-          }),
-        { signal },
-      );
-      decodedChunks[index] = (await decodeSpeechAudio(result, decode, SAMPLE_RATE, decodePcmS16Le)).channels;
+      decodedChunks[index] = (await synthesizeSpeechChunk({
+        provider: settings.provider,
+        ttsModel: settings.ttsModel,
+        voice: settings.voice,
+        input: text,
+        speed: settings.speed,
+        signal,
+        targetSampleRate: SAMPLE_RATE,
+        speech,
+        decode,
+      })).channels;
       setChunk(index, { status: 'completed' });
     } catch (err) {
       const normalized = toAppError(err);
@@ -164,8 +154,7 @@ export function createTtsController(deps = {}) {
       .chunks.filter((c) => c.status !== 'completed')
       .map((c) => c.index);
     if (remainingIndexes.length === 0) return;
-    transition(store.get().status, 'generating');
-    store.set({ status: 'generating', error: null });
+    setFeatureStatus(store, 'generating', { error: null });
     activeController = new AbortController();
     const signal = activeController.signal;
     try {
@@ -178,8 +167,7 @@ export function createTtsController(deps = {}) {
         SAMPLE_RATE,
       );
       const wav = wavBlob({ channels: pcm.channels, sampleRate: SAMPLE_RATE });
-      store.set({
-        status: 'ready',
+      setFeatureStatus(store, 'ready', {
         output: {
           wav,
           settingsLabel: `${lastSettings.provider.name} · ${lastSettings.ttsModel.model} · ${lastSettings.voice}`,
@@ -188,9 +176,9 @@ export function createTtsController(deps = {}) {
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
-        store.set({ status: 'cancelled' });
+        setFeatureStatus(store, 'cancelled');
       } else {
-        store.set({ status: 'failed', error: normalized });
+        setFeatureStatus(store, 'failed', { error: normalized });
       }
     } finally {
       activeController = null;
@@ -204,8 +192,7 @@ export function createTtsController(deps = {}) {
     if (!activeController) return;
     const status = store.get().status;
     if (status === 'generating') {
-      transition(status, 'cancelling');
-      store.set({ status: 'cancelling' });
+      setFeatureStatus(store, 'cancelling');
     }
     activeController.abort();
   }
@@ -226,7 +213,15 @@ export function createTtsController(deps = {}) {
         status: undefined,
       });
     }
-    store.set({ exporting: true });
+    if (store.get().status !== 'ready') {
+      throw new AppError({
+        kind: 'validation',
+        message: 'An export is already in progress.',
+        retryable: false,
+        status: undefined,
+      });
+    }
+    setFeatureStatus(store, 'exporting');
     try {
       let blob;
       if (format === 'wav') {
@@ -236,7 +231,7 @@ export function createTtsController(deps = {}) {
           (decodedChunks || []).map((channels) => ({ channels })),
           SAMPLE_RATE,
         );
-        blob = await encodeMp3({
+        blob = await encodeMp3Audio({
           channels: pcm.channels,
           sampleRate: SAMPLE_RATE,
           onProgress,
@@ -247,7 +242,7 @@ export function createTtsController(deps = {}) {
     } catch (err) {
       throw toAppError(err, { kind: 'encoding', message: 'Audio encoding failed.' });
     } finally {
-      store.set({ exporting: false });
+      setFeatureStatus(store, 'ready');
     }
   }
 
@@ -255,9 +250,12 @@ export function createTtsController(deps = {}) {
    * Reset to idle, dropping output.
    */
   function reset() {
-    activeController?.abort();
+    if (activeController) {
+      cancel();
+      return;
+    }
     decodedChunks = null;
-    store.set({ status: 'idle', chunks: [], output: null, error: null, exporting: false });
+    setFeatureStatus(store, 'idle', { chunks: [], output: null, error: null });
   }
 
   /**

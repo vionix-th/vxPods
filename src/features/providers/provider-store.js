@@ -10,83 +10,15 @@ import {
   saveSettings,
   validateSettingsBackup as validateSettingsBackupDocument,
 } from '../../storage/local-settings.js';
-import {
-  DEFAULT_TTS_MODELS,
-  TEXT_GENERATION_APIS,
-  defaultTextModels,
-  isTextGenerationApi,
-  normalizeSuggestions,
-  normalizeTtsModels,
-} from './provider-suggestions.js';
+import { validateProviderInput } from '../../domain/provider-config.js';
+
+export { normalizeBaseUrl, validateProviderInput } from '../../domain/provider-config.js';
 
 export const PROVIDER_PRESETS = {
   openai: { label: 'OpenAI', baseUrl: 'https://api.openai.com/v1' },
   openrouter: { label: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1' },
   manual: { label: 'Manual URL', baseUrl: '' },
 };
-
-/**
- * Normalize a user-entered base URL.
- * - trims whitespace
- * - requires http(s); https required except localhost/127.0.0.1
- * - strips trailing slashes
- * - requires the path to end with /v1 (OpenAI-compatible API root)
- *
- * @param {string} input
- * @returns {string}
- * @throws {AppError} validation kind
- */
-export function normalizeBaseUrl(input) {
-  const raw = String(input ?? '').trim();
-  if (!raw) {
-    throw validationError('Base URL is required.');
-  }
-  let url;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw validationError('Base URL is not a valid URL.');
-  }
-  const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocalhost)) {
-    throw validationError('Base URL must use HTTPS.');
-  }
-  const path = url.pathname.replace(/\/+$/, '');
-  if (!path.endsWith('/v1')) {
-    throw validationError('Base URL must end with /v1 (OpenAI-compatible API root).');
-  }
-  url.pathname = path;
-  url.search = '';
-  url.hash = '';
-  return url.toString().replace(/\/+$/, '');
-}
-
-/**
- * Validate a candidate provider record. Returns normalized copy.
- * @param {{ name: string, baseUrl: string, apiKey: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
- * @throws {AppError} validation kind
- */
-export function validateProviderInput(input) {
-  const name = String(input.name ?? '').trim();
-  if (!name) throw validationError('Name is required.');
-  const apiKey = String(input.apiKey ?? '').trim();
-  if (!apiKey) throw validationError('API key is required.');
-  const baseUrl = normalizeBaseUrl(input.baseUrl);
-  const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
-  if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
-  const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
-  const ttsModels = normalizeTtsModels(input.ttsModels, DEFAULT_TTS_MODELS);
-  if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
-    throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
-  }
-  return {
-    name,
-    baseUrl,
-    apiKey,
-    textGeneration: { api, models: textModels },
-    ttsModels,
-  };
-}
 
 /**
  * @param {string} message
@@ -101,7 +33,7 @@ function validationError(message) {
 }
 
 /**
- * @returns {import('../../storage/local-settings.js').ProviderConfig[]}
+ * @returns {import('../../domain/provider-config.js').ProviderConfig[]}
  */
 export function listProviders() {
   return loadSettings().providers;
@@ -143,15 +75,6 @@ export function subscribeProviders(listener) {
 
 function notifyProviders() {
   for (const listener of listeners) listener();
-}
-
-/**
- * @param {string | null | undefined} id
- * @returns {import('../../storage/local-settings.js').ProviderConfig | null}
- */
-export function getProvider(id) {
-  if (!id) return null;
-  return loadSettings().providers.find((p) => p.id === id) ?? null;
 }
 
 /**

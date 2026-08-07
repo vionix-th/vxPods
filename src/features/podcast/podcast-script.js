@@ -3,8 +3,7 @@
  * schema validation, and normalization. Pure functions; no I/O.
  */
 
-import { renderPromptTemplate, resolvePromptTemplates } from './prompt-templates.js';
-import { loadSettings } from '../../storage/local-settings.js';
+import { renderPromptTemplate, resolvePromptTemplates } from '../../domain/prompt-templates.js';
 
 export const SCRIPT_SCHEMA_VERSION = 1;
 export const MAX_PAUSE_MS = 5000;
@@ -43,7 +42,7 @@ const SOURCE_LANGUAGE_POLICY = [
  * @param {PodcastPreferences} prefs
  * @returns {{ role: 'system'|'user', content: string }[]}
  */
-export function buildScriptPrompt(source, prefs, templateOverrides = loadSettings().promptTemplates) {
+export function buildScriptPrompt(source, prefs, templateOverrides = {}) {
   const templates = resolvePromptTemplates(templateOverrides);
   const values = buildScriptPromptValues(source, prefs);
   return [
@@ -87,7 +86,7 @@ export function buildScriptPromptValues(source, prefs) {
  * @param {string[]} errors
  * @returns {{ role: 'system'|'user'|'assistant', content: string }[]}
  */
-export function buildRepairMessages(priorOutput, errors, templateOverrides = loadSettings().promptTemplates) {
+export function buildRepairMessages(priorOutput, errors, templateOverrides = {}) {
   const templates = resolvePromptTemplates(templateOverrides);
   return [
     {

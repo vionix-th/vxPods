@@ -15,7 +15,6 @@ if (root) {
     message.textContent = 'vxPods failed to start. Reload the page to retry.';
     main.append(message);
     root.append(main);
-    // eslint-disable-next-line no-console
     console.error(err);
   });
 }

@@ -4,41 +4,16 @@
  */
 
 import { AppError } from '../services/errors.js';
-import { TEMPLATE_IDS, validatePromptTemplate } from '../features/podcast/prompt-templates.js';
+import { TEMPLATE_IDS, validatePromptTemplate } from '../domain/prompt-templates.js';
 import {
-  defaultTextModels,
-  isTextGenerationApi,
-  normalizeSuggestions,
-  normalizeTtsModels,
-} from '../features/providers/provider-suggestions.js';
+  isValidProviderRecord,
+  normalizeProviderRecord,
+} from '../domain/provider-config.js';
 
 export const STORAGE_KEY = 'vxpods.settings';
 export const SETTINGS_SCHEMA_VERSION = 1;
 
-/**
- * @typedef {Object} PcmFormat
- * @property {number} sampleRate samples per second
- * @property {number} channels interleaved channel count
- * @property {'s16le'} encoding signed 16-bit little-endian PCM
- */
-
-/**
- * @typedef {Object} TtsModelConfig
- * @property {string} model provider model identifier
- * @property {string[]} voices model-specific voice identifiers
- * @property {'mp3'|'pcm'} responseFormat format sent as response_format
- * @property {PcmFormat | undefined} [pcm] required only for raw PCM
- */
-
-/**
- * @typedef {Object} ProviderConfig
- * @property {string} id
- * @property {string} name
- * @property {string} baseUrl normalized API root ending in /v1
- * @property {string} apiKey
- * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
- * @property {TtsModelConfig[]} ttsModels canonical TTS capabilities
- */
+/** @typedef {import('../domain/provider-config.js').ProviderConfig} ProviderConfig */
 
 /**
  * @typedef {Object} SettingsDocument
@@ -47,7 +22,7 @@ export const SETTINGS_SCHEMA_VERSION = 1;
  * @property {string | null} selectedTextProviderId
  * @property {string | null} selectedTtsProviderId
  * @property {{ mode: 'tts' | 'podcast' }} preferences
- * @property {Partial<Record<import('../features/podcast/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
+ * @property {Partial<Record<import('../domain/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
  */
 
 export function defaultSettings() {
@@ -147,32 +122,6 @@ function validPromptTemplateOverrides(value) {
     if (validatePromptTemplate(id, value[id]).valid) overrides[id] = value[id];
   }
   return overrides;
-}
-
-function isValidProviderRecord(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const validIdentity =
-    typeof value.id === 'string' && value.id.length > 0 &&
-    typeof value.name === 'string' && value.name.trim().length > 0 &&
-    typeof value.baseUrl === 'string' && value.baseUrl.length > 0 &&
-    typeof value.apiKey === 'string' && value.apiKey.length > 0;
-  if (!validIdentity || !isTextGenerationApi(value.textGeneration?.api)) return false;
-  if (!Array.isArray(value.textGeneration?.models) || !Array.isArray(value.ttsModels)) return false;
-  return normalizeTtsModels(value.ttsModels).length === value.ttsModels.length;
-}
-
-function normalizeProviderRecord(provider) {
-  return {
-    ...provider,
-    textGeneration: {
-      api: provider.textGeneration.api,
-      models: normalizeSuggestions(
-        provider.textGeneration.models,
-        defaultTextModels(provider.textGeneration.api),
-      ),
-    },
-    ttsModels: normalizeTtsModels(provider.ttsModels),
-  };
 }
 
 function normalizeStorageError(err) {

@@ -1,7 +1,4 @@
-/**
- * Canonical podcast prompt templates. Templates are user-editable browser
- * preferences; rendering never persists source text or model output.
- */
+/** Canonical, browser-local podcast prompt-template contract. */
 
 export const TEMPLATE_IDS = /** @type {const} */ ([
   'scriptSystem',
@@ -97,10 +94,7 @@ export function validatePromptTemplate(id, template) {
   return errors.length ? { valid: false, errors } : { valid: true };
 }
 
-/**
- * Return defaults merged with valid local overrides.
- * @param {unknown} overrides
- */
+/** @param {unknown} overrides */
 export function resolvePromptTemplates(overrides) {
   const resolved = { ...DEFAULT_PROMPT_TEMPLATES };
   if (!overrides || typeof overrides !== 'object' || Array.isArray(overrides)) return resolved;

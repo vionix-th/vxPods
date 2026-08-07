@@ -1,4 +1,4 @@
-import { appError, toAppError } from './errors.js';
+import { appError } from './errors.js';
 import { parseProviderJson, sendProviderRequest } from './provider-http.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -73,5 +73,3 @@ export async function testChatConnection(provider, model, signal) {
     signal,
   });
 }
-
-export { toAppError };

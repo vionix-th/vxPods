@@ -4,14 +4,12 @@
  */
 
 import { AppError } from '../services/errors.js';
+import { encodeMp3Bytes, floatToInt16 } from './mp3-core.js';
 
-export const MP3_TARGET_KBPS = 128;
-const PROGRESS_INTERVAL = 50_000;
+export { MP3_TARGET_KBPS } from './mp3-core.js';
 
 /**
  * Encode PCM into an MP3 Blob on the main thread.
- * Also used inside the worker; keep free of DOM assumptions.
- *
  * @param {Object} args
  * @param {Float32Array[]} args.channels
  * @param {number} args.sampleRate
@@ -20,24 +18,9 @@ const PROGRESS_INTERVAL = 50_000;
  */
 export async function encodeMp3MainThread({ channels, sampleRate, onProgress }) {
   const { Mp3Encoder } = await import('@breezystack/lamejs');
-  const numChannels = Math.min(2, channels.length);
-  const encoder = new Mp3Encoder(numChannels, sampleRate, MP3_TARGET_KBPS);
-  const left = floatToInt16(channels[0]);
-  const right = numChannels === 2 ? floatToInt16(channels[1]) : left;
-  const parts = [];
-  const blockSize = 1152;
-  for (let i = 0; i < left.length; i += blockSize) {
-    const l = left.subarray(i, i + blockSize);
-    const r = numChannels === 2 ? right.subarray(i, i + blockSize) : undefined;
-    const encoded = numChannels === 2 ? encoder.encodeBuffer(l, r) : encoder.encodeBuffer(l);
-    if (encoded.length > 0) parts.push(new Int8Array(encoded));
-    if (onProgress && (i % (PROGRESS_INTERVAL * blockSize) === 0 || i + blockSize >= left.length)) {
-      onProgress(Math.min(i + blockSize, left.length), left.length);
-    }
-  }
-  const tail = encoder.flush();
-  if (tail.length > 0) parts.push(new Int8Array(tail));
-  return new Blob(parts, { type: 'audio/mpeg' });
+  const pcm = channels.slice(0, 2).map(floatToInt16);
+  const output = encodeMp3Bytes({ Encoder: Mp3Encoder, channels: pcm, sampleRate, onProgress });
+  return new Blob([output], { type: 'audio/mpeg' });
 }
 
 /**
@@ -119,7 +102,7 @@ export function encodeMp3InWorker({ channels, sampleRate, signal, onProgress }) 
         }),
       );
     };
-    const int16Channels = channels.map((c) => floatToInt16(c));
+    const int16Channels = channels.slice(0, 2).map(floatToInt16);
     const transfers = int16Channels.map((c) => c.buffer);
     worker.postMessage(
       {
@@ -150,17 +133,4 @@ export async function encodeMp3(args) {
     if (err instanceof AppError && err.kind === 'cancelled') throw err;
     return encodeMp3MainThread(args);
   }
-}
-
-/**
- * @param {Float32Array} input
- * @returns {Int16Array}
- */
-function floatToInt16(input) {
-  const out = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i += 1) {
-    const s = Math.max(-1, Math.min(1, input[i]));
-    out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-  }
-  return out;
 }

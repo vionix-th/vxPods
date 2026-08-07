@@ -5,30 +5,26 @@
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
+import { textField } from '../../components/fields.js';
+import { createIdentifierListEditor, createTtsModelEditor } from './provider-capability-editors.js';
 import { testTextGenerationConnection } from '../../services/text-generation-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
-import { downloadJson } from '../../utils/download.js';
 import { renderPromptTemplateSettings } from '../podcast/prompt-template-form.js';
+import { renderProviderDataSettings } from './provider-data-settings.js';
 import {
   PROVIDER_PRESETS,
   addProvider,
   deleteProvider,
-  exportSettingsBackup,
   listProviders,
-  restoreSettingsBackup,
   updateProvider,
-  validateSettingsBackup,
 } from './provider-store.js';
 import {
   TEXT_GENERATION_APIS,
   TEXT_GENERATION_API_LABELS,
   defaultTextModels,
-  defaultTtsModel,
-  normalizeSuggestions,
-  normalizeTtsModels,
   providerSuggestionsForPreset,
-} from './provider-suggestions.js';
+} from '../../domain/provider-config.js';
 
 const DEFAULT_VOICE = 'alloy';
 
@@ -38,7 +34,7 @@ const DEFAULT_VOICE = 'alloy';
  * @param {() => void} [options.onChange] called after any mutation
  * @param {boolean} [options.startCreate] open directly on a new configuration form
  * @param {boolean} [options.closeOnSave] close dialog after a successful save
- * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void} [options.onSaved]
+ * @param {(provider: import('../../domain/provider-config.js').ProviderConfig) => void} [options.onSaved]
  * @param {() => Promise<void>} [options.onClearLocalData] clear all browser-local application data
  */
 export function openSettings(options = {}) {
@@ -79,14 +75,14 @@ function renderSettingsSection(body, options, activeSection, notice) {
       });
       return;
     }
-    renderDataPrivacy(content, navigation);
+    renderProviderDataSettings(content, navigation);
   }, notice);
 }
 
 /**
  * @param {HTMLElement} body
  * @param {Object} options
- * @param {import('../../storage/local-settings.js').ProviderConfig | null} existing
+ * @param {import('../../domain/provider-config.js').ProviderConfig | null} existing
  */
 function renderProviderFormPage(body, options, existing) {
   renderSettingsFrame(body, 'providers', (section) => renderSettingsSection(body, options, section), (content) => {
@@ -152,7 +148,7 @@ function createNavigation(body, options) {
 
 /**
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../storage/local-settings.js').ProviderConfig | null) => void }} options
+ * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../domain/provider-config.js').ProviderConfig | null) => void }} options
  */
 function renderProviderManager(body, options) {
   body.replaceChildren();
@@ -196,113 +192,9 @@ function renderProviderManager(body, options) {
 }
 
 /**
+ * @param {import('../../domain/provider-config.js').ProviderConfig} provider
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void, onClearLocalData?: () => Promise<void>, openDataPrivacy: () => void }} options
- */
-function renderDataPrivacy(body, options) {
-  body.replaceChildren();
-  const heading = document.createElement('h3');
-  heading.textContent = 'Data & privacy';
-  const lead = document.createElement('p');
-  lead.className = 'help-text';
-  lead.textContent =
-    'Provider configurations, keys, selections, and prompt templates stay in this browser. Generation requests go directly to the provider you select.';
-  const notice = createLocalNotice();
-  const backup = document.createElement('section');
-  backup.className = 'settings-data-section';
-  const backupHeading = document.createElement('h4');
-  backupHeading.textContent = 'Settings backup';
-  const backupHelp = document.createElement('p');
-  backupHelp.className = 'help-text';
-  backupHelp.textContent = 'Exports include unencrypted API keys. Keep backup files private.';
-  const backupActions = document.createElement('div');
-  backupActions.className = 'action-row';
-  const exportButton = document.createElement('button');
-  exportButton.type = 'button';
-  exportButton.className = 'button button-secondary';
-  exportButton.textContent = 'Export settings';
-  exportButton.addEventListener('click', () => {
-    downloadJson(exportSettingsBackup(), 'vxpods-settings.json');
-    notice.show({
-      type: 'warning',
-      title: 'Sensitive export created',
-      message: 'Settings export includes unencrypted API keys. Store it securely and do not share it.',
-    });
-  });
-  const restoreButton = document.createElement('button');
-  restoreButton.type = 'button';
-  restoreButton.className = 'button button-secondary';
-  restoreButton.textContent = 'Restore settings';
-  const restoreInput = document.createElement('input');
-  restoreInput.type = 'file';
-  restoreInput.accept = '.json,application/json';
-  restoreInput.hidden = true;
-  restoreButton.addEventListener('click', () => restoreInput.click());
-  restoreInput.addEventListener('change', async () => {
-    const file = restoreInput.files?.[0];
-    restoreInput.value = '';
-    if (!file) return;
-    try {
-      const backup = await file.text();
-      const settings = validateSettingsBackup(backup);
-      const confirmed = await confirmDialog({
-        title: 'Restore settings',
-        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, and prompt templates. Existing settings will be lost.',
-        confirmLabel: 'Replace all settings',
-      });
-      if (!confirmed) return;
-      restoreSettingsBackup(settings);
-      options.onChange?.();
-      notice.show({ type: 'success', title: 'Settings restored', message: 'Saved settings were fully replaced.' });
-    } catch (err) {
-      notice.showError(toAppError(err));
-    }
-  });
-  backupActions.append(exportButton, restoreButton, restoreInput);
-  backup.append(backupHeading, backupHelp, backupActions);
-
-  const danger = document.createElement('section');
-  danger.className = 'settings-data-section settings-danger-zone';
-  const dangerHeading = document.createElement('h4');
-  dangerHeading.textContent = 'Danger zone';
-  const dangerHelp = document.createElement('p');
-  dangerHelp.className = 'help-text';
-  dangerHelp.textContent =
-    'Clear all saved provider configurations, plaintext keys, selections, prompt templates, and unfinished work from this browser.';
-  const clearButton = document.createElement('button');
-  clearButton.type = 'button';
-  clearButton.className = 'button button-danger';
-  clearButton.textContent = 'Clear local data';
-  clearButton.addEventListener('click', async () => {
-    const confirmed = await confirmDialog({
-      title: 'Clear local data',
-      message:
-        'This permanently removes saved provider configurations, plaintext API keys, selections, prompt templates, and unfinished work from this browser.',
-      confirmLabel: 'Clear local data',
-    });
-    if (!confirmed || !options.onClearLocalData) return;
-    try {
-      await options.onClearLocalData();
-    } catch (err) {
-      notice.showError(toAppError(err));
-    }
-  });
-  danger.append(dangerHeading, dangerHelp, clearButton);
-
-  const pageHeader = document.createElement('header');
-  pageHeader.className = 'settings-page-header';
-  const copy = document.createElement('div');
-  copy.className = 'settings-page-copy';
-  copy.append(heading, lead);
-  pageHeader.append(copy);
-
-  body.append(pageHeader, notice.element, backup, danger);
-}
-
-/**
- * @param {import('../../storage/local-settings.js').ProviderConfig} provider
- * @param {HTMLElement} body
- * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../storage/local-settings.js').ProviderConfig | null) => void }} options
+ * @param {{ onChange?: () => void, openProviderForm: (existing: import('../../domain/provider-config.js').ProviderConfig | null) => void }} options
  */
 function renderProviderRow(provider, body, options) {
   const item = document.createElement('li');
@@ -355,7 +247,7 @@ function renderProviderRow(provider, body, options) {
 /**
  * @param {HTMLElement} body
  * @param {{ onChange?: () => void, openProviders: () => void }} options
- * @param {import('../../storage/local-settings.js').ProviderConfig | null} existing
+ * @param {import('../../domain/provider-config.js').ProviderConfig | null} existing
  */
 function renderForm(body, options, existing) {
   body.replaceChildren();
@@ -671,308 +563,4 @@ function fieldset(legend) {
   legendEl.textContent = legend;
   set.append(legendEl);
   return set;
-}
-
-/**
- * @param {Object} args
- * @param {string} args.label
- * @param {string} args.value
- * @param {boolean} [args.required]
- * @param {string} [args.autocomplete]
- * @param {string} [args.inputmode]
- * @param {string} [args.help]
- */
-function textField({ label, value, required, autocomplete, inputmode, help }) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'field';
-  const id = `field-${Math.random().toString(36).slice(2, 8)}`;
-  const labelEl = document.createElement('label');
-  labelEl.setAttribute('for', id);
-  labelEl.textContent = required ? `${label} (required)` : label;
-  const input = document.createElement('input');
-  input.id = id;
-  input.type = 'text';
-  input.value = value;
-  if (autocomplete) input.autocomplete = autocomplete;
-  if (inputmode) input.inputMode = inputmode;
-  if (required) input.required = true;
-  wrapper.append(labelEl, input);
-  if (help) {
-    const helpEl = document.createElement('p');
-    helpEl.className = 'help-text';
-    helpEl.textContent = help;
-    wrapper.append(helpEl);
-  }
-  return { wrapper, input };
-}
-
-/**
- * @param {{ title: string, description: string, itemLabel: string, addLabel: string, values: string[] }} args
- */
-function createIdentifierListEditor({ title, description, itemLabel, addLabel, values }) {
-  const element = document.createElement('section');
-  element.className = 'identifier-list-editor';
-  const heading = document.createElement('h4');
-  heading.textContent = title;
-  const help = document.createElement('p');
-  help.className = 'help-text';
-  help.textContent = description;
-  const chips = document.createElement('div');
-  chips.className = 'model-chip-list';
-  chips.setAttribute('role', 'list');
-  const detail = document.createElement('div');
-  detail.className = 'identifier-detail';
-  const entries = values.map((value) => ({ value }));
-  let selectedIndex = 0;
-
-  function render() {
-    chips.replaceChildren();
-    detail.replaceChildren();
-    entries.forEach((entry, index) => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = `model-chip${index === selectedIndex ? ' is-selected' : ''}`;
-      chip.textContent = entry.value || `New ${itemLabel.toLowerCase()}`;
-      chip.setAttribute('aria-pressed', String(index === selectedIndex));
-      chip.addEventListener('click', () => {
-        selectedIndex = index;
-        render();
-      });
-      chips.append(chip);
-    });
-    const entry = entries[selectedIndex];
-    if (!entry) return;
-    const field = textField({ label: `${itemLabel} identifier`, value: entry.value });
-    field.input.addEventListener('input', () => {
-      entry.value = field.input.value;
-      chips.children[selectedIndex].textContent = entry.value || `New ${itemLabel.toLowerCase()}`;
-    });
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'button button-ghost button-small';
-    remove.textContent = `Remove ${itemLabel.toLowerCase()}`;
-    remove.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: `Remove ${itemLabel.toLowerCase()}`,
-        message: `Remove “${entry.value || `this ${itemLabel.toLowerCase()}`}” from this provider configuration?`,
-        confirmLabel: `Remove ${itemLabel.toLowerCase()}`,
-      });
-      if (!confirmed) return;
-      entries.splice(selectedIndex, 1);
-      selectedIndex = Math.max(0, selectedIndex - 1);
-      render();
-    });
-    detail.append(field.wrapper, remove);
-  }
-  const addButton = document.createElement('button');
-  addButton.type = 'button';
-  addButton.className = 'button button-secondary button-small';
-  addButton.textContent = addLabel;
-  addButton.addEventListener('click', () => {
-    entries.push({ value: '' });
-    selectedIndex = entries.length - 1;
-    render();
-  });
-  render();
-  element.append(heading, help, chips, detail, addButton);
-  return {
-    element,
-    values: () => normalizeSuggestions(entries.map((entry) => entry.value), []),
-    reset(nextValues) {
-      entries.splice(0, entries.length, ...nextValues.map((value) => ({ value })));
-      selectedIndex = 0;
-      render();
-    },
-  };
-}
-
-/**
- * @param {{ models: import('../../storage/local-settings.js').TtsModelConfig[] }} args
- */
-function createTtsModelEditor({ models }) {
-  const element = document.createElement('section');
-  element.className = 'tts-model-editor';
-  const heading = document.createElement('h4');
-  heading.textContent = 'TTS models and voices';
-  const help = document.createElement('p');
-  help.className = 'help-text';
-  help.textContent = 'Each model has its own voice menu in the TTS and Podcast workflows.';
-  const chips = document.createElement('div');
-  chips.className = 'model-chip-list';
-  chips.setAttribute('role', 'list');
-  const detail = document.createElement('section');
-  detail.className = 'tts-model-detail';
-  const entries = normalizeTtsModels(models).map((entry) => structuredClone(entry));
-  let selectedIndex = 0;
-
-  function render() {
-    chips.replaceChildren();
-    detail.replaceChildren();
-    entries.forEach((entry, index) => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = `model-chip${index === selectedIndex ? ' is-selected' : ''}`;
-      chip.textContent = entry.model || 'New TTS model';
-      chip.setAttribute('aria-pressed', String(index === selectedIndex));
-      chip.addEventListener('click', () => {
-        selectedIndex = index;
-        render();
-      });
-      chips.append(chip);
-    });
-    const entry = entries[selectedIndex];
-    if (!entry) return;
-    const modelField = textField({ label: 'TTS model identifier', value: entry.model });
-    modelField.input.addEventListener('input', () => {
-      entry.model = modelField.input.value;
-      chips.children[selectedIndex].textContent = entry.model || 'New TTS model';
-    });
-    const formatField = document.createElement('div');
-    formatField.className = 'field';
-    const formatLabel = document.createElement('label');
-    const formatId = `tts-format-${Math.random().toString(36).slice(2, 8)}`;
-    formatLabel.htmlFor = formatId;
-    formatLabel.textContent = 'Response format';
-    const formatSelect = document.createElement('select');
-    formatSelect.id = formatId;
-    for (const [value, label] of [['mp3', 'MP3'], ['pcm', 'Raw PCM']]) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      formatSelect.append(option);
-    }
-    formatSelect.value = entry.responseFormat;
-    formatField.append(formatLabel, formatSelect);
-    const pcmFields = document.createElement('div');
-    pcmFields.className = 'pcm-format-fields';
-    const sampleRate = textField({ label: 'PCM sample rate (Hz)', value: String(entry.pcm?.sampleRate ?? 24000), inputmode: 'numeric' });
-    const channels = textField({ label: 'PCM channels', value: String(entry.pcm?.channels ?? 1), inputmode: 'numeric' });
-    const encoding = document.createElement('p');
-    encoding.className = 'help-text';
-    encoding.textContent = 'Encoding: signed 16-bit little-endian (s16le).';
-    pcmFields.append(sampleRate.wrapper, channels.wrapper, encoding);
-    const syncFormat = () => {
-      entry.responseFormat = formatSelect.value;
-      pcmFields.hidden = entry.responseFormat !== 'pcm';
-      if (entry.responseFormat === 'pcm') {
-        entry.pcm = { sampleRate: Number(sampleRate.input.value), channels: Number(channels.input.value), encoding: 's16le' };
-      } else delete entry.pcm;
-    };
-    formatSelect.addEventListener('change', syncFormat);
-    sampleRate.input.addEventListener('input', syncFormat);
-    channels.input.addEventListener('input', syncFormat);
-    syncFormat();
-    const voicesHeading = document.createElement('h5');
-    voicesHeading.textContent = 'Available voices';
-    const voiceChips = document.createElement('div');
-    voiceChips.className = 'voice-chip-list';
-    function renderVoices() {
-      voiceChips.replaceChildren();
-      entry.voices.forEach((voice, index) => {
-        const chip = document.createElement('span');
-        chip.className = 'voice-chip';
-        const text = document.createElement('span');
-        text.textContent = voice;
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'voice-chip-remove';
-        remove.textContent = '×';
-        remove.setAttribute('aria-label', `Remove voice ${voice}`);
-        remove.addEventListener('click', async () => {
-          const confirmed = await confirmDialog({
-            title: 'Remove voice',
-            message: `Remove “${voice}” from ${entry.model || 'this TTS model'}?`,
-            confirmLabel: 'Remove voice',
-          });
-          if (!confirmed) return;
-          entry.voices.splice(index, 1);
-          renderVoices();
-        });
-        chip.append(text, remove);
-        voiceChips.append(chip);
-      });
-    }
-    const addVoice = textField({ label: 'Add voice', value: '' });
-    const addVoiceButton = document.createElement('button');
-    addVoiceButton.type = 'button';
-    addVoiceButton.className = 'button button-secondary button-small';
-    addVoiceButton.textContent = 'Add voice';
-    const commitVoice = () => {
-      const voice = addVoice.input.value.trim();
-      if (!voice || entry.voices.includes(voice)) return;
-      entry.voices.push(voice);
-      addVoice.input.value = '';
-      renderVoices();
-    };
-    addVoiceButton.addEventListener('click', commitVoice);
-    addVoice.input.addEventListener('keydown', (event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        commitVoice();
-      }
-    });
-    const removeModel = document.createElement('button');
-    removeModel.type = 'button';
-    removeModel.className = 'button button-ghost button-small';
-    removeModel.textContent = 'Remove model';
-    removeModel.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: 'Remove TTS model',
-        message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
-        confirmLabel: 'Remove model',
-      });
-      if (!confirmed) return;
-      entries.splice(selectedIndex, 1);
-      selectedIndex = Math.max(0, selectedIndex - 1);
-      render();
-    });
-    const addVoiceRow = document.createElement('div');
-    addVoiceRow.className = 'add-voice-row';
-    addVoiceRow.append(addVoice.wrapper, addVoiceButton);
-    renderVoices();
-    const restoreVoices = document.createElement('button');
-    restoreVoices.type = 'button';
-    restoreVoices.className = 'button button-ghost button-small';
-    restoreVoices.textContent = 'Restore known voices';
-    restoreVoices.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: 'Restore known model voices',
-        message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
-        confirmLabel: 'Restore voices',
-      });
-      if (!confirmed) return;
-      entry.voices = defaultTtsModel(entry.model.trim()).voices;
-      renderVoices();
-    });
-    detail.append(modelField.wrapper, formatField, pcmFields, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
-  }
-  const addButton = document.createElement('button');
-  addButton.type = 'button';
-  addButton.className = 'button button-secondary button-small';
-  addButton.textContent = 'Add TTS model';
-  addButton.addEventListener('click', () => {
-    entries.push(defaultTtsModel());
-    selectedIndex = entries.length - 1;
-    render();
-  });
-  render();
-  element.append(heading, help, chips, detail, addButton);
-  return {
-    element,
-    reset(nextModels) {
-      entries.splice(
-        0,
-        entries.length,
-        ...normalizeTtsModels(nextModels).map((entry) => structuredClone(entry)),
-      );
-      selectedIndex = 0;
-      render();
-    },
-    values: () => entries.map((entry) => ({
-      ...entry,
-      model: entry.model.trim(),
-      voices: normalizeSuggestions(entry.voices, []),
-      ...(entry.pcm ? { pcm: { ...entry.pcm } } : {}),
-    })),
-  };
 }

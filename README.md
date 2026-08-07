@@ -43,6 +43,7 @@ npm run dev
 Create a production build:
 
 ```sh
+npm run lint
 npm run build
 ```
 
@@ -77,6 +78,7 @@ src/
   app/         Application bootstrap, routing, and state
   audio/       Segmenting, assembly, WAV writing, and MP3 encoding
   components/  Reusable DOM components
+  domain/      Canonical provider and prompt-template contracts
   features/    Provider, text-to-speech, and podcast workflows
   services/    OpenAI-compatible HTTP clients and error normalization
   storage/     Local storage and IndexedDB persistence

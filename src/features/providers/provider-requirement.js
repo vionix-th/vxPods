@@ -10,36 +10,37 @@ import { openProviderSettings } from './provider-form.js';
 /**
  * @param {Object} args
  * @param {'text'|'tts'} args.slot
- * @param {() => import('../../storage/local-settings.js').ProviderConfig | null} args.getSelected
+ * @param {() => import('../../domain/provider-config.js').ProviderConfig | null} args.getSelected
  * @param {() => void} args.refresh
- * @param {(provider: import('../../storage/local-settings.js').ProviderConfig) => void | Promise<void>} args.onReady
- * @returns {boolean} true when a provider was available and onReady ran
+ * @returns {Promise<import('../../domain/provider-config.js').ProviderConfig | null>}
  */
-export function requireProvider({ slot, getSelected, refresh, onReady }) {
+export async function requireProvider({ slot, getSelected, refresh }) {
   const selected = getSelected();
-  if (selected) {
-    void onReady(selected);
-    return true;
-  }
+  if (selected) return selected;
   const providers = listProviders();
   if (providers.length === 1) {
     selectProvider(slot, providers[0].id);
     refresh();
-    void onReady(providers[0]);
-    return true;
+    return providers[0];
   }
 
-  /** @type {ReturnType<typeof openProviderSettings>} */
-  let dialog;
-  dialog = openProviderSettings({
-    startCreate: providers.length === 0,
-    closeOnSave: true,
-    onSaved(provider) {
-      selectProvider(slot, provider.id);
-      refresh();
-      dialog.close('saved');
-      void onReady(provider);
-    },
+  return new Promise((resolve) => {
+    let settled = false;
+    /** @type {ReturnType<typeof openProviderSettings>} */
+    let dialog;
+    dialog = openProviderSettings({
+      startCreate: providers.length === 0,
+      closeOnSave: true,
+      onSaved(provider) {
+        selectProvider(slot, provider.id);
+        refresh();
+        settled = true;
+        resolve(provider);
+        dialog.close('saved');
+      },
+    });
+    dialog.onClose(() => {
+      if (!settled) resolve(null);
+    });
   });
-  return false;
 }

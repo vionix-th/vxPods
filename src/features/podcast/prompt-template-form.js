@@ -11,7 +11,7 @@ import {
   TEMPLATE_IDS,
   resolvePromptTemplates,
   validatePromptTemplate,
-} from './prompt-templates.js';
+} from '../../domain/prompt-templates.js';
 
 const TEMPLATE_PAGES = {
   scriptSystem: { tab: 'Script rules', messageType: 'System message' },
@@ -61,7 +61,7 @@ export function renderPromptTemplateSettings(body, options) {
   tabList.className = 'prompt-template-tabs';
   tabList.setAttribute('role', 'tablist');
   tabList.setAttribute('aria-label', 'Prompt template pages');
-  /** @type {Map<import('./prompt-templates.js').PromptTemplateId, HTMLButtonElement>} */
+  /** @type {Map<import('../../domain/prompt-templates.js').PromptTemplateId, HTMLButtonElement>} */
   const tabs = new Map();
   const panel = document.createElement('div');
   panel.className = 'prompt-template-page';
@@ -123,7 +123,7 @@ export function renderPromptTemplateSettings(body, options) {
   body.append(editor);
   renderActiveTemplate();
 
-  /** @param {import('./prompt-templates.js').PromptTemplateId} id */
+  /** @param {import('../../domain/prompt-templates.js').PromptTemplateId} id */
   function setActiveTemplate(id) {
     activeId = id;
     notice.clear();

@@ -12,14 +12,14 @@ import { AppError } from '../services/errors.js';
  */
 
 const TRANSITIONS = {
-  idle: ['validating', 'generating'],
+  idle: ['validating', 'generating', 'ready'], // ready supports validated imports/recovery
   validating: ['generating', 'failed', 'idle', 'cancelling', 'cancelled'],
   generating: ['ready', 'failed', 'cancelling', 'cancelled'],
   ready: ['exporting', 'validating', 'generating', 'idle'],
-  exporting: ['ready', 'failed'],
-  failed: ['validating', 'generating', 'idle'], // retry
+  exporting: ['ready'],
+  failed: ['validating', 'generating', 'ready', 'idle'], // retry or validated import
   cancelling: ['cancelled', 'failed'],
-  cancelled: ['idle', 'validating', 'generating'],
+  cancelled: ['idle', 'validating', 'generating', 'ready'],
 };
 
 const isDev = typeof import.meta !== 'undefined' && import.meta.env?.DEV;
@@ -51,9 +51,58 @@ export function assertTransition(from, to) {
       status: undefined,
     });
   }
-  // eslint-disable-next-line no-console
   console.error(message);
   return false;
+}
+
+/**
+ * Validate and commit one feature-status transition atomically.
+ * Production callers receive `false` and leave state unchanged when transition
+ * is illegal; development callers receive the AppError from assertTransition.
+ *
+ * @template {{ status: FeatureStatus }} T
+ * @param {ReturnType<typeof createStore<T>>} store
+ * @param {FeatureStatus} to
+ * @param {Partial<T>} [patch]
+ * @returns {boolean}
+ */
+export function setFeatureStatus(store, to, patch = {}) {
+  const from = store.get().status;
+  if (from !== to && !assertTransition(from, to)) return false;
+  store.set({ ...patch, status: to });
+  return true;
+}
+
+/**
+ * Commit a transition for a named secondary state machine.
+ * Invalid transitions throw in development and leave state unchanged in
+ * production, matching feature-status behavior.
+ *
+ * @template {object} T
+ * @param {ReturnType<typeof createStore<T>>} store
+ * @param {keyof T & string} key
+ * @param {string} to
+ * @param {Record<string, string[]>} transitions
+ * @param {Partial<T>} [patch]
+ * @returns {boolean}
+ */
+export function setGuardedStatus(store, key, to, transitions, patch = {}) {
+  const from = String(store.get()[key]);
+  if (from !== to && !transitions[from]?.includes(to)) {
+    const message = `Illegal ${key} transition: ${from} -> ${to}`;
+    if (isDev) {
+      throw new AppError({
+        kind: 'validation',
+        message,
+        retryable: false,
+        status: undefined,
+      });
+    }
+    console.error(message);
+    return false;
+  }
+  store.set({ ...patch, [key]: to });
+  return true;
 }
 
 /**
