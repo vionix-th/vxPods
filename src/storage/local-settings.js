@@ -1,6 +1,5 @@
 /**
- * Versioned localStorage settings. Legacy documents migrate in memory and
- * remain untouched until the next valid settings mutation or explicit restore.
+ * Versioned localStorage settings. Only the current document format is supported.
  */
 
 import { AppError } from '../services/errors.js';
@@ -8,7 +7,6 @@ import { TEMPLATE_IDS, validatePromptTemplate } from '../domain/prompt-templates
 import {
   isValidFormatTemplateCollection,
   isValidSpeakerProfileCollection,
-  migrateV2PodcastTemplates,
   normalizeFormatTemplates,
   normalizeSpeakerProfiles,
   starterFormatTemplates,
@@ -20,14 +18,7 @@ import {
 } from '../domain/provider-config.js';
 
 export const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 3;
-const SETTINGS_SCHEMA_WITHOUT_TEMPLATES = 1;
-const SETTINGS_SCHEMA_WITH_LEGACY_STARTER_PROMPTS = 2;
-const SUPPORTED_SETTINGS_SCHEMA_VERSIONS = Object.freeze([
-  SETTINGS_SCHEMA_WITHOUT_TEMPLATES,
-  SETTINGS_SCHEMA_WITH_LEGACY_STARTER_PROMPTS,
-  SETTINGS_SCHEMA_VERSION,
-]);
+export const SETTINGS_SCHEMA_VERSION = 1;
 /** @type {Set<() => void>} */
 const restoreListeners = new Set();
 
@@ -92,7 +83,7 @@ export function inspectSettings(storage = globalThis.localStorage) {
       ),
     };
   }
-  if (!SUPPORTED_SETTINGS_SCHEMA_VERSIONS.includes(parsed?.schemaVersion)) {
+  if (parsed?.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     return {
       status: 'unsupported',
       settings: defaultSettings(),
@@ -153,19 +144,17 @@ export function validateSettingsBackup(backup) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw validationError('Settings file must contain a settings object.');
   }
-  if (!SUPPORTED_SETTINGS_SCHEMA_VERSIONS.includes(raw.schemaVersion)) {
+  if (raw.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     throw validationError('Settings file has an unsupported schema version.');
   }
   if (!Array.isArray(raw.providers) || raw.providers.some((provider) => !isValidProviderRecord(provider))) {
     throw validationError('Settings file contains an invalid provider configuration.');
   }
-  if (raw.schemaVersion !== SETTINGS_SCHEMA_WITHOUT_TEMPLATES) {
-    if (!isValidFormatTemplateCollection(raw.formatTemplates)) {
-      throw validationError('Settings file contains invalid format templates.');
-    }
-    if (!isValidSpeakerProfileCollection(raw.speakerProfiles)) {
-      throw validationError('Settings file contains invalid speaker profiles.');
-    }
+  if (!isValidFormatTemplateCollection(raw.formatTemplates)) {
+    throw validationError('Settings file contains invalid format templates.');
+  }
+  if (!isValidSpeakerProfileCollection(raw.speakerProfiles)) {
+    throw validationError('Settings file contains invalid speaker profiles.');
   }
   return validateDocument(raw);
 }
@@ -203,15 +192,6 @@ function validateDocument(doc) {
     ? doc.providers.filter(isValidProviderRecord).map(normalizeProviderRecord)
     : [];
   const ids = new Set(providers.map((provider) => provider.id));
-  let formatTemplates = doc.schemaVersion === SETTINGS_SCHEMA_WITHOUT_TEMPLATES
-    ? starterFormatTemplates()
-    : normalizeFormatTemplates(doc.formatTemplates);
-  let speakerProfiles = doc.schemaVersion === SETTINGS_SCHEMA_WITHOUT_TEMPLATES
-    ? starterSpeakerProfiles()
-    : normalizeSpeakerProfiles(doc.speakerProfiles);
-  if (doc.schemaVersion === SETTINGS_SCHEMA_WITH_LEGACY_STARTER_PROMPTS) {
-    ({ formatTemplates, speakerProfiles } = migrateV2PodcastTemplates(formatTemplates, speakerProfiles));
-  }
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
     providers,
@@ -223,8 +203,8 @@ function validateDocument(doc) {
       : null,
     preferences: { mode: doc.preferences?.mode === 'podcast' ? 'podcast' : 'tts' },
     promptTemplates: validPromptTemplateOverrides(doc.promptTemplates),
-    formatTemplates,
-    speakerProfiles,
+    formatTemplates: normalizeFormatTemplates(doc.formatTemplates),
+    speakerProfiles: normalizeSpeakerProfiles(doc.speakerProfiles),
   };
 }
 

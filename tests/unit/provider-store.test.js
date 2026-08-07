@@ -170,7 +170,7 @@ describe('provider CRUD', () => {
     const backup = exportSettingsBackup();
     backup.promptTemplates = {
       scriptUser:
-        'Write {{formatDescription}} for {{audience}} in a {{tone}} tone. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+        'Write {{formatDescription}} for {{audience}}. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     };
     addProvider({ ...input, name: 'Temporary' });
 
@@ -184,7 +184,7 @@ describe('provider CRUD', () => {
     });
     expect(getSelectedProviderId('text')).toBe(original.id);
     expect(exportSettingsBackup().promptTemplates.scriptUser).toBe(
-      'Write {{formatDescription}} for {{audience}} in a {{tone}} tone. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+      'Write {{formatDescription}} for {{audience}}. {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     );
   });
 

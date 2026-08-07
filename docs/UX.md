@@ -173,7 +173,7 @@ Script and TTS selectors elsewhere display saved configuration name plus endpoin
 
 When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required text-generation or TTS slot and resumes the action.
 
-Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates selected JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, format templates, speaker profiles, and advanced prompt templates without merging. Version 1 backups migrate to the current schema.
+Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates current-format JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, format templates, speaker profiles, and advanced prompt templates without merging. Unsupported backups require recreation under the current format.
 
 Format and speaker-profile lists support add, edit, confirmed delete, and starter restoration. Starter restoration resets bundled IDs, restores missing starters, retains custom records, and reports names skipped because a custom record already uses them. Saved record edits do not mutate active generation drafts.
 

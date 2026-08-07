@@ -1,6 +1,6 @@
 /** Canonical podcast script contract, normalization, and validation. */
 
-export const SCRIPT_SCHEMA_VERSION = 2;
+export const SCRIPT_SCHEMA_VERSION = 1;
 export const MAX_PAUSE_MS = 5000;
 export const MIN_SPEAKERS = 1;
 export const MAX_SPEAKERS = 8;
@@ -28,12 +28,8 @@ export function validateScript(value) {
   }
   const v = /** @type {Record<string, unknown>} */ (value);
 
-  const legacy = v.schemaVersion === 1;
-  if (!legacy && v.schemaVersion !== SCRIPT_SCHEMA_VERSION) {
-    errors.push(`schemaVersion must be ${SCRIPT_SCHEMA_VERSION}; version 1 is accepted only for migration.`);
-  }
-  if (legacy && v.format !== 'solo' && v.format !== 'conversation') {
-    errors.push('Version 1 format must be "solo" or "conversation".');
+  if (v.schemaVersion !== SCRIPT_SCHEMA_VERSION) {
+    errors.push(`schemaVersion must be ${SCRIPT_SCHEMA_VERSION}.`);
   }
   if (typeof v.title !== 'string' || v.title.trim() === '') {
     errors.push('title must be a non-empty string.');

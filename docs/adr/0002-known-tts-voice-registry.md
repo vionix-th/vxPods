@@ -25,4 +25,4 @@ Users must add a voice before using unknown models and must supply accurate raw-
 
 ## Migration and rollback
 
-The product is pre-release. Settings schema is reset to version 1 and render-job schema to version 2; superseded records are discarded with no migration or backward-compatibility path. Rollback requires clearing local data or explicitly recreating configuration in the older shape.
+The product is pre-release. Settings and podcast-script schemas are version 1; render-job schema is version 2. Superseded records are discarded with no migration or backward-compatibility path. Rollback requires clearing local data or explicitly recreating configuration in the older shape.

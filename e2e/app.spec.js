@@ -34,7 +34,7 @@ function wavBytes() {
 }
 
 const SCRIPT = {
-  schemaVersion: 2,
+  schemaVersion: 1,
   title: 'E2E Show',
   language: 'en',
   sourceGrounded: true,

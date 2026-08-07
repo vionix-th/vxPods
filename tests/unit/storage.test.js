@@ -54,57 +54,11 @@ describe('local-settings', () => {
     expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
-  it('migrates version 1 settings lazily without changing stored raw data', () => {
-    const legacy = {
-      schemaVersion: 1,
-      providers: [],
-      selectedTextProviderId: null,
-      selectedTtsProviderId: null,
-      preferences: { mode: 'podcast' },
-      promptTemplates: { repairUser: 'Errors: {{validationErrors}}' },
-    };
-    const raw = JSON.stringify(legacy);
+  it('preserves unsupported settings until explicit restore or clear', () => {
+    const raw = JSON.stringify({ ...defaultSettings(), schemaVersion: 2 });
     localStorage.setItem(STORAGE_KEY, raw);
-    const migrated = loadSettings();
-    expect(migrated.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
-    expect(migrated.formatTemplates).toHaveLength(5);
-    expect(migrated.speakerProfiles).toHaveLength(5);
-    expect(migrated.promptTemplates).toEqual(legacy.promptTemplates);
-    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
-    saveSettings(migrated);
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
-  });
-
-  it('accepts and migrates version 1 settings backups', () => {
-    const restored = restoreSettingsBackup({
-      schemaVersion: 1,
-      providers: [],
-      selectedTextProviderId: null,
-      selectedTtsProviderId: null,
-      preferences: { mode: 'tts' },
-      promptTemplates: {},
-    });
-    expect(restored.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
-    expect(restored.formatTemplates[0].name).toBe('Conversation');
-  });
-
-  it('upgrades untouched version 2 starter prompts and preserves user changes', () => {
-    const legacy = defaultSettings();
-    legacy.schemaVersion = 2;
-    legacy.formatTemplates[0].instructions = 'Create a natural conversation among the available speakers. Let speakers respond to one another, use clear transitions, and avoid repetitive agreement.';
-    legacy.speakerProfiles[0].role = 'Welcoming guide who frames the topic, manages transitions, and summarizes key points without adding facts.';
-    legacy.speakerProfiles[2].role = 'User-authored expert behavior.';
-    legacy.formatTemplates = legacy.formatTemplates.filter((record) => record.id !== 'format-interview');
-    const raw = JSON.stringify(legacy);
-    localStorage.setItem(STORAGE_KEY, raw);
-
-    const migrated = loadSettings();
-
-    expect(migrated.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
-    expect(migrated.formatTemplates[0].instructions).toContain('genuinely interactive conversation');
-    expect(migrated.speakerProfiles[0].role).toContain('Facilitates the selected format');
-    expect(migrated.speakerProfiles[2].role).toBe('User-authored expert behavior.');
-    expect(migrated.formatTemplates.some((record) => record.id === 'format-interview')).toBe(false);
+    expect(inspectSettings()).toMatchObject({ status: 'unsupported', settings: defaultSettings() });
+    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported version/i);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
   });
 
@@ -120,7 +74,7 @@ describe('local-settings', () => {
 
   it('preserves superseded settings until explicit restore or clear', () => {
     const raw = JSON.stringify({
-      schemaVersion: 8,
+      schemaVersion: 2,
       providers: [{ id: 'p1', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' }],
       selectedChatProviderId: 'p1',
       selectedTtsProviderId: null,
@@ -250,7 +204,7 @@ describe('render-job-store', () => {
     const loaded = await loadJob();
     expect(loaded.id).toBe('job-1');
     expect(loaded.status).toBe('rendering');
-    expect(loaded.script.schemaVersion).toBe(2);
+    expect(loaded.script.schemaVersion).toBe(1);
     expect(loaded.script).not.toHaveProperty('format');
   });
 

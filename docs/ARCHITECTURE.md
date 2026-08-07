@@ -242,7 +242,7 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 1,
   "title": "Example title",
   "language": "th",
   "sourceGrounded": true,
@@ -273,7 +273,7 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 
 Validation rules:
 
-- `schemaVersion` equals `2`; version 1 imports and embedded recovery scripts are normalized to version 2 in memory.
+- `schemaVersion` equals `1`; other versions are unsupported.
 - `language` is a valid canonical BCP 47 tag that describes the source and spoken-script language.
 - `format` is not part of the render contract; reusable format instructions are request-scoped generation input.
 - `speakers` contains one through eight records independent of format instructions.
@@ -284,7 +284,7 @@ Validation rules:
 - Unknown properties may be discarded during normalization; required properties may not be inferred except deterministic IDs.
 - Exported script JSON contains canonical fields shown above.
 - Imported script JSON is parsed and validated against the same canonical schema before replacing in-memory workflow state.
-- Version 1 migration validates its legacy `format`, drops it, removes unknown properties, and emits only canonical version 2 fields.
+- Unsupported imported scripts do not replace current workflow state.
 
 Model output enters as untrusted text, passes JSON isolation and schema validation, then renders through text APIs.
 
@@ -365,7 +365,7 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 3,
+  schemaVersion: 1,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -377,15 +377,15 @@ One versioned document stores:
 ```
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
-Settings schema 3 stores ordered reusable formats and speaker profiles with the current prompt suite. Version 1 documents and backups receive the current starters. Version 2 documents and backups replace only exact, untouched copies of bundled format and speaker prompts; edited, renamed, or deleted starter records and all custom records remain unchanged. Both migrations are lazy while reading local settings and preserve providers, selections, preferences, and prompt overrides; the first successful mutation persists schema 3. Future, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
-Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new/migrated settings once. Empty collections persist until explicit starter restoration.
+Settings schema 1 stores ordered reusable formats and speaker profiles with the current prompt suite. Other, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement. Unsupported settings and backups require explicit recreation under the current format.
+Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new settings once. Empty collections persist until explicit starter restoration.
 
 ```js
 FormatTemplate = { id: string, name: string, instructions: string }
 SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
 ```
 
-Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. Existing advanced overrides that contain the former `{{tone}}` placeholder remain renderable through the compatibility value `format- and speaker-role-defined`; new defaults neither emit nor require that placeholder. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. Overrides with unsupported placeholders are invalid. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB
@@ -457,7 +457,7 @@ Unit tests cover:
 - Source segmentation.
 - Script parsing, schema validation, and normalization.
 - State transitions.
-- Storage migrations and expiry.
+- Storage validation and expiry.
 - WAV headers and deterministic assembly ordering.
 - Filename sanitization.
 

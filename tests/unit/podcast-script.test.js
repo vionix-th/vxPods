@@ -26,7 +26,7 @@ const prefs = {
 };
 
 const validScript = {
-  schemaVersion: 2,
+  schemaVersion: 1,
   title: 'Demo',
   language: 'en',
   sourceGrounded: true,
@@ -65,19 +65,11 @@ describe('buildScriptPrompt', () => {
 
   it('uses a valid local template override without persisting source text', () => {
     const messages = buildScriptPrompt('SOURCE TEXT HERE', prefs, {
-      scriptUser: 'Custom {{formatDescription}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+      scriptUser: 'Custom {{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     });
     expect(messages[1].content).toContain('Custom');
-    expect(messages[1].content).toContain('format- and speaker-role-defined');
     expect(messages[0].content).toContain('source language');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
-  });
-
-  it('renders legacy format placeholders for existing advanced overrides', () => {
-    const messages = buildScriptPrompt('SOURCE', prefs, {
-      scriptSystem: 'Legacy format: {{format}}',
-    });
-    expect(messages[0].content).toContain('Legacy format: conversation');
   });
 });
 
@@ -99,9 +91,10 @@ describe('buildRepairMessages', () => {
 });
 
 describe('prompt templates', () => {
-  it('does not require or emit a script-wide tone placeholder', () => {
+  it('rejects removed legacy placeholders', () => {
     expect(DEFAULT_PROMPT_TEMPLATES.scriptUser).not.toContain('{{tone}}');
     expect(validatePromptTemplate('scriptUser', DEFAULT_PROMPT_TEMPLATES.scriptUser).valid).toBe(true);
+    expect(validatePromptTemplate('scriptUser', '{{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}} {{tone}}').valid).toBe(false);
   });
 
   it('falls back to bundled default for invalid local overrides', () => {
@@ -150,7 +143,7 @@ describe('validateScript', () => {
   });
 
   it('rejects unsupported schema versions', () => {
-    const result = validateScript({ ...validScript, schemaVersion: 3 });
+    const result = validateScript({ ...validScript, schemaVersion: 2 });
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.errors.join(' ')).toContain('schemaVersion');
   });
@@ -209,16 +202,6 @@ describe('validateScript', () => {
     const nine = structuredClone(eight);
     nine.speakers.push({ id: 'speaker-9', name: 'Speaker 9', role: '', voice: 'alloy' });
     expect(validateScript(nine).valid).toBe(false);
-  });
-
-  it('migrates version 1 scripts and removes legacy format', () => {
-    const legacy = { ...structuredClone(validScript), schemaVersion: 1, format: 'conversation' };
-    const result = validateScript(legacy);
-    expect(result.valid).toBe(true);
-    if (result.valid) {
-      expect(result.script.schemaVersion).toBe(2);
-      expect(result.script).not.toHaveProperty('format');
-    }
   });
 
   it('rejects invalid field types', () => {

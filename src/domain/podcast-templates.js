@@ -101,91 +101,12 @@ export const STARTER_SPEAKER_PROFILES = Object.freeze([
   }),
 ]);
 
-// Settings schema 2 persisted these bundled records. Migration replaces only
-// exact, untouched copies so renamed, edited, or deleted user records survive.
-const SETTINGS_V2_FORMAT_STARTERS = Object.freeze([
-  Object.freeze({
-    id: 'format-conversation',
-    name: 'Conversation',
-    instructions: 'Create a natural conversation among the available speakers. Let speakers respond to one another, use clear transitions, and avoid repetitive agreement.',
-  }),
-  Object.freeze({
-    id: 'format-interview',
-    name: 'Interview',
-    instructions: 'Use the first speaker as interviewer and remaining speakers as interviewees. Ask focused questions, use relevant follow-ups, and keep answers grounded in the source. If only one speaker is available, present a narrated question-and-answer structure.',
-  }),
-  Object.freeze({
-    id: 'format-narrative',
-    name: 'Narrative',
-    instructions: 'Shape the source into a coherent narrative with an opening, logical progression, and concise closing. Use available speakers as narrators or quoted perspectives without inventing facts.',
-  }),
-  Object.freeze({
-    id: 'format-lecture',
-    name: 'Lecture',
-    instructions: 'Present a structured lecture with an introduction, clearly ordered explanations, useful transitions, and a closing recap. Divide material naturally among available speakers.',
-  }),
-  Object.freeze({
-    id: 'format-panel-discussion',
-    name: 'Panel Discussion',
-    instructions: 'Create a moderated panel discussion. Use the first speaker as moderator when multiple speakers exist, give other speakers distinct source-grounded perspectives, and summarize agreements or differences. With one speaker, narrate those perspectives explicitly.',
-  }),
-]);
-
-const SETTINGS_V2_SPEAKER_STARTERS = Object.freeze([
-  Object.freeze({
-    id: 'profile-host',
-    label: 'Host',
-    defaultSpeakerName: 'Host',
-    role: 'Welcoming guide who frames the topic, manages transitions, and summarizes key points without adding facts.',
-  }),
-  Object.freeze({
-    id: 'profile-interviewer',
-    label: 'Interviewer',
-    defaultSpeakerName: 'Interviewer',
-    role: 'Curious interviewer who asks focused questions, follows up on important details, and surfaces assumptions.',
-  }),
-  Object.freeze({
-    id: 'profile-expert',
-    label: 'Expert',
-    defaultSpeakerName: 'Expert',
-    role: 'Clear subject-matter expert who explains evidence, terminology, and implications in accessible language.',
-  }),
-  Object.freeze({
-    id: 'profile-narrator',
-    label: 'Narrator',
-    defaultSpeakerName: 'Narrator',
-    role: 'Measured storyteller who maintains coherent chronology, context, and narrative continuity.',
-  }),
-  Object.freeze({
-    id: 'profile-skeptic',
-    label: 'Skeptic',
-    defaultSpeakerName: 'Skeptic',
-    role: 'Constructive skeptic who tests claims, identifies uncertainty, and asks for source-supported clarification.',
-  }),
-]);
-
 export function starterFormatTemplates() {
   return STARTER_FORMAT_TEMPLATES.map((record) => ({ ...record }));
 }
 
 export function starterSpeakerProfiles() {
   return STARTER_SPEAKER_PROFILES.map((record) => ({ ...record }));
-}
-
-/** Upgrade untouched bundled prompt records persisted by settings schema 2. */
-export function migrateV2PodcastTemplates(formatTemplates, speakerProfiles) {
-  return {
-    formatTemplates: replaceUnchangedStarters(
-      formatTemplates,
-      SETTINGS_V2_FORMAT_STARTERS,
-      STARTER_FORMAT_TEMPLATES,
-    ),
-    speakerProfiles: replaceUnchangedStarters(
-      speakerProfiles,
-      SETTINGS_V2_SPEAKER_STARTERS,
-      STARTER_SPEAKER_PROFILES,
-    ),
-  };
 }
 
 /** @param {unknown} value */
@@ -272,18 +193,6 @@ function normalizeCollection(value, normalize, getName) {
     result.push(record);
   }
   return result;
-}
-
-function replaceUnchangedStarters(records, legacyStarters, currentStarters) {
-  const legacyById = new Map(legacyStarters.map((record) => [record.id, record]));
-  const currentById = new Map(currentStarters.map((record) => [record.id, record]));
-  return records.map((record) => {
-    const legacy = legacyById.get(record.id);
-    const current = currentById.get(record.id);
-    if (!legacy || !current) return record;
-    const unchanged = Object.entries(legacy).every(([key, value]) => record[key] === value);
-    return unchanged ? { ...current } : record;
-  });
 }
 
 function requireText(value, label, max) {

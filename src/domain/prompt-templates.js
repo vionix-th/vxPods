@@ -13,7 +13,7 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
   scriptSystem: [
     'You transform supplied source material into a source-grounded podcast script for text-to-speech.',
     'Return exactly one JSON object with this shape. Do not use markdown fences or add commentary:',
-    '{"schemaVersion":2,"title":string,"language":string,"sourceGrounded":true,' +
+    '{"schemaVersion":1,"title":string,"language":string,"sourceGrounded":true,' +
       '"speakers":[{"id":string,"name":string,"role":string,"voice":string}],' +
       '"segments":[{"id":string,"speakerId":string,"text":string,"pauseAfterMs":number}]}',
     '',
@@ -126,6 +126,10 @@ export function validatePromptTemplate(id, template) {
   const errors = PROMPT_TEMPLATE_METADATA[id].requiredPlaceholders
     .filter((name) => !template.includes(`{{${name}}}`))
     .map((name) => `Missing required placeholder {{${name}}}.`);
+  const allowed = new Set(['formatDescription', 'audience', 'speakers', 'speakerIds', 'voices', 'source', 'validationErrors']);
+  for (const match of template.matchAll(/{{([a-zA-Z][a-zA-Z0-9]*)}}/g)) {
+    if (!allowed.has(match[1])) errors.push(`Unsupported placeholder {{${match[1]}}}.`);
+  }
   return errors.length ? { valid: false, errors } : { valid: true };
 }
 

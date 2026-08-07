@@ -28,7 +28,7 @@ const prefs = {
 };
 
 const validScript = {
-  schemaVersion: 2,
+  schemaVersion: 1,
   title: 'Test Show',
   language: 'en',
   sourceGrounded: true,
@@ -154,12 +154,10 @@ describe('podcast script generation', () => {
     expect(controller.store.get()).toMatchObject({ status: 'ready', script: validScript });
   });
 
-  it('imports version 1 scripts as canonical version 2 without format', () => {
-    const legacy = { ...structuredClone(validScript), schemaVersion: 1, format: 'conversation' };
+  it('rejects unsupported script versions', () => {
+    const unsupported = { ...structuredClone(validScript), schemaVersion: 2 };
     const controller = createPodcastController();
-    const imported = controller.importScript(legacy);
-    expect(imported.schemaVersion).toBe(2);
-    expect(imported).not.toHaveProperty('format');
+    expect(() => controller.importScript(unsupported)).toThrowError(/schemaVersion must be 1/i);
   });
 
   it('applies speaker metadata changes without changing referenced turns', async () => {

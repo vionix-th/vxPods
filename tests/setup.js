@@ -9,7 +9,7 @@ if (!globalThis.indexedDB) {
   globalThis.IDBKeyRange = IDBKeyRange;
 }
 
-if (typeof globalThis.localStorage === 'undefined') {
+if (typeof globalThis.localStorage?.clear !== 'function') {
   const store = new Map();
   globalThis.localStorage = {
     getItem: (key) => (store.has(key) ? store.get(key) : null),
