@@ -223,7 +223,7 @@ function buildShell() {
   const heroSub = document.createElement('p');
   heroSub.className = 'hero-sub';
   heroSub.textContent =
-    'vxPods turns written material into audio for listening away from your screen. Paste or import text, then choose direct narration or a two-speaker podcast. For podcasts, review script before generating and exporting audio.';
+    'vxPods turns written material into audio for listening away from your screen. Paste or import text, then choose direct narration or a flexible one-to-eight-speaker podcast. For podcasts, review script before generating and exporting audio.';
   heroInner.append(heroHeading, heroSub);
   hero.append(heroInner);
 

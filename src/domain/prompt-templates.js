@@ -13,7 +13,7 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
   scriptSystem: [
     'You write podcast scripts as strict JSON only.',
     'Output exactly one JSON object with this shape and no other text:',
-    '{"schemaVersion":1,"title":string,"language":string,"format":"{{format}}","sourceGrounded":true,' +
+    '{"schemaVersion":2,"title":string,"language":string,"sourceGrounded":true,' +
       '"speakers":[{"id":string,"name":string,"role":string,"voice":string}],' +
       '"segments":[{"id":string,"speakerId":string,"text":string,"pauseAfterMs":number}]}',
     'Rules:',
@@ -26,7 +26,7 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
     '- Use exact speaker ids and voices given by user.',
   ].join('\n'),
   scriptUser: [
-    'Write {{formatDescription}}.',
+    'Format instructions: {{formatDescription}}',
     'Tone: {{tone}}. Audience: {{audience}}.',
     'Speakers (use these exactly): {{speakers}}.',
     'Speaker ids: {{speakerIds}}.',
@@ -46,7 +46,7 @@ export const PROMPT_TEMPLATE_METADATA = Object.freeze({
   scriptSystem: {
     title: 'Script system instructions',
     help: 'Output contract and source-grounding instructions for script generation.',
-    requiredPlaceholders: ['format'],
+    requiredPlaceholders: [],
   },
   scriptUser: {
     title: 'Script user instructions',

@@ -54,6 +54,50 @@ describe('local-settings', () => {
     expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
+  it('migrates version 1 settings lazily without changing stored raw data', () => {
+    const legacy = {
+      schemaVersion: 1,
+      providers: [],
+      selectedTextProviderId: null,
+      selectedTtsProviderId: null,
+      preferences: { mode: 'podcast' },
+      promptTemplates: { repairUser: 'Errors: {{validationErrors}}' },
+    };
+    const raw = JSON.stringify(legacy);
+    localStorage.setItem(STORAGE_KEY, raw);
+    const migrated = loadSettings();
+    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.formatTemplates).toHaveLength(5);
+    expect(migrated.speakerProfiles).toHaveLength(5);
+    expect(migrated.promptTemplates).toEqual(legacy.promptTemplates);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    saveSettings(migrated);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).schemaVersion).toBe(2);
+  });
+
+  it('accepts and migrates version 1 settings backups', () => {
+    const restored = restoreSettingsBackup({
+      schemaVersion: 1,
+      providers: [],
+      selectedTextProviderId: null,
+      selectedTtsProviderId: null,
+      preferences: { mode: 'tts' },
+      promptTemplates: {},
+    });
+    expect(restored.schemaVersion).toBe(2);
+    expect(restored.formatTemplates[0].name).toBe('Conversation');
+  });
+
+  it('rejects invalid version 2 template collections during restore', () => {
+    const backup = defaultSettings();
+    backup.formatTemplates.push({
+      id: 'duplicate-name',
+      name: backup.formatTemplates[0].name.toLowerCase(),
+      instructions: 'Duplicate name.',
+    });
+    expect(() => restoreSettingsBackup(backup)).toThrow(/invalid format templates/i);
+  });
+
   it('preserves superseded settings until explicit restore or clear', () => {
     const raw = JSON.stringify({
       schemaVersion: 8,
@@ -186,6 +230,8 @@ describe('render-job-store', () => {
     const loaded = await loadJob();
     expect(loaded.id).toBe('job-1');
     expect(loaded.status).toBe('rendering');
+    expect(loaded.script.schemaVersion).toBe(2);
+    expect(loaded.script).not.toHaveProperty('format');
   });
 
   it('rejects wrong schema versions', async () => {

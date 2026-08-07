@@ -22,7 +22,7 @@ const TEMPLATE_PAGES = {
 
 /**
  * @param {HTMLElement} body
- * @param {{ onBack: () => void, onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences } }} options
+ * @param {{ onBack: () => void, backLabel?: string, onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences } }} options
  */
 export function renderPromptTemplateSettings(body, options) {
   body.replaceChildren();
@@ -110,7 +110,7 @@ export function renderPromptTemplateSettings(body, options) {
   const back = document.createElement('button');
   back.type = 'button';
   back.className = 'button button-secondary';
-  back.textContent = 'Back to provider settings';
+  back.textContent = options.backLabel ?? 'Back to provider settings';
   back.addEventListener('click', () => options.onBack());
   const resetAll = document.createElement('button');
   resetAll.type = 'button';

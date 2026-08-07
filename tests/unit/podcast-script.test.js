@@ -6,6 +6,7 @@ import {
   buildScriptPrompt,
   buildRepairMessages,
   exportableScript,
+  validatePodcastPreferences,
 } from '../../src/features/podcast/podcast-script.js';
 import {
   DEFAULT_PROMPT_TEMPLATES,
@@ -14,22 +15,21 @@ import {
 } from '../../src/domain/prompt-templates.js';
 
 const prefs = {
-  format: 'conversation',
+  formatInstructions: 'Create a natural conversation.',
   tone: 'conversational',
   audience: 'general',
   speakers: [
-    { name: 'Host', role: 'Guides', voice: 'alloy' },
-    { name: 'Guest', role: 'Explains', voice: 'verse' },
+    { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
+    { id: 'speaker-2', name: 'Guest', role: 'Explains', voice: 'verse' },
   ],
   textModel: 'gpt-4o-mini',
   ttsModel: 'tts-1',
 };
 
 const validScript = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   title: 'Demo',
   language: 'en',
-  format: 'conversation',
   sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
@@ -52,6 +52,7 @@ describe('buildScriptPrompt', () => {
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
     expect(messages[1].content).toContain('SOURCE>>>');
     expect(messages[1].content).toContain('speaker-1');
+    expect(messages[1].content).toContain('Create a natural conversation.');
     expect(messages[1].content).toContain('alloy');
     expect(messages[1].content).not.toContain('Approximate duration');
   });
@@ -63,6 +64,13 @@ describe('buildScriptPrompt', () => {
     expect(messages[1].content).toContain('Custom');
     expect(messages[0].content).toContain('source language');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
+  });
+
+  it('renders legacy format placeholders for existing advanced overrides', () => {
+    const messages = buildScriptPrompt('SOURCE', prefs, {
+      scriptSystem: 'Legacy format: {{format}}',
+    });
+    expect(messages[0].content).toContain('Legacy format: conversation');
   });
 });
 
@@ -127,8 +135,8 @@ describe('validateScript', () => {
     }
   });
 
-  it('rejects schema-version mismatch', () => {
-    const result = validateScript({ ...validScript, schemaVersion: 2 });
+  it('rejects unsupported schema versions', () => {
+    const result = validateScript({ ...validScript, schemaVersion: 3 });
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.errors.join(' ')).toContain('schemaVersion');
   });
@@ -175,9 +183,28 @@ describe('validateScript', () => {
     expect(validateScript(bad).valid).toBe(false);
   });
 
-  it('enforces speaker count by format', () => {
-    const solo = { ...structuredClone(validScript), format: 'solo' };
-    expect(validateScript(solo).valid).toBe(false);
+  it('enforces the 1-8 speaker range independently of format', () => {
+    const none = { ...structuredClone(validScript), speakers: [] };
+    expect(validateScript(none).valid).toBe(false);
+    const eight = structuredClone(validScript);
+    eight.speakers = Array.from({ length: 8 }, (_, index) => ({
+      id: `speaker-${index + 1}`, name: `Speaker ${index + 1}`, role: '', voice: 'alloy',
+    }));
+    eight.segments = [{ id: 'segment-1', speakerId: 'speaker-8', text: 'Eight.', pauseAfterMs: 0 }];
+    expect(validateScript(eight).valid).toBe(true);
+    const nine = structuredClone(eight);
+    nine.speakers.push({ id: 'speaker-9', name: 'Speaker 9', role: '', voice: 'alloy' });
+    expect(validateScript(nine).valid).toBe(false);
+  });
+
+  it('migrates version 1 scripts and removes legacy format', () => {
+    const legacy = { ...structuredClone(validScript), schemaVersion: 1, format: 'conversation' };
+    const result = validateScript(legacy);
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.script.schemaVersion).toBe(2);
+      expect(result.script).not.toHaveProperty('format');
+    }
   });
 
   it('rejects invalid field types', () => {
@@ -203,7 +230,6 @@ describe('exportableScript', () => {
   it('contains canonical fields only', () => {
     const exported = exportableScript({ ...validScript, extra: 1 });
     expect(Object.keys(exported).sort()).toEqual([
-      'format',
       'language',
       'schemaVersion',
       'segments',
@@ -211,5 +237,12 @@ describe('exportableScript', () => {
       'speakers',
       'title',
     ]);
+  });
+});
+
+describe('validatePodcastPreferences', () => {
+  it('accepts dynamic speakers and rejects empty format instructions', () => {
+    expect(validatePodcastPreferences(prefs).valid).toBe(true);
+    expect(validatePodcastPreferences({ ...prefs, formatInstructions: ' ' }).valid).toBe(false);
   });
 });

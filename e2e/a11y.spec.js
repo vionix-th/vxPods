@@ -19,3 +19,16 @@ test('settings dialog passes automated accessibility checks', async ({ page }) =
     .analyze();
   expect(results.violations).toEqual([]);
 });
+
+test('podcast template settings pass automated accessibility checks', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Speaker profiles' }).click();
+  const results = await new AxeBuilder({ page })
+    .include('.dialog')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});

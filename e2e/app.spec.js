@@ -34,10 +34,9 @@ function wavBytes() {
 }
 
 const SCRIPT = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   title: 'E2E Show',
   language: 'en',
-  format: 'conversation',
   sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
@@ -117,6 +116,26 @@ test.beforeEach(async ({ page }) => {
   await page.reload();
 });
 
+test('model and voice selectors stay unavailable without a provider configuration', async ({ page }) => {
+  const ttsPanel = page.locator('#panel-tts');
+  await expect(ttsPanel.getByLabel('Model')).toBeDisabled();
+  await expect(ttsPanel.getByLabel('Model').locator('option')).toHaveCount(0);
+  await expect(ttsPanel.getByLabel('Voice')).toBeDisabled();
+  await expect(ttsPanel.getByLabel('Voice').locator('option')).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const podcastPanel = page.locator('#panel-podcast');
+  await expect(podcastPanel.getByLabel('Script model')).toBeDisabled();
+  await expect(podcastPanel.getByLabel('Script model').locator('option')).toHaveCount(0);
+  await expect(podcastPanel.getByLabel('TTS model')).toBeDisabled();
+  await expect(podcastPanel.getByLabel('TTS model').locator('option')).toHaveCount(0);
+  await expect(podcastPanel.getByLabel('Voice')).toHaveCount(2);
+  for (const voice of await podcastPanel.getByLabel('Voice').all()) {
+    await expect(voice).toBeDisabled();
+    await expect(voice.locator('option')).toHaveCount(0);
+  }
+});
+
 test('provider setup persists across reload', async ({ page }) => {
   await addProvider(page);
   await page.reload();
@@ -184,28 +203,25 @@ test('OpenRouter and Manual presets start with empty model and voice lists', asy
   await expect(dialog.locator('.tts-model-editor .model-chip')).toHaveCount(0);
 });
 
-test('provider-managed model and voice suggestions populate TTS fields', async ({ page }) => {
+test('provider-managed voices follow TTS provider and model changes', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Add provider' }).click();
+  await dialog.getByLabel('Manual URL').check();
+  await page.getByRole('dialog', { name: 'Apply preset defaults' }).getByRole('button', { name: 'Apply defaults' }).click();
   await dialog.getByLabel(/Name/).fill('Custom provider');
+  await dialog.getByLabel('Base URL').fill('https://api.openai.com/v1');
   await dialog.getByLabel(/API key/).fill('sk-synthetic');
-  await dialog.getByRole('button', { name: 'gpt-4o-mini', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Add text generation model' }).click();
   await dialog.getByLabel('Text generation model identifier').fill('custom-chat');
-  await dialog.getByRole('button', { name: 'gpt-4o-mini-tts', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Add TTS model' }).click();
   await dialog.getByLabel('TTS model identifier').fill('custom-tts-a');
   await dialog.getByLabel('Add voice').fill('voice-a');
   await dialog.getByRole('button', { name: 'Add voice', exact: true }).click();
-  await dialog.getByRole('button', { name: 'tts-1', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Add TTS model' }).click();
   await dialog.getByLabel('TTS model identifier').fill('custom-tts-b');
   await dialog.getByLabel('Add voice').fill('voice-b');
   await dialog.getByRole('button', { name: 'Add voice', exact: true }).click();
-  await dialog.getByRole('button', { name: 'tts-1-hd', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Remove model', exact: true }).click();
-  await page
-    .getByRole('dialog', { name: 'Remove TTS model' })
-    .getByRole('button', { name: 'Remove model' })
-    .click();
   await dialog.getByRole('button', { name: 'Save configuration' }).click();
   await dialog.getByRole('button', { name: 'Close dialog' }).click();
 
@@ -215,13 +231,36 @@ test('provider-managed model and voice suggestions populate TTS fields', async (
   await expect(model.locator('option')).toHaveText(['custom-tts-a', 'custom-tts-b']);
   await expect(voice.locator('option')).toContainText(['voice-a']);
   await model.selectOption('custom-tts-b');
-  await expect(voice.locator('option')).toContainText(['voice-b']);
+  await expect(voice.locator('option')).toHaveText(['voice-b']);
+
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const podcastPanel = page.locator('#panel-podcast');
+  const podcastModel = podcastPanel.getByLabel('TTS model');
+  await expect(podcastPanel.getByLabel('Voice').first().locator('option')).toHaveText(['voice-a']);
+  await podcastModel.selectOption('custom-tts-b');
+  for (const speakerVoice of await podcastPanel.getByLabel('Voice').all()) {
+    await expect(speakerVoice.locator('option')).toHaveText(['voice-b']);
+  }
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
+  await dialog.getByLabel(/Name/).fill('Second provider');
+  await dialog.getByLabel(/API key/).fill('sk-synthetic-2');
+  await dialog.getByRole('button', { name: 'Save configuration' }).click();
+  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+
+  await podcastPanel.getByLabel('TTS provider').selectOption({ label: 'Second provider (api.openai.com)' });
+  for (const speakerVoice of await podcastPanel.getByLabel('Voice').all()) {
+    await expect(speakerVoice.locator('option')).toContainText(['alloy']);
+    await expect(speakerVoice.locator('option', { hasText: 'voice-b' })).toHaveCount(0);
+  }
 });
 
 test('prompt templates use dedicated pages and validate edits', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
-  await dialog.getByRole('button', { name: 'Prompt templates' }).click();
+  await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Advanced prompts' }).click();
   await expect(dialog.getByRole('tab', { name: 'Script rules' })).toBeVisible();
   await expect(dialog.getByRole('tab', { name: 'Repair brief' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Preview rendered prompt' }).click();
@@ -237,6 +276,112 @@ test('prompt templates use dedicated pages and validate edits', async ({ page })
   await dialog.getByRole('button', { name: 'Restore this default' }).click();
   await page.getByRole('button', { name: 'Restore default' }).last().click();
   await expect(scriptUser).toHaveAttribute('readonly', '');
+});
+
+test('podcast template CRUD persists while generation edits remain session-only', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Format templates' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add format' }).click();
+  await dialog.getByLabel('Format name (required)').fill('Briefing');
+  await dialog.getByLabel('Format instructions (required)').fill('Use a concise briefing with three ordered sections.');
+  await dialog.getByRole('button', { name: 'Save format' }).click();
+  await expect(dialog.getByText('Briefing', { exact: true })).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Speaker profiles' }).click();
+  await dialog.getByRole('button', { name: 'Add profile' }).click();
+  await dialog.getByLabel('Profile label (required)').fill('Coach');
+  await dialog.getByLabel('Default speaker name').fill('Coach');
+  await dialog.getByLabel('Role (required)').fill('Explains ideas through practical exercises.');
+  await dialog.getByRole('button', { name: 'Save profile' }).click();
+  await expect(dialog.getByText('Coach', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const panel = page.locator('#panel-podcast');
+  await panel.getByLabel('Format template').selectOption({ label: 'Briefing' });
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(
+    'Use a concise briefing with three ordered sections.',
+  );
+  await panel.getByLabel('Format instructions (required)').fill('Temporary briefing change.');
+  await expect(panel.getByText('Temporary changes.')).toBeVisible();
+
+  const firstSpeaker = panel.locator('.speaker-card').first();
+  await firstSpeaker.getByLabel('Speaker profile').selectOption({ label: 'Coach' });
+  await firstSpeaker.getByRole('button', { name: /Apply profile to/ }).click();
+  await expect(firstSpeaker.getByLabel('Name (required)')).toHaveValue('Coach');
+  await expect(firstSpeaker.getByLabel('Role')).toHaveValue('Explains ideas through practical exercises.');
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Delete Briefing' }).click();
+  await page
+    .getByRole('dialog', { name: 'Delete format template' })
+    .getByRole('button', { name: 'Delete format' })
+    .click();
+  await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(panel.getByLabel('Format template')).toHaveValue('__custom__');
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue('Temporary briefing change.');
+
+  await page.reload();
+  await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/Create a natural conversation/);
+  await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Host');
+  await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Expert');
+});
+
+test('podcast cast supports stable add, remove, reorder, and stale-script state', async ({ page }) => {
+  const counters = await mockProviders(page);
+  await addProvider(page);
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const panel = page.locator('#panel-podcast');
+  const cards = panel.locator('.speaker-card');
+  await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0)).toHaveAttribute('data-speaker-id', 'speaker-1');
+  await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-2');
+
+  await panel.getByRole('button', { name: 'Add speaker' }).click();
+  await expect(cards).toHaveCount(3);
+  await expect(cards.nth(2)).toHaveAttribute('data-speaker-id', 'speaker-3');
+  await cards.nth(2).getByRole('button', { name: 'Move Speaker 3 up' }).click();
+  await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-3');
+  await cards.nth(1).getByRole('button', { name: 'Remove Speaker 3' }).click();
+  const removeDialog = page.getByRole('dialog', { name: 'Remove speaker' });
+  await expect(removeDialog).toContainText('Remove “Speaker 3” from the current cast?');
+  await removeDialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(cards).toHaveCount(3);
+  await cards.nth(1).getByRole('button', { name: 'Remove Speaker 3' }).click();
+  await removeDialog.getByRole('button', { name: 'Remove speaker', exact: true }).click();
+  await expect(cards).toHaveCount(2);
+
+  for (let index = 0; index < 6; index += 1) {
+    await panel.getByRole('button', { name: 'Add speaker' }).click();
+  }
+  await expect(cards).toHaveCount(8);
+  await expect(panel.getByRole('button', { name: 'Add speaker' })).toBeDisabled();
+  for (let index = 0; index < 6; index += 1) {
+    await cards.last().getByRole('button', { name: /^Remove / }).click();
+    await removeDialog.getByRole('button', { name: 'Remove speaker', exact: true }).click();
+  }
+  await expect(cards).toHaveCount(2);
+
+  await panel.getByLabel(/Text to speak/).fill('Source material for cast behavior.');
+  await panel.getByRole('button', { name: 'Generate script' }).click();
+  await expect(panel.getByText('E2E Show')).toBeVisible();
+  expect(counters.chat).toBe(1);
+  await panel.getByRole('button', { name: 'Add speaker' }).click();
+  await expect(panel.getByText(/Current script uses previous generation settings/)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Apply speaker changes to script' })).toBeDisabled();
+  await cards.nth(2).getByRole('button', { name: 'Remove Speaker 3' }).click();
+  await removeDialog.getByRole('button', { name: 'Remove speaker', exact: true }).click();
+  await expect(panel.getByRole('button', { name: 'Apply speaker changes to script' })).toBeEnabled();
+  await cards.nth(1).getByRole('button', { name: 'Move Guest up' }).click();
+  await cards.nth(0).getByLabel('Name (required)').fill('Reordered Guest');
+  await panel.getByRole('button', { name: 'Apply speaker changes to script' }).click();
+  await expect(panel.getByText('E2E Show — Host, Reordered Guest · 2 turns')).toBeVisible();
+  await expect(cards.nth(0)).toHaveAttribute('data-speaker-id', 'speaker-2');
+  await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-1');
 });
 
 test('direct TTS happy path: generate, play, download', async ({ page }) => {

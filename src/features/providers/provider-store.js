@@ -8,6 +8,7 @@ import {
   loadSettings,
   restoreSettingsBackup as restoreSettingsBackupDocument,
   saveSettings,
+  subscribeSettingsRestore,
   validateSettingsBackup as validateSettingsBackupDocument,
 } from '../../storage/local-settings.js';
 import { validateProviderInput } from '../../domain/provider-config.js';
@@ -55,9 +56,7 @@ export function validateSettingsBackup(backup) {
  * @param {unknown} backup
  */
 export function restoreSettingsBackup(backup) {
-  const restored = restoreSettingsBackupDocument(backup);
-  notifyProviders();
-  return restored;
+  return restoreSettingsBackupDocument(backup);
 }
 
 /** @type {Set<() => void>} */
@@ -76,6 +75,8 @@ export function subscribeProviders(listener) {
 function notifyProviders() {
   for (const listener of listeners) listener();
 }
+
+subscribeSettingsRestore(notifyProviders);
 
 /**
  * Create a provider. Returns the stored record.

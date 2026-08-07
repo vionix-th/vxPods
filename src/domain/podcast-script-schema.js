@@ -1,14 +1,15 @@
 /** Canonical podcast script contract, normalization, and validation. */
 
-export const SCRIPT_SCHEMA_VERSION = 1;
+export const SCRIPT_SCHEMA_VERSION = 2;
 export const MAX_PAUSE_MS = 5000;
+export const MIN_SPEAKERS = 1;
+export const MAX_SPEAKERS = 8;
 
 /**
  * @typedef {Object} PodcastScript
  * @property {number} schemaVersion
  * @property {string} title
  * @property {string} language
- * @property {'solo'|'conversation'} format
  * @property {boolean} sourceGrounded
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers
  * @property {{ id: string, speakerId: string, text: string, pauseAfterMs: number }[]} segments
@@ -27,8 +28,12 @@ export function validateScript(value) {
   }
   const v = /** @type {Record<string, unknown>} */ (value);
 
-  if (v.schemaVersion !== SCRIPT_SCHEMA_VERSION) {
-    errors.push(`schemaVersion must be ${SCRIPT_SCHEMA_VERSION}.`);
+  const legacy = v.schemaVersion === 1;
+  if (!legacy && v.schemaVersion !== SCRIPT_SCHEMA_VERSION) {
+    errors.push(`schemaVersion must be ${SCRIPT_SCHEMA_VERSION}; version 1 is accepted only for migration.`);
+  }
+  if (legacy && v.format !== 'solo' && v.format !== 'conversation') {
+    errors.push('Version 1 format must be "solo" or "conversation".');
   }
   if (typeof v.title !== 'string' || v.title.trim() === '') {
     errors.push('title must be a non-empty string.');
@@ -36,18 +41,14 @@ export function validateScript(value) {
   if (!canonicalLanguageTag(v.language)) {
     errors.push('language must be a valid BCP 47 language tag.');
   }
-  if (v.format !== 'solo' && v.format !== 'conversation') {
-    errors.push('format must be "solo" or "conversation".');
-  }
   if (v.sourceGrounded !== true) errors.push('sourceGrounded must be true.');
 
   const speakers = Array.isArray(v.speakers) ? v.speakers : null;
   if (!speakers) {
     errors.push('speakers must be an array.');
   } else {
-    const expected = v.format === 'solo' ? 1 : 2;
-    if (v.format && speakers.length !== expected) {
-      errors.push(`format "${v.format}" requires exactly ${expected} speaker(s).`);
+    if (speakers.length < MIN_SPEAKERS || speakers.length > MAX_SPEAKERS) {
+      errors.push(`speakers must contain ${MIN_SPEAKERS}-${MAX_SPEAKERS} speakers.`);
     }
     const ids = new Set();
     for (const [index, speaker] of speakers.entries()) {
@@ -127,7 +128,6 @@ export function normalizeScript(value) {
     schemaVersion: SCRIPT_SCHEMA_VERSION,
     title: String(value.title).trim(),
     language: canonicalLanguageTag(value.language) || '',
-    format: /** @type {'solo'|'conversation'} */ (value.format),
     sourceGrounded: true,
     speakers: value.speakers.map((speaker) => ({
       id: String(speaker.id),

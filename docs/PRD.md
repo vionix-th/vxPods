@@ -7,7 +7,7 @@ License: MIT
 
 ## 1. Product summary
 
-vxPods is a static, client-side application that turns source text into speech or a two-speaker podcast. Users bring an API key for OpenAI or an OpenAI-compatible endpoint. Provider credentials, preferences, and unfinished render state remain in browser storage.
+vxPods is a static, client-side application that turns source text into speech or a configurable one-to-eight-speaker podcast. Users bring an API key for OpenAI or an OpenAI-compatible endpoint. Provider credentials, preferences, reusable Podcast templates, and unfinished render state remain in browser storage.
 
 R1 provides two focused workflows:
 
@@ -32,7 +32,8 @@ R1 must let users:
 - Select separate saved configurations for text generation and TTS.
 - Paste text or import UTF-8 `.txt` and `.md` files.
 - Generate direct speech from text.
-- Generate a source-grounded podcast script for one or two speakers.
+- Generate a source-grounded podcast script for one through eight speakers.
+- Save reusable format templates and speaker profiles while keeping generation-page edits temporary.
 - Optionally inspect and edit the generated podcast script.
 - Apply script-wide speaker name, role, and voice changes from canonical Generate or update script controls.
 - Render, cancel, retry, and resume podcast audio generation.
@@ -64,7 +65,7 @@ Primary jobs:
 - Each configuration contains a user-visible name, base URL, and API key.
 - Base URLs target an OpenAI-compatible `/v1` API root.
 - R1 includes presets for OpenAI and OpenRouter plus a manual URL option.
-- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation models plus canonical TTS model objects. Each TTS model owns its voices, requested MP3 or raw-PCM response format, and raw-PCM decoding metadata when applicable. Capabilities are not inferred from provider APIs; empty lists remain explicit and block the affected workflow until configured.
+- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation models plus canonical TTS model objects. Each TTS model owns its voices, requested MP3 or raw-PCM response format, and raw-PCM decoding metadata when applicable. Capabilities are not inferred from provider APIs; absent configurations and empty lists leave the affected model and voice selectors empty and disabled until configured.
 - Configurations persist in `localStorage` until deleted by the user or browser.
 - Text-generation and TTS selectors are independent and may reference different saved configurations.
 - API keys remain visible and editable in provider settings after entry.
@@ -77,7 +78,7 @@ Acceptance:
 - Deleting a configuration removes it and clears any selection that references it.
 - A malformed URL or empty key cannot be saved.
 - A provider-required action with no saved configuration opens provider creation; saving selects the new configuration for that action and resumes it.
-- Users can export every browser-local setting as JSON, including plaintext API keys, provider model/voice lists, selections, and prompt templates.
+- Users can export every browser-local setting as JSON, including plaintext API keys, provider model/voice lists, selections, format templates, speaker profiles, and advanced prompt templates.
 - Restoring a settings JSON file validates it first, then fully replaces all existing settings after confirmation; restore never merges records.
 
 ### FR-2 Source input
@@ -115,18 +116,23 @@ Acceptance:
 
 Users can configure:
 
-- Format: solo narration or two-speaker conversation.
+- A saved format template plus temporary editable format instructions.
 - Tone.
 - Intended audience.
-- One or two speaker names and roles.
+- One through eight ordered speakers with stable IDs, names, and roles.
+- Confirmation before removing a speaker from the generation draft.
+- Reusable speaker profiles that copy an optional default name and role into a speaker draft.
 - Voice assignment for each speaker.
 - Text-generation model from the selected configuration.
 - TTS model.
 - Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
+Format templates and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record and reset on reload. Speaker profiles do not store provider-specific voices.
+
 Defaults:
 
-- Two-speaker conversation.
+- Conversation format instructions.
+- Host and Expert speaker profiles.
 - Conversational tone.
 - General audience.
 - Source-grounded generation.
@@ -153,6 +159,8 @@ Acceptance:
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
 - Speaker changes apply to the script-wide speaker definitions rather than individual turns; temporary voice previews do not create recoverable render work.
+- Adding, removing, or reordering speakers after generation leaves the current script renderable and applies only to the next generation.
+- Name, role, and voice changes may apply to an existing script only when the draft and script contain the same speaker-ID set.
 - Script order and speaker assignments remain stable during rendering.
 
 ### FR-6 Podcast audio rendering

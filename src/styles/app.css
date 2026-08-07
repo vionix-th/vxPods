@@ -342,8 +342,18 @@
     overflow-x: auto;
   }
 
+  .podcast-settings-navigation {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
   .settings-nav-button {
     flex: 0 0 auto;
+  }
+
+  .profile-control-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .settings-page-header .button {

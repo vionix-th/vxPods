@@ -19,7 +19,7 @@ export function renderProviderDataSettings(body, options) {
   const lead = document.createElement('p');
   lead.className = 'help-text';
   lead.textContent =
-    'Provider configurations, keys, selections, and prompt templates stay in this browser. Generation requests go directly to the provider you select.';
+    'Provider configurations, keys, selections, Podcast templates, and advanced prompts stay in this browser. Generation requests go directly to the provider you select.';
   const notice = createLocalNotice();
 
   const backup = document.createElement('section');
@@ -54,7 +54,7 @@ export function renderProviderDataSettings(body, options) {
       const settings = validateSettingsBackup(await file.text());
       const confirmed = await confirmDialog({
         title: 'Restore settings',
-        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, and prompt templates. Existing settings will be lost.',
+        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, format templates, speaker profiles, and advanced prompts. Existing settings will be lost.',
         confirmLabel: 'Replace all settings',
       });
       if (!confirmed) return;
@@ -75,7 +75,7 @@ export function renderProviderDataSettings(body, options) {
   const dangerHelp = document.createElement('p');
   dangerHelp.className = 'help-text';
   dangerHelp.textContent =
-    'Clear all saved provider configurations, plaintext keys, selections, prompt templates, and unfinished work from this browser.';
+    'Clear all saved provider configurations, plaintext keys, selections, Podcast templates, advanced prompts, and unfinished work from this browser.';
   const clearButton = document.createElement('button');
   clearButton.type = 'button';
   clearButton.className = 'button button-danger';
@@ -84,7 +84,7 @@ export function renderProviderDataSettings(body, options) {
     const confirmed = await confirmDialog({
       title: 'Clear local data',
       message:
-        'This permanently removes saved provider configurations, plaintext API keys, selections, prompt templates, and unfinished work from this browser.',
+        'This permanently removes saved provider configurations, plaintext API keys, selections, Podcast templates, advanced prompts, and unfinished work from this browser.',
       confirmLabel: 'Clear local data',
     });
     if (!confirmed || !options.onClearLocalData) return;

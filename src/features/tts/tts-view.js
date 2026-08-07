@@ -19,10 +19,6 @@ import {
 import { createVoicePreview } from '../../components/voice-preview.js';
 import { createVoicePreviewAudio } from './voice-preview-controller.js';
 import { validateSpeechSpeed } from '../../services/speech-client.js';
-import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../../domain/provider-config.js';
-
-const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
-const KNOWN_VOICES = DEFAULT_VOICES;
 
 /**
  * @param {Object} args
@@ -53,13 +49,11 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
   });
   const modelField = selectField({
     label: 'Model',
-    options: KNOWN_TTS_MODELS.map((entry) => entry.model),
-    value: KNOWN_TTS_MODELS[0].model,
+    options: [],
   });
   const voiceField = selectField({
     label: 'Voice',
-    options: KNOWN_VOICES,
-    value: 'alloy',
+    options: [],
   });
   const speedField = textField({
     label: 'Speed',
@@ -103,13 +97,15 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
   function refreshProviderSuggestions() {
     providerSelect.refresh();
     const provider = providerSelect.getSelected();
-    modelField.setOptions((provider?.ttsModels ?? KNOWN_TTS_MODELS).map((entry) => entry.model));
+    const models = provider?.ttsModels ?? [];
+    modelField.setOptions(models.map((entry) => entry.model));
+    modelField.input.disabled = models.length === 0;
     refreshVoiceOptions();
     voicePreview.clear();
   }
   function refreshVoiceOptions() {
     const provider = providerSelect.getSelected();
-    const voices = provider ? selectedTtsModel()?.voices ?? [] : KNOWN_VOICES;
+    const voices = provider ? selectedTtsModel()?.voices ?? [] : [];
     voiceField.setOptions(voices);
     voiceField.input.disabled = voices.length === 0;
     voicePreview.button.disabled = voices.length === 0;
@@ -122,8 +118,8 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
   subscribeProviders(refreshProviderSuggestions);
   refreshProviderSuggestions();
   function selectedTtsModel() {
-    const models = providerSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS;
-    return models.find((entry) => entry.model === modelField.input.value) ?? models[0];
+    const models = providerSelect.getSelected()?.ttsModels ?? [];
+    return models.find((entry) => entry.model === modelField.input.value);
   }
   settingsCard.append(
     providerSelect.element,

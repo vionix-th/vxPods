@@ -4,10 +4,13 @@
  */
 
 import { renderPromptTemplate, resolvePromptTemplates } from '../../domain/prompt-templates.js';
+import { MIN_SPEAKERS, MAX_SPEAKERS } from '../../domain/podcast-script-schema.js';
 
 export {
   SCRIPT_SCHEMA_VERSION,
   MAX_PAUSE_MS,
+  MIN_SPEAKERS,
+  MAX_SPEAKERS,
   validateScript,
   normalizeScript,
   exportableScript,
@@ -20,10 +23,10 @@ const SOURCE_LANGUAGE_POLICY = [
 
 /**
  * @typedef {Object} PodcastPreferences
- * @property {'solo'|'conversation'} format
+ * @property {string} formatInstructions
  * @property {string} tone
  * @property {string} audience
- * @property {{ name: string, role: string, voice: string }[]} speakers 1 or 2
+ * @property {{ id: string, name: string, role: string, voice: string }[]} speakers 1-8
  * @property {string} textModel
  * @property {string} ttsModel
  */
@@ -33,7 +36,6 @@ const SOURCE_LANGUAGE_POLICY = [
  * @property {number} schemaVersion
  * @property {string} title
  * @property {string} language
- * @property {'solo'|'conversation'} format
  * @property {boolean} sourceGrounded
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers
  * @property {{ id: string, speakerId: string, text: string, pauseAfterMs: number }[]} segments
@@ -67,22 +69,59 @@ export function buildScriptPrompt(source, prefs, templateOverrides = {}) {
  */
 export function buildScriptPromptValues(source, prefs) {
   const speakerList = prefs.speakers
-    .map((s, i) => `speaker ${i + 1}: name "${s.name}", role "${s.role}"`)
+    .map((speaker, index) =>
+      `speaker ${index + 1}: id "${speaker.id}", name "${speaker.name}", role "${speaker.role}"`)
     .join('; ');
-  const formatText =
-    prefs.format === 'solo'
-      ? 'a solo narration by the single speaker'
-      : 'a natural two-speaker conversation between the two speakers';
   return {
-    format: prefs.format,
-    formatDescription: formatText,
+    // Legacy custom prompt overrides may still render {{format}}.
+    format: prefs.speakers.length === 1 ? 'solo' : 'conversation',
+    formatDescription: prefs.formatInstructions,
     tone: prefs.tone,
     audience: prefs.audience,
     speakers: speakerList,
-    speakerIds: prefs.speakers.map((_, i) => `speaker-${i + 1}`).join(', '),
-    voices: prefs.speakers.map((s, i) => `speaker-${i + 1} uses voice "${s.voice}"`).join('; '),
+    speakerIds: prefs.speakers.map((speaker) => speaker.id).join(', '),
+    voices: prefs.speakers.map((speaker) => `${speaker.id} uses voice "${speaker.voice}"`).join('; '),
     source,
   };
+}
+
+/**
+ * Validate request-scoped Podcast generation preferences before prompt construction.
+ * @param {PodcastPreferences} prefs
+ * @returns {{ valid: true } | { valid: false, errors: string[] }}
+ */
+export function validatePodcastPreferences(prefs) {
+  const errors = [];
+  if (!prefs || typeof prefs !== 'object') return { valid: false, errors: ['Podcast settings are missing.'] };
+  if (typeof prefs.formatInstructions !== 'string' || !prefs.formatInstructions.trim()) {
+    errors.push('Format instructions must not be empty.');
+  }
+  if (!Array.isArray(prefs.speakers) || prefs.speakers.length < MIN_SPEAKERS || prefs.speakers.length > MAX_SPEAKERS) {
+    errors.push(`Choose ${MIN_SPEAKERS}-${MAX_SPEAKERS} speakers.`);
+  } else {
+    const ids = new Set();
+    for (const [index, speaker] of prefs.speakers.entries()) {
+      if (!speaker || typeof speaker !== 'object') {
+        errors.push(`Speaker ${index + 1} is invalid.`);
+        continue;
+      }
+      if (typeof speaker.id !== 'string' || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}$/.test(speaker.id)) {
+        errors.push(`Speaker ${index + 1} has an invalid ID.`);
+      } else if (ids.has(speaker.id)) {
+        errors.push(`Speaker ID “${speaker.id}” is duplicated.`);
+      } else {
+        ids.add(speaker.id);
+      }
+      if (typeof speaker.name !== 'string' || !speaker.name.trim()) {
+        errors.push(`Speaker ${index + 1} needs a name.`);
+      }
+      if (typeof speaker.role !== 'string') errors.push(`Speaker ${index + 1} has an invalid role.`);
+      if (typeof speaker.voice !== 'string' || !speaker.voice.trim()) {
+        errors.push(`Speaker ${index + 1} needs a voice.`);
+      }
+    }
+  }
+  return errors.length ? { valid: false, errors } : { valid: true };
 }
 
 /**

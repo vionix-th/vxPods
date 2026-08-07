@@ -65,6 +65,7 @@ src/
     source-input.js
     voice-preview.js
   domain/
+    podcast-templates.js
     podcast-script-schema.js
     prompt-templates.js
     provider-config.js
@@ -83,6 +84,8 @@ src/
       podcast-script-review.js
       podcast-script.js
       podcast-speaker-settings.js
+      podcast-template-settings.js
+      podcast-template-store.js
       podcast-view.js
   services/
     text-generation-client.js
@@ -239,10 +242,9 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "title": "Example title",
   "language": "th",
-  "format": "conversation",
   "sourceGrounded": true,
   "speakers": [
     {
@@ -271,10 +273,10 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 
 Validation rules:
 
-- `schemaVersion` equals `1`.
+- `schemaVersion` equals `2`; version 1 imports and embedded recovery scripts are normalized to version 2 in memory.
 - `language` is a valid canonical BCP 47 tag that describes the source and spoken-script language.
-- `format` is `solo` or `conversation`.
-- One speaker for `solo`; exactly two for `conversation`.
+- `format` is not part of the render contract; reusable format instructions are request-scoped generation input.
+- `speakers` contains one through eight records independent of format instructions.
 - Speaker and segment IDs are unique, stable ASCII identifiers.
 - Every segment references a declared speaker and contains non-whitespace text.
 - `pauseAfterMs` is an integer from 0 through 5000.
@@ -282,6 +284,7 @@ Validation rules:
 - Unknown properties may be discarded during normalization; required properties may not be inferred except deterministic IDs.
 - Exported script JSON contains canonical fields shown above.
 - Imported script JSON is parsed and validated against the same canonical schema before replacing in-memory workflow state.
+- Version 1 migration validates its legacy `format`, drops it, removes unknown properties, and emits only canonical version 2 fields.
 
 Model output enters as untrusted text, passes JSON isolation and schema validation, then renders through text APIs.
 
@@ -307,6 +310,7 @@ Source + preferences
 Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 
 - State JSON schema and allowed speakers.
+- Compose temporary format instructions, tone, audience, and speaker roles as separate request layers.
 - Require source-grounded output.
 - Constrain factual claims to supplied source.
 - Ask for natural, speech-ready plain text.
@@ -357,16 +361,26 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
   preferences: { mode: 'tts' | 'podcast' },
-  promptTemplates: { /* valid per-template local overrides only; no duration target */ }
+  promptTemplates: { /* valid per-template local overrides only; no duration target */ },
+  formatTemplates: FormatTemplate[],
+  speakerProfiles: SpeakerProfile[]
 }
 ```
 
-Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice. This pre-release schema is version 1. Unsupported or unreadable documents render safe defaults but remain untouched; normal writes are blocked until explicit restore or clear-local-data replaces them.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
+Settings schema 2 stores ordered reusable formats and speaker profiles. Version 1 documents and backups migrate lazily to schema 2 while preserving providers, selections, preferences, and prompt overrides; first successful mutation persists schema 2. Future, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
+Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new/migrated settings once. Empty collections persist until explicit starter restoration.
+
+```js
+FormatTemplate = { id: string, name: string, instructions: string }
+SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
+```
+
 Prompt defaults and their canonical contract live in `domain/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
@@ -418,7 +432,7 @@ Provider API keys use plaintext `localStorage`. Controls:
 - User/model strings enter DOM through text nodes or safe form values.
 - File imports decode `.txt` and `.md` as data.
 - Export filenames pass sanitization.
-- Settings exposes provider management, prompt-template editing, and clear-local-data control.
+- Settings exposes provider management; Podcast format, speaker-profile, and advanced-prompt editing; backup/restore; and clear-local-data control.
 
 ## 14. Accessibility architecture
 

@@ -10,7 +10,7 @@ import { createIdentifierListEditor, createTtsModelEditor } from './provider-cap
 import { testTextGenerationConnection } from '../../services/text-generation-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
 import { toAppError } from '../../services/errors.js';
-import { renderPromptTemplateSettings } from '../podcast/prompt-template-form.js';
+import { renderPodcastTemplateSettings } from '../podcast/podcast-template-settings.js';
 import { renderProviderDataSettings } from './provider-data-settings.js';
 import {
   PROVIDER_PRESETS,
@@ -58,7 +58,7 @@ export function openProviderSettings(options = {}) {
  * Render a settings page within a shared navigation frame.
  * @param {HTMLElement} body
  * @param {Object} options
- * @param {'providers'|'templates'|'data'} activeSection
+ * @param {'providers'|'podcast'|'data'} activeSection
  */
 function renderSettingsSection(body, options, activeSection, notice) {
   renderSettingsFrame(body, activeSection, (section) => renderSettingsSection(body, options, section), (content) => {
@@ -67,9 +67,8 @@ function renderSettingsSection(body, options, activeSection, notice) {
       renderProviderManager(content, navigation);
       return;
     }
-    if (activeSection === 'templates') {
-      renderPromptTemplateSettings(content, {
-        onBack: navigation.openProviders,
+    if (activeSection === 'podcast') {
+      renderPodcastTemplateSettings(content, {
         onChange: options.onChange,
         getPromptPreview: options.getPromptPreview,
       });
@@ -92,8 +91,8 @@ function renderProviderFormPage(body, options, existing) {
 
 /**
  * @param {HTMLElement} body
- * @param {'providers'|'templates'|'data'} activeSection
- * @param {(section: 'providers'|'templates'|'data') => void} navigate
+ * @param {'providers'|'podcast'|'data'} activeSection
+ * @param {(section: 'providers'|'podcast'|'data') => void} navigate
  * @param {(content: HTMLElement) => void} renderContent
  */
 function renderSettingsFrame(body, activeSection, navigate, renderContent, notice) {
@@ -109,7 +108,7 @@ function renderSettingsFrame(body, activeSection, navigate, renderContent, notic
 
   const sections = [
     ['providers', 'Providers'],
-    ['templates', 'Prompt templates'],
+    ['podcast', 'Podcast'],
     ['data', 'Data & privacy'],
   ];
   for (const [id, label] of sections) {
@@ -121,7 +120,7 @@ function renderSettingsFrame(body, activeSection, navigate, renderContent, notic
     button.setAttribute('aria-current', selected ? 'page' : 'false');
     if (selected) button.classList.add('is-active');
     button.addEventListener('click', () => {
-      if (id !== activeSection) navigate(/** @type {'providers'|'templates'|'data'} */ (id));
+      if (id !== activeSection) navigate(/** @type {'providers'|'podcast'|'data'} */ (id));
     });
     navigation.append(button);
   }
@@ -141,7 +140,7 @@ function createNavigation(body, options) {
     ...options,
     openProviders: (notice) => renderSettingsSection(body, options, 'providers', notice),
     openProviderForm: (existing) => renderProviderFormPage(body, options, existing),
-    openPromptTemplates: () => renderSettingsSection(body, options, 'templates'),
+    openPodcastSettings: () => renderSettingsSection(body, options, 'podcast'),
     openDataPrivacy: () => renderSettingsSection(body, options, 'data'),
   };
 }

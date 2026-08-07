@@ -17,22 +17,21 @@ const ttsProvider = {
 const ttsModel = { model: 'tts-1', voices: ['alloy', 'verse'], responseFormat: 'mp3' };
 
 const prefs = {
-  format: 'conversation',
+  formatInstructions: 'Create a natural conversation.',
   tone: 'conversational',
   audience: 'general',
   speakers: [
-    { name: 'Host', role: 'Guides', voice: 'alloy' },
-    { name: 'Guest', role: 'Explains', voice: 'verse' },
+    { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
+    { id: 'speaker-2', name: 'Guest', role: 'Explains', voice: 'verse' },
   ],
   textModel: 'gpt-4o-mini',
   ttsModel: 'tts-1',
 };
 
 const validScript = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   title: 'Test Show',
   language: 'en',
-  format: 'conversation',
   sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
@@ -73,6 +72,23 @@ describe('podcast script generation', () => {
     const state = controller.store.get();
     expect(state.status).toBe('ready');
     expect(state.script.title).toBe('Test Show');
+  });
+
+  it('generates and validates a three-speaker script', async () => {
+    const third = { id: 'speaker-3', name: 'Skeptic', role: 'Challenges claims', voice: 'alloy' };
+    const threePrefs = { ...prefs, speakers: [...prefs.speakers, third] };
+    const threeScript = {
+      ...structuredClone(validScript),
+      speakers: [...validScript.speakers, third],
+      segments: [...validScript.segments, {
+        id: 'segment-0004', speakerId: 'speaker-3', text: 'What supports that?', pauseAfterMs: 0,
+      }],
+    };
+    const textGeneration = textReturning(threeScript);
+    const controller = createPodcastController({ textGeneration, speech: speechOk(), decode: fakeDecode });
+    await controller.generateScript('source text', threePrefs, textProvider);
+    expect(controller.store.get().script.speakers).toHaveLength(3);
+    expect(textGeneration.mock.calls[0][0].messages[1].content).toContain('speaker-3');
   });
 
   it('invalid output fails with schema error and one repair option', async () => {
@@ -137,6 +153,14 @@ describe('podcast script generation', () => {
     const imported = controller.importScript(JSON.stringify(validScript));
     expect(imported).toEqual(validScript);
     expect(controller.store.get()).toMatchObject({ status: 'ready', script: validScript });
+  });
+
+  it('imports version 1 scripts as canonical version 2 without format', () => {
+    const legacy = { ...structuredClone(validScript), schemaVersion: 1, format: 'conversation' };
+    const controller = createPodcastController();
+    const imported = controller.importScript(legacy);
+    expect(imported.schemaVersion).toBe(2);
+    expect(imported).not.toHaveProperty('format');
   });
 
   it('applies speaker metadata changes without changing referenced turns', async () => {

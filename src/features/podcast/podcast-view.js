@@ -8,7 +8,7 @@
 
 import { createSourceInput } from '../../components/source-input.js';
 import { createProviderSelect } from '../../components/provider-select.js';
-import { selectField, textField, cardHeader } from '../../components/fields.js';
+import { selectField, textAreaField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
 import { createErrorScope, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
@@ -23,18 +23,12 @@ import {
 import { createPodcastScriptReview } from './podcast-script-review.js';
 import { createPodcastSpeakerSettings } from './podcast-speaker-settings.js';
 import {
-  DEFAULT_TTS_MODELS,
-  DEFAULT_VOICES,
   TEXT_GENERATION_API_LABELS,
-  TEXT_GENERATION_APIS,
-  defaultTextModels,
 } from '../../domain/provider-config.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
-
-const KNOWN_TEXT_MODELS = defaultTextModels(TEXT_GENERATION_APIS.chatCompletions);
-const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
-const KNOWN_VOICES = DEFAULT_VOICES;
+import { STARTER_FORMAT_TEMPLATES } from '../../domain/podcast-templates.js';
+import { listFormatTemplates, subscribePodcastTemplates } from './podcast-template-store.js';
 
 const STEPS = [
   { id: 'source', label: 'Source' },
@@ -107,11 +101,38 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   prefsCard.className = 'card';
   prefsCard.append(cardHeader('Podcast settings'));
 
-  const formatField = selectField({
-    label: 'Format',
-    options: ['conversation', 'solo'],
-    value: 'conversation',
+  const conversationStarter = STARTER_FORMAT_TEMPLATES[0];
+  let selectedFormatTemplateId = listFormatTemplates().find((record) =>
+    record.id === conversationStarter.id)?.id ?? conversationStarter.id;
+  const formatTemplateField = selectField({
+    label: 'Format template',
+    options: [],
+    value: selectedFormatTemplateId,
   });
+  const formatInstructionsField = textAreaField({
+    label: 'Format instructions',
+    value: listFormatTemplates().find((record) => record.id === selectedFormatTemplateId)?.instructions
+      ?? conversationStarter.instructions,
+    required: true,
+    rows: 5,
+    help: 'Temporary generation instructions. Save reusable formats from Settings → Podcast.',
+  });
+  formatInstructionsField.input.maxLength = 4000;
+  const formatResetButton = document.createElement('button');
+  formatResetButton.type = 'button';
+  formatResetButton.className = 'button button-ghost button-small';
+  formatResetButton.textContent = 'Reset to template';
+  const formatStatus = document.createElement('p');
+  formatStatus.className = 'help-text';
+  formatStatus.setAttribute('aria-live', 'polite');
+  const formatEditor = document.createElement('section');
+  formatEditor.className = 'format-draft-editor';
+  formatEditor.append(
+    formatTemplateField.wrapper,
+    formatInstructionsField.wrapper,
+    formatStatus,
+    formatResetButton,
+  );
   const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
   const textProviderSelect = createProviderSelect({
@@ -123,8 +144,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   });
   const textModelField = selectField({
     label: 'Script model',
-    options: KNOWN_TEXT_MODELS,
-    value: KNOWN_TEXT_MODELS[0],
+    options: [],
   });
   const ttsProviderSelect = createProviderSelect({
     label: 'TTS provider',
@@ -134,12 +154,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   });
   const ttsModelField = selectField({
     label: 'TTS model',
-    options: KNOWN_TTS_MODELS.map((entry) => entry.model),
-    value: KNOWN_TTS_MODELS[0].model,
+    options: [],
   });
 
   prefsCard.append(
-    formatField.wrapper,
+    formatEditor,
     toneField.wrapper,
     audienceField.wrapper,
     textProviderSelect.element,
@@ -148,20 +167,87 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     ttsModelField.wrapper,
   );
 
+  function refreshFormatTemplates() {
+    const templates = listFormatTemplates();
+    const selected = templates.find((record) => record.id === selectedFormatTemplateId);
+    const optionIds = templates.map((record) => record.id);
+    if (!selected) optionIds.push('__custom__');
+    formatTemplateField.setOptions(optionIds);
+    for (const option of formatTemplateField.input.options) {
+      option.textContent = option.value === '__custom__'
+        ? 'Custom (saved template unavailable)'
+        : templates.find((record) => record.id === option.value)?.name ?? option.value;
+    }
+    formatTemplateField.input.value = selected ? selectedFormatTemplateId : '__custom__';
+    updateFormatDraftState();
+  }
+
+  function updateFormatDraftState() {
+    const selected = listFormatTemplates().find((record) => record.id === selectedFormatTemplateId);
+    const dirty = !selected || formatInstructionsField.input.value !== selected.instructions;
+    formatStatus.textContent = dirty ? 'Temporary changes.' : 'Using saved template instructions.';
+    formatResetButton.disabled = !selected || !dirty;
+  }
+
+  formatTemplateField.input.addEventListener('change', async () => {
+    const nextId = formatTemplateField.input.value;
+    if (nextId === '__custom__') return;
+    const current = listFormatTemplates().find((record) => record.id === selectedFormatTemplateId);
+    const dirty = !current || formatInstructionsField.input.value !== current.instructions;
+    if (dirty) {
+      const confirmed = await confirmDialog({
+        title: 'Switch format template',
+        message: 'Discard temporary format-instruction changes and load another template?',
+        confirmLabel: 'Discard and switch',
+      });
+      if (!confirmed) {
+        refreshFormatTemplates();
+        return;
+      }
+    }
+    const next = listFormatTemplates().find((record) => record.id === nextId);
+    if (!next) {
+      refreshFormatTemplates();
+      return;
+    }
+    selectedFormatTemplateId = next.id;
+    formatInstructionsField.input.value = next.instructions;
+    updateFormatDraftState();
+    markScriptDraftStale();
+  });
+  formatInstructionsField.input.addEventListener('input', () => {
+    updateFormatDraftState();
+    markScriptDraftStale();
+  });
+  formatResetButton.addEventListener('click', () => {
+    const selected = listFormatTemplates().find((record) => record.id === selectedFormatTemplateId);
+    if (!selected) return;
+    formatInstructionsField.input.value = selected.instructions;
+    updateFormatDraftState();
+    markScriptDraftStale();
+    formatInstructionsField.input.focus();
+  });
+  subscribePodcastTemplates(refreshFormatTemplates);
+  refreshFormatTemplates();
+
   function refreshProviderSuggestions() {
     textProviderSelect.refresh();
     ttsProviderSelect.refresh();
-    textModelField.setOptions(textProviderSelect.getSelected()?.textGeneration.models ?? KNOWN_TEXT_MODELS);
-    ttsModelField.setOptions((ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS).map((entry) => entry.model));
+    const textModels = textProviderSelect.getSelected()?.textGeneration.models ?? [];
+    const ttsModels = ttsProviderSelect.getSelected()?.ttsModels ?? [];
+    textModelField.setOptions(textModels);
+    textModelField.input.disabled = textModels.length === 0;
+    ttsModelField.setOptions(ttsModels.map((entry) => entry.model));
+    ttsModelField.input.disabled = ttsModels.length === 0;
     speakerSettings.refresh();
   }
   function voiceOptions() {
     const provider = ttsProviderSelect.getSelected();
-    return provider ? selectedTtsModel()?.voices ?? [] : KNOWN_VOICES;
+    return provider ? selectedTtsModel()?.voices ?? [] : [];
   }
   function selectedTtsModel() {
-    const models = ttsProviderSelect.getSelected()?.ttsModels ?? KNOWN_TTS_MODELS;
-    return models.find((entry) => entry.model === ttsModelField.input.value) ?? models[0];
+    const models = ttsProviderSelect.getSelected()?.ttsModels ?? [];
+    return models.find((entry) => entry.model === ttsModelField.input.value);
   }
   textProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
@@ -175,11 +261,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const scriptSummary = document.createElement('p');
   scriptSummary.className = 'help-text';
   const speakerSettings = createPodcastSpeakerSettings({
-    formatInput: formatField.input,
     providerSelect: ttsProviderSelect,
     getTtsModel: selectedTtsModel,
     getVoiceOptions: voiceOptions,
     controller,
+    onStructureChange: markScriptDraftStale,
   });
   refreshProviderSuggestions();
   const generateScriptButton = document.createElement('button');
@@ -205,8 +291,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const scriptStatus = document.createElement('p');
   scriptStatus.className = 'help-text';
   scriptStatus.setAttribute('aria-live', 'polite');
+  const scriptStale = document.createElement('p');
+  scriptStale.className = 'inline-notice inline-notice-warning';
+  scriptStale.hidden = true;
+  scriptStale.textContent = 'Current script uses previous generation settings. Generate again to apply format or cast changes.';
   const scriptErrors = createErrorScope();
-  scriptCard.append(scriptSummary, speakerSettings.element, scriptActions, scriptStatus);
+  scriptCard.append(scriptSummary, scriptStale, speakerSettings.element, scriptActions, scriptStatus);
 
   // ---------- Step 4: review & edit
   const review = createPodcastScriptReview({
@@ -329,9 +419,30 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
   // ---------- Preferences behavior
 
+  let generationShapeChanged = false;
+
+  function markScriptDraftStale() {
+    if (!controller.store.get().script) return;
+    generationShapeChanged = true;
+    scriptStale.hidden = !generationShapeChanged;
+    syncSpeakerApplyState();
+  }
+
+  function clearScriptDraftStale() {
+    generationShapeChanged = false;
+    scriptStale.hidden = !generationShapeChanged;
+    syncSpeakerApplyState();
+  }
+
+  function syncSpeakerApplyState() {
+    const state = controller.store.get();
+    speakerSettings.applyButton.disabled = state.renderStatus !== 'idle' ||
+      Boolean(state.script && !speakerSettings.matchesScriptCast(state.script));
+  }
+
   function readPrefs() {
     return {
-      format: /** @type {'solo'|'conversation'} */ (formatField.input.value),
+      formatInstructions: formatInstructionsField.input.value.trim(),
       tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: speakerSettings.read(),
@@ -376,6 +487,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       return;
     }
     await controller.generateScript(source.getText(), prefs, provider);
+    if (controller.store.get().script) clearScriptDraftStale();
   });
 
   importScriptButton.addEventListener('click', () => importScriptInput.click());
@@ -399,6 +511,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       }
       controller.importScript(importedScript);
       speakerSettings.hydrate(importedScript);
+      clearScriptDraftStale();
       review.exitEditMode();
       review.setJsonMode(false);
       notify({ type: 'success', title: 'Script imported', message: 'Review the validated script or render audio.' });
@@ -534,13 +647,15 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
     if (state.script && state.status === 'ready') {
       speakerSettings.applyButton.hidden = false;
-      speakerSettings.applyButton.disabled = state.renderStatus !== 'idle';
+      syncSpeakerApplyState();
       const wasHidden = review.element.hidden;
       review.element.hidden = false;
       if (state.script !== lastReviewedScript) {
+        speakerSettings.hydrate(state.script);
         review.update(state.script);
         lastReviewedScript = state.script;
       }
+      syncSpeakerApplyState();
       if (wasHidden) scrollTo(review.element);
       if (previousScriptStatus !== 'ready') {
         notify({ type: 'success', title: 'Script ready', message: 'Review it or render audio.' });

@@ -19,6 +19,7 @@ import {
   buildScriptPrompt,
   buildRepairMessages,
   extractJson,
+  validatePodcastPreferences,
   validateScript,
   exportableScript,
 } from './podcast-script.js';
@@ -107,6 +108,16 @@ export function createPodcastController(deps = {}) {
         message: 'Add source text first.',
         retryable: false,
         status: undefined,
+      });
+    }
+    const preferencesResult = validatePodcastPreferences(prefs);
+    if (!preferencesResult.valid) {
+      throw new AppError({
+        kind: 'validation',
+        message: preferencesResult.errors[0],
+        retryable: false,
+        status: undefined,
+        cause: { errors: preferencesResult.errors },
       });
     }
     setFeatureStatus(store, 'generating', {

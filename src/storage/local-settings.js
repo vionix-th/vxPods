@@ -7,12 +7,23 @@
 import { AppError } from '../services/errors.js';
 import { TEMPLATE_IDS, validatePromptTemplate } from '../domain/prompt-templates.js';
 import {
+  isValidFormatTemplateCollection,
+  isValidSpeakerProfileCollection,
+  normalizeFormatTemplates,
+  normalizeSpeakerProfiles,
+  starterFormatTemplates,
+  starterSpeakerProfiles,
+} from '../domain/podcast-templates.js';
+import {
   isValidProviderRecord,
   normalizeProviderRecord,
 } from '../domain/provider-config.js';
 
 export const STORAGE_KEY = 'vxpods.settings';
-export const SETTINGS_SCHEMA_VERSION = 1;
+export const SETTINGS_SCHEMA_VERSION = 2;
+const LEGACY_SETTINGS_SCHEMA_VERSION = 1;
+/** @type {Set<() => void>} */
+const restoreListeners = new Set();
 
 /** @typedef {import('../domain/provider-config.js').ProviderConfig} ProviderConfig */
 
@@ -24,6 +35,8 @@ export const SETTINGS_SCHEMA_VERSION = 1;
  * @property {string | null} selectedTtsProviderId
  * @property {{ mode: 'tts' | 'podcast' }} preferences
  * @property {Partial<Record<import('../domain/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
+ * @property {import('../domain/podcast-templates.js').FormatTemplate[]} formatTemplates
+ * @property {import('../domain/podcast-templates.js').SpeakerProfile[]} speakerProfiles
  */
 
 export function defaultSettings() {
@@ -34,6 +47,8 @@ export function defaultSettings() {
     selectedTtsProviderId: null,
     preferences: { mode: 'tts' },
     promptTemplates: {},
+    formatTemplates: starterFormatTemplates(),
+    speakerProfiles: starterSpeakerProfiles(),
   };
 }
 
@@ -71,7 +86,7 @@ export function inspectSettings(storage = globalThis.localStorage) {
       ),
     };
   }
-  if (parsed?.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+  if (![LEGACY_SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION].includes(parsed?.schemaVersion)) {
     return {
       status: 'unsupported',
       settings: defaultSettings(),
@@ -132,11 +147,19 @@ export function validateSettingsBackup(backup) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw validationError('Settings file must contain a settings object.');
   }
-  if (raw.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+  if (![LEGACY_SETTINGS_SCHEMA_VERSION, SETTINGS_SCHEMA_VERSION].includes(raw.schemaVersion)) {
     throw validationError('Settings file has an unsupported schema version.');
   }
   if (!Array.isArray(raw.providers) || raw.providers.some((provider) => !isValidProviderRecord(provider))) {
     throw validationError('Settings file contains an invalid provider configuration.');
+  }
+  if (raw.schemaVersion === SETTINGS_SCHEMA_VERSION) {
+    if (!isValidFormatTemplateCollection(raw.formatTemplates)) {
+      throw validationError('Settings file contains invalid format templates.');
+    }
+    if (!isValidSpeakerProfileCollection(raw.speakerProfiles)) {
+      throw validationError('Settings file contains invalid speaker profiles.');
+    }
   }
   return validateDocument(raw);
 }
@@ -144,7 +167,13 @@ export function validateSettingsBackup(backup) {
 export function restoreSettingsBackup(backup, storage = globalThis.localStorage) {
   const settings = validateSettingsBackup(backup);
   saveSettings(settings, storage, { replaceInvalid: true });
+  for (const listener of restoreListeners) listener();
   return settings;
+}
+
+export function subscribeSettingsRestore(listener) {
+  restoreListeners.add(listener);
+  return () => restoreListeners.delete(listener);
 }
 
 export function clearSettings(storage = globalThis.localStorage) {
@@ -179,6 +208,12 @@ function validateDocument(doc) {
       : null,
     preferences: { mode: doc.preferences?.mode === 'podcast' ? 'podcast' : 'tts' },
     promptTemplates: validPromptTemplateOverrides(doc.promptTemplates),
+    formatTemplates: doc.schemaVersion === LEGACY_SETTINGS_SCHEMA_VERSION
+      ? starterFormatTemplates()
+      : normalizeFormatTemplates(doc.formatTemplates),
+    speakerProfiles: doc.schemaVersion === LEGACY_SETTINGS_SCHEMA_VERSION
+      ? starterSpeakerProfiles()
+      : normalizeSpeakerProfiles(doc.speakerProfiles),
   };
 }
 
