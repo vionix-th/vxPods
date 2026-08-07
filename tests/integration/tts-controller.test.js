@@ -21,6 +21,15 @@ beforeEach(() => {
 });
 
 describe('tts controller', () => {
+  it('rejects out-of-range speed before making a provider request', async () => {
+    const speech = vi.fn();
+    const controller = createTtsController({ speech, decode: fakeDecode });
+    await expect(controller.generate('Hello', { ...settings, speed: 9 })).rejects.toMatchObject({
+      kind: 'validation',
+    });
+    expect(speech).not.toHaveBeenCalled();
+  });
+
   it('rejects empty source with validation error', async () => {
     const controller = createTtsController({ speech: speechOk(), decode: fakeDecode });
     await expect(controller.generate('   ', settings)).rejects.toMatchObject({

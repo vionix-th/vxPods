@@ -28,7 +28,7 @@ import { loadSettings } from '../../storage/local-settings.js';
 
 const SAMPLE_RATE = 44100;
 const RENDER_TRANSITIONS = {
-  idle: ['rendering'],
+  idle: ['rendering', 'ready', 'failed'],
   rendering: ['ready', 'failed', 'cancelled', 'idle'],
   ready: ['rendering', 'exporting', 'failed', 'idle'],
   exporting: ['ready'],
@@ -281,6 +281,14 @@ export function createPodcastController(deps = {}) {
         status: undefined,
       });
     }
+    if (!ttsProvider?.id) {
+      throw new AppError({
+        kind: 'validation',
+        message: 'Select a saved TTS configuration before rendering.',
+        retryable: false,
+        status: undefined,
+      });
+    }
     const now = new Date().toISOString();
     /** @type {import('../../storage/render-job-store.js').RenderJob} */
     const job = {
@@ -309,7 +317,7 @@ export function createPodcastController(deps = {}) {
 
   /**
    * Resume an unfinished job after reload.
-   * @param {{ baseUrl: string, apiKey: string }} ttsProvider
+   * @param {{ id: string, baseUrl: string, apiKey: string }} ttsProvider
    */
   async function resumeRender(ttsProvider) {
     const job = await jobs.loadJob();
@@ -321,6 +329,7 @@ export function createPodcastController(deps = {}) {
         status: undefined,
       });
     }
+    assertJobProvider(job, ttsProvider);
     activeJob = job;
     setFeatureStatus(store, 'ready', { script: job.script });
     setRenderStatus('rendering', {
@@ -348,10 +357,10 @@ export function createPodcastController(deps = {}) {
         if (activeJob.segmentStates[segment.id] === 'completed') continue;
         await renderSegment(segment, ttsProvider, ttsModel, signal);
       }
+      await assembleOutput();
       activeJob = { ...activeJob, status: 'ready' };
       await jobs.updateJob(activeJob);
       setRenderStatus('ready', { activeSegmentId: null });
-      await assembleOutput();
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
@@ -417,29 +426,34 @@ export function createPodcastController(deps = {}) {
   /**
    * Retry one failed segment without disturbing completed work.
    * @param {string} segmentId
-   * @param {{ baseUrl: string, apiKey: string }} ttsProvider
-   * @param {import('../../domain/provider-config.js').TtsModelConfig} ttsModel
+   * @param {{ id: string, baseUrl: string, apiKey: string }} ttsProvider
    */
-  async function retrySegment(segmentId, ttsProvider, ttsModel) {
+  async function retrySegment(segmentId, ttsProvider) {
     if (!activeJob) {
       const job = await jobs.loadJob();
       if (!job) return;
       activeJob = job;
     }
+    assertJobProvider(activeJob, ttsProvider);
     const segment = activeJob.script.segments.find((s) => s.id === segmentId);
     if (!segment) return;
     setRenderStatus('rendering', { renderError: null });
     renderController = new AbortController();
     try {
-      await renderSegment(segment, ttsProvider, ttsModel, renderController.signal);
+      await renderSegment(
+        segment,
+        ttsProvider,
+        activeJob.settings.ttsModel,
+        renderController.signal,
+      );
       const allDone = activeJob.script.segments.every(
         (s) => activeJob.segmentStates[s.id] === 'completed',
       );
       if (allDone) {
+        await assembleOutput();
         activeJob = { ...activeJob, status: 'ready' };
         await jobs.updateJob(activeJob);
         setRenderStatus('ready', { activeSegmentId: null });
-        await assembleOutput();
       } else {
         setRenderStatus('failed', { activeSegmentId: null });
       }
@@ -487,6 +501,34 @@ export function createPodcastController(deps = {}) {
     store.set({ output: { wav } });
   }
 
+  /** Restore a completed persisted render without making provider requests. */
+  async function restoreReadyRender() {
+    const job = await jobs.loadJob();
+    if (!job || job.status !== 'ready') {
+      throw new AppError({
+        kind: 'validation',
+        message: 'No completed render was found.',
+        retryable: false,
+        status: undefined,
+      });
+    }
+    activeJob = job;
+    setFeatureStatus(store, 'ready', { script: job.script });
+    store.set({
+      segmentStates: { ...job.segmentStates },
+      renderError: null,
+      output: null,
+    });
+    try {
+      await assembleOutput();
+      setRenderStatus('ready', { activeSegmentId: null });
+    } catch (error) {
+      const normalized = toAppError(error);
+      setRenderStatus('failed', { renderError: normalized, activeSegmentId: null });
+      throw normalized;
+    }
+  }
+
   /**
    * Export final audio. Recovery data is retained on export failure.
    * @param {'wav'|'mp3'} format
@@ -520,15 +562,18 @@ export function createPodcastController(deps = {}) {
       }
       const title = activeJob?.script?.title || store.get().script?.title || 'podcast';
       const filename = sanitizeFilename(`vxpods-${title}`, format);
-      // Successful export: recovery data no longer needed.
-      await jobs.deleteJob();
-      activeJob = null;
       return { blob, filename };
     } catch (err) {
       throw toAppError(err, { kind: 'encoding', message: 'Audio export failed.' });
     } finally {
       setRenderStatus('ready');
     }
+  }
+
+  /** Remove recovery only after the UI has triggered the browser download. */
+  async function completeExport() {
+    await jobs.deleteJob();
+    activeJob = null;
   }
 
   /**
@@ -573,6 +618,17 @@ export function createPodcastController(deps = {}) {
     return jobs.loadJob();
   }
 
+  function assertJobProvider(job, provider) {
+    if (!provider?.id || provider.id !== job.settings.ttsProviderId) {
+      throw new AppError({
+        kind: 'validation',
+        message: `This render requires TTS configuration “${job.settings.ttsProviderName ?? job.settings.ttsProviderId}”. Restore that configuration or discard the render.`,
+        retryable: false,
+        status: undefined,
+      });
+    }
+  }
+
   /**
    * @param {string} id
    * @param {'pending'|'active'|'completed'|'failed'} state
@@ -594,9 +650,11 @@ export function createPodcastController(deps = {}) {
     importScript,
     startRender,
     resumeRender,
+    restoreReadyRender,
     retrySegment,
     cancelRender,
     exportAudio,
+    completeExport,
     exportScriptJson,
     discardRender,
     getRecoverableJob,

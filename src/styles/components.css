@@ -108,6 +108,7 @@
 
 .field input[type='text'],
 .field input[type='password'],
+.field input[type='number'],
 .field select,
 .field textarea {
   font: inherit;
@@ -126,6 +127,7 @@
 
 .field input[type='text']:focus,
 .field input[type='password']:focus,
+.field input[type='number']:focus,
 .field select:focus,
 .field textarea:focus {
   border-color: var(--color-brand);

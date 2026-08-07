@@ -26,10 +26,9 @@ const DEFAULT_TIMEOUT_MS = 180_000;
  */
 export async function createSpeech(args) {
   const { provider, ttsModel, voice, input } = args;
+  const speed = validateSpeechSpeed(args.speed);
   const body = { model: ttsModel.model, voice, input, response_format: ttsModel.responseFormat };
-  if (typeof args.speed === 'number' && Number.isFinite(args.speed)) {
-    body.speed = args.speed;
-  }
+  if (speed !== undefined) body.speed = speed;
   const request = {
     url: `${provider.baseUrl}/audio/speech`,
     provider,
@@ -72,6 +71,20 @@ export async function createSpeech(args) {
     });
   }
   return { audio, contentType, diagnostics, ttsModel };
+}
+
+/** @param {number | undefined} speed */
+export function validateSpeechSpeed(speed) {
+  if (speed === undefined) return undefined;
+  if (!Number.isFinite(speed) || speed < 0.25 || speed > 4) {
+    throw appError({
+      kind: 'validation',
+      message: 'Speed must be between 0.25 and 4.0.',
+      retryable: false,
+      status: undefined,
+    });
+  }
+  return speed;
 }
 
 /**

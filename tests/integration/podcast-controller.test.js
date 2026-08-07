@@ -276,17 +276,17 @@ describe('podcast rendering', () => {
     expect(controller.store.get().renderStatus).toBe('failed');
 
     speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
-    await controller.retrySegment('segment-0002', ttsProvider, ttsModel);
+    await controller.retrySegment('segment-0002', ttsProvider);
     let job = await loadJob();
     expect(job.segmentStates['segment-0002']).toBe('completed');
 
-    await controller.retrySegment('segment-0003', ttsProvider, ttsModel);
+    await controller.retrySegment('segment-0003', ttsProvider);
     job = await loadJob();
     expect(job.segmentStates['segment-0003']).toBe('completed');
     expect(controller.store.get().renderStatus).toBe('ready');
   });
 
-  it('successful export clears recovery data', async () => {
+  it('clears recovery only after the download boundary confirms export', async () => {
     const controller = createPodcastController({
       textGeneration: textReturning(validScript),
       speech: speechOk(),
@@ -299,7 +299,45 @@ describe('podcast rendering', () => {
     const { blob, filename } = await controller.exportAudio('wav');
     expect(blob).toBeInstanceOf(Blob);
     expect(filename).toMatch(/^vxpods-test-show\.wav$/);
+    expect(await loadJob()).toBeTruthy();
+    await controller.completeExport();
     expect(await loadJob()).toBeNull();
+  });
+
+  it('restores a ready render locally without provider requests', async () => {
+    const controller = createPodcastController({
+      textGeneration: textReturning(validScript),
+      speech: speechOk(),
+      decode: fakeDecode,
+    });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.startRender(ttsProvider, ttsModel);
+
+    const speech = vi.fn();
+    const restored = createPodcastController({ speech, decode: fakeDecode });
+    await restored.restoreReadyRender();
+    expect(restored.store.get()).toMatchObject({ renderStatus: 'ready', script: validScript });
+    expect(restored.store.get().output.wav).toBeInstanceOf(Blob);
+    expect(speech).not.toHaveBeenCalled();
+  });
+
+  it('rejects resume with a different provider ID', async () => {
+    const failingSpeech = vi.fn().mockRejectedValue(
+      new AppError({ kind: 'provider', message: 'boom', retryable: false, status: 500 }),
+    );
+    const controller = createPodcastController({
+      textGeneration: textReturning(validScript),
+      speech: failingSpeech,
+      decode: fakeDecode,
+    });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.startRender(ttsProvider, ttsModel);
+
+    const resumed = createPodcastController({ speech: speechOk(), decode: fakeDecode });
+    await expect(resumed.resumeRender({ ...ttsProvider, id: 'other' })).rejects.toMatchObject({
+      kind: 'validation',
+    });
+    expect(resumed.store.get().renderStatus).toBe('idle');
   });
 
   it('failed export retains recovery data', async () => {

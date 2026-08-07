@@ -9,6 +9,8 @@
  */
 
 import { AppError } from '../services/errors.js';
+import { normalizeTtsModels } from '../domain/provider-config.js';
+import { validateScript } from '../domain/podcast-script-schema.js';
 
 const DB_NAME = 'vxpods-render';
 const DB_VERSION = 1;
@@ -137,8 +139,84 @@ export async function saveJob(job) {
 export async function loadJob() {
   const tx = await transaction('readonly', [JOB_STORE]);
   const job = await requestPromise(tx.objectStore(JOB_STORE).get(ACTIVE_JOB_KEY));
-  if (!job || job.schemaVersion !== RENDER_JOB_SCHEMA_VERSION) return null;
-  return job;
+  if (!job) return null;
+  return validateRenderJob(job);
+}
+
+/**
+ * Validate untrusted persisted recovery metadata before workflow code uses it.
+ * Segment Blobs remain validated when decoded during assembly.
+ * @param {unknown} value
+ * @returns {RenderJob}
+ */
+export function validateRenderJob(value) {
+  if (!isRecord(value)) throw invalidJob('Saved render data is damaged.');
+  if (value.schemaVersion !== RENDER_JOB_SCHEMA_VERSION) {
+    throw invalidJob('Saved render data uses an unsupported version.');
+  }
+
+  const scriptResult = validateScript(value.script);
+  if (!scriptResult.valid) throw invalidJob('Saved render script is damaged.');
+  if (!isRecord(value.settings)) throw invalidJob('Saved render settings are damaged.');
+  const ttsModels = normalizeTtsModels([value.settings.ttsModel]);
+  if (ttsModels.length !== 1) throw invalidJob('Saved TTS model is invalid.');
+
+  const id = typeof value.id === 'string' ? value.id.trim() : '';
+  const providerId = typeof value.settings.ttsProviderId === 'string'
+    ? value.settings.ttsProviderId.trim()
+    : '';
+  const createdAt = typeof value.createdAt === 'string' ? value.createdAt : '';
+  const updatedAt = typeof value.updatedAt === 'string' ? value.updatedAt : '';
+  const statuses = new Set(['rendering', 'cancelled', 'failed', 'ready']);
+  if (!id || !providerId || !Number.isFinite(Date.parse(createdAt)) ||
+      !Number.isFinite(Date.parse(updatedAt)) || !statuses.has(value.status)) {
+    throw invalidJob('Saved render metadata is damaged.');
+  }
+  if (!isRecord(value.segmentStates)) throw invalidJob('Saved segment state is damaged.');
+
+  const allowedSegmentStates = new Set(['pending', 'active', 'completed', 'failed']);
+  const segmentIds = new Set(scriptResult.script.segments.map((segment) => segment.id));
+  const persistedIds = Object.keys(value.segmentStates);
+  if (persistedIds.length !== segmentIds.size ||
+      persistedIds.some((segmentId) =>
+        !segmentIds.has(segmentId) || !allowedSegmentStates.has(value.segmentStates[segmentId]))) {
+    throw invalidJob('Saved segment state does not match the script.');
+  }
+  if (value.status === 'ready' && persistedIds.some((id) => value.segmentStates[id] !== 'completed')) {
+    throw invalidJob('Saved render is marked ready but has incomplete segments.');
+  }
+
+  return /** @type {RenderJob} */ ({
+    schemaVersion: RENDER_JOB_SCHEMA_VERSION,
+    id,
+    createdAt,
+    updatedAt,
+    script: scriptResult.script,
+    settings: {
+      ttsProviderId: providerId,
+      ttsProviderName: typeof value.settings.ttsProviderName === 'string'
+        ? value.settings.ttsProviderName
+        : null,
+      ttsModel: ttsModels[0],
+    },
+    segmentStates: Object.fromEntries(
+      persistedIds.map((segmentId) => [segmentId, value.segmentStates[segmentId]]),
+    ),
+    status: value.status,
+  });
+}
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function invalidJob(message) {
+  return new AppError({
+    kind: 'storage',
+    message: `${message} Discard it and start a new render.`,
+    retryable: false,
+    status: undefined,
+  });
 }
 
 /**

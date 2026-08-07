@@ -97,7 +97,7 @@ Acceptance:
 
 ### FR-3 Direct text-to-speech
 
-- Users select a saved TTS configuration, model, voice, speed when supported, and output format.
+- Users select a saved TTS configuration, model, voice, speed from 0.25 through 4.0 when supported, and output format.
 - R1 calls an OpenAI-compatible `POST /audio/speech` endpoint.
 - Users can cancel an active request.
 - Generated audio can be played, paused, scrubbed, regenerated, and downloaded.
@@ -166,7 +166,7 @@ Acceptance:
 - An unfinished render can resume after reload.
 - Only one unfinished render is retained in R1.
 - Final audio can be previewed and downloaded as WAV or MP3.
-- Temporary render data can be discarded explicitly and is removed after successful export or expiry.
+- Temporary render data can be discarded explicitly and is removed after the browser download is triggered or after expiry.
 
 Acceptance:
 
@@ -177,7 +177,7 @@ Acceptance:
 ### FR-7 Local recovery
 
 - The application stores one active podcast job, validated script, preferences, and completed audio segments in IndexedDB.
-- On startup, recoverable work produces a clear Resume/Discard choice.
+- On startup, unfinished work produces a clear Resume/Discard choice; completed work is reassembled locally for preview/export without provider access.
 - Recovery data expires after seven days of inactivity.
 
 ### FR-8 Offline behavior

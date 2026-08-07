@@ -7,7 +7,7 @@
 import { createStore, setFeatureStatus } from '../../app/state.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { throwIfAborted } from '../../services/retry.js';
-import { createSpeech } from '../../services/speech-client.js';
+import { createSpeech, validateSpeechSpeed } from '../../services/speech-client.js';
 import { synthesizeSpeechChunk } from '../../services/speech-renderer.js';
 import { splitIntoChunks, DEFAULT_MAX_CHUNK_CHARS } from '../../audio/segmenter.js';
 import { assembleSegments, decodeToPcm } from '../../audio/audio-assembler.js';
@@ -78,6 +78,7 @@ export function createTtsController(deps = {}) {
         status: undefined,
       });
     }
+    validateSpeechSpeed(settings.speed);
     setFeatureStatus(store, 'validating', { error: null, output: null });
 
     const chunks = splitIntoChunks(trimmed, maxChunkChars);

@@ -18,6 +18,7 @@ import {
 } from '../providers/provider-store.js';
 import { createVoicePreview } from '../../components/voice-preview.js';
 import { createVoicePreviewAudio } from './voice-preview-controller.js';
+import { validateSpeechSpeed } from '../../services/speech-client.js';
 import { DEFAULT_TTS_MODELS, DEFAULT_VOICES } from '../../domain/provider-config.js';
 
 const KNOWN_TTS_MODELS = DEFAULT_TTS_MODELS;
@@ -63,6 +64,11 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
   const speedField = textField({
     label: 'Speed',
     value: '1',
+    type: 'number',
+    min: 0.25,
+    max: 4,
+    step: 0.05,
+    inputmode: 'decimal',
     help: '0.25 to 4.0. Supported when the provider implements it.',
   });
   const voicePreview = createVoicePreview({
@@ -75,12 +81,12 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
       if (!provider) return null;
       const voice = voiceField.input.value.trim();
       if (!voice) throw new Error('No voices are configured for this TTS model. Add a voice in provider settings.');
-      const speed = Number(speedField.input.value.trim());
+      const speed = readSpeed();
       return createVoicePreviewAudio({
         provider,
         ttsModel: selectedTtsModel(),
         voice,
-        speed: Number.isFinite(speed) ? speed : undefined,
+        speed,
         input: 'This is a short voice preview.',
       });
     },
@@ -185,8 +191,7 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
   let previousStatus = 'idle';
 
   function readSettings(provider) {
-    const speedRaw = speedField.input.value.trim();
-    const speed = speedRaw === '' ? undefined : Number(speedRaw);
+    const speed = readSpeed();
     const model = modelField.input.value.trim();
     if (!model) {
       throw new AppError({
@@ -209,8 +214,13 @@ export function createTtsView({ controller, isOnline, subscribeOnline }) {
       provider,
       ttsModel: selectedTtsModel(),
       voice,
-      speed: Number.isFinite(speed) ? speed : undefined,
+      speed,
     };
+  }
+
+  function readSpeed() {
+    const raw = speedField.input.value.trim();
+    return validateSpeechSpeed(raw === '' ? undefined : Number(raw));
   }
 
   generateButton.addEventListener('click', async () => {

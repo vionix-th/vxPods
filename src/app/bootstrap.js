@@ -4,7 +4,7 @@
  * the service worker in production.
  */
 
-import { loadSettings, clearSettings } from '../storage/local-settings.js';
+import { inspectSettings, clearSettings } from '../storage/local-settings.js';
 import { pruneExpired, deleteJob } from '../storage/render-job-store.js';
 import { createTtsController } from '../features/tts/tts-controller.js';
 import { createTtsView } from '../features/tts/tts-view.js';
@@ -16,6 +16,7 @@ import { icon } from '../components/icon.js';
 import { notify } from '../components/error-message.js';
 import { saveMode } from '../features/providers/provider-store.js';
 import { createOnlineState } from './online-state.js';
+import { AppError, toAppError } from '../services/errors.js';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
 
@@ -23,7 +24,8 @@ const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
  * @param {HTMLElement} root
  */
 export async function bootstrap(root) {
-  const settings = loadSettings();
+  const settingsResult = inspectSettings();
+  const settings = settingsResult.settings;
   try {
     await pruneExpired();
   } catch {
@@ -33,6 +35,15 @@ export async function bootstrap(root) {
   root.replaceChildren(buildShell());
   const main = /** @type {HTMLElement} */ (root.querySelector('#main'));
   const modeNav = /** @type {HTMLElement} */ (root.querySelector('#mode-nav'));
+
+  if (settingsResult.error) {
+    notify({
+      type: 'error',
+      title: 'Saved settings need attention',
+      message: settingsResult.error.message,
+      error: settingsResult.error,
+    });
+  }
 
   const onlineState = createOnlineState();
   onlineState.subscribe((online) => notify(online
@@ -52,8 +63,26 @@ export async function bootstrap(root) {
   });
 
   async function clearLocalData() {
-    clearSettings();
-    await deleteJob().catch(() => {});
+    const failures = [];
+    try {
+      clearSettings();
+    } catch (error) {
+      failures.push(toAppError(error));
+    }
+    try {
+      await deleteJob();
+    } catch (error) {
+      failures.push(toAppError(error));
+    }
+    if (failures.length > 0) {
+      throw new AppError({
+        kind: 'storage',
+        message: 'Some local data could not be removed. Retry before leaving this browser.',
+        retryable: true,
+        status: undefined,
+        cause: failures,
+      });
+    }
     window.location.reload();
   }
 
@@ -85,6 +114,15 @@ export async function bootstrap(root) {
     panels: { tts: ttsPanel, podcast: podcastPanel },
     initialMode: settings.preferences.mode,
     onModeChange: saveMode,
+    onPersistenceError(error) {
+      const normalized = toAppError(error);
+      notify({
+        type: 'error',
+        title: 'Mode preference was not saved',
+        message: normalized.message,
+        error: normalized,
+      });
+    },
   });
 
   await podcastView.checkRecovery();

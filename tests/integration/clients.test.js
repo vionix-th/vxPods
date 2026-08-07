@@ -239,6 +239,15 @@ describe('createSpeech', () => {
     expect('speed' in body).toBe(false);
   });
 
+  it('rejects out-of-range speed before sending a request', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(
+      createSpeech({ provider, ttsModel, voice: 'alloy', input: 'hi', speed: 4.1 }),
+    ).rejects.toMatchObject({ kind: 'validation' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('normalizes 404 to unsupported', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 404)));
     await expect(

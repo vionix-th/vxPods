@@ -103,10 +103,12 @@ After validation:
 - Default view presents ordered editable speaker turns.
 - Structured turn editing includes a validated “Pause after (ms)” control from 0 through 5000.
 - “Edit script” enables segment text editing.
+- A “Structured” / “JSON” view switch exposes the canonical script JSON for advanced review.
+- “Edit JSON” enables raw JSON editing. Applying changes parses and validates the complete canonical script before replacing the current script; invalid JSON or schema errors retain the current valid script and remain editable for correction or discard.
 - “Download JSON” exports canonical script; the same file can be imported from Step 3.
 - Primary action: “Render audio”.
 
-Review is optional: users may render immediately. Raw JSON editing is excluded from R1 because it creates avoidable schema errors. JSON remains download format.
+Review is optional: users may render immediately. Structured editing remains the default; raw JSON editing is an explicit advanced path guarded by the same schema validation used for imports and pre-render validation. JSON remains the script download format.
 
 ### Step 5: Render
 
@@ -131,9 +133,10 @@ Screen-reader announcements cover phase changes, failures, cancellation, and com
 
 ## 5. Recovery experience
 
-On startup with one unfinished render:
+On startup with one recoverable render:
 
-- Show non-dismissible-by-accident recovery panel before starting another podcast.
+- Reassemble a completed render locally and open Preview and export without requiring a provider or network connection.
+- For unfinished work, show a non-dismissible-by-accident recovery panel before starting another podcast.
 - State title if available, completion count, last-updated time, and required provider/model.
 - Actions: “Resume render” and “Discard”.
 - Discard requires confirmation because completed segments will be removed.
@@ -310,6 +313,7 @@ Examples:
 - User can identify separate text-generation and TTS configurations and the selected text-generation API.
 - Podcast can be rendered directly after script validation.
 - User can edit speaker turns through structured editor.
+- User can review and edit canonical script JSON without invalid changes replacing the current valid script.
 - Partial failure preserves and exposes completed work.
 - Reload recovery is clear and cannot be overwritten accidentally.
 - Export choices are WAV, MP3, and JSON.

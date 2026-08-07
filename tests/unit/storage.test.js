@@ -1,7 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   loadSettings,
+  inspectSettings,
   saveSettings,
+  restoreSettingsBackup,
+  clearSettings,
   defaultSettings,
   SETTINGS_SCHEMA_VERSION,
   STORAGE_KEY,
@@ -51,19 +54,21 @@ describe('local-settings', () => {
     expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
-  it('rejects superseded settings instead of migrating them', () => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        schemaVersion: 8,
-        providers: [{ id: 'p1', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' }],
-        selectedChatProviderId: 'p1',
-        selectedTtsProviderId: null,
-        preferences: { mode: 'podcast' },
-      }),
-    );
-    const loaded = loadSettings();
-    expect(loaded).toEqual(defaultSettings());
+  it('preserves superseded settings until explicit restore or clear', () => {
+    const raw = JSON.stringify({
+      schemaVersion: 8,
+      providers: [{ id: 'p1', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' }],
+      selectedChatProviderId: 'p1',
+      selectedTtsProviderId: null,
+      preferences: { mode: 'podcast' },
+    });
+    localStorage.setItem(STORAGE_KEY, raw);
+    expect(inspectSettings()).toMatchObject({ status: 'unsupported', settings: defaultSettings() });
+    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported version/i);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+
+    restoreSettingsBackup(defaultSettings());
+    expect(inspectSettings().status).toBe('valid');
   });
 
   it('drops an invalid template override without discarding valid overrides', () => {
@@ -79,6 +84,8 @@ describe('local-settings', () => {
   it('falls back safely on corrupt JSON', () => {
     localStorage.setItem(STORAGE_KEY, '{not json');
     expect(loadSettings()).toEqual(defaultSettings());
+    expect(() => saveSettings(defaultSettings())).toThrowError(/damaged/i);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('{not json');
   });
 
   it('falls back on unknown future schema version', () => {
@@ -135,15 +142,40 @@ describe('local-settings', () => {
     expect(caught.kind).toBe('storage');
     expect(caught.message).toContain('storage is full');
   });
+
+  it('surfaces clear failures instead of reporting success', () => {
+    const failing = {
+      removeItem: () => {
+        throw new DOMException('denied', 'SecurityError');
+      },
+    };
+    expect(() => clearSettings(failing)).toThrowError(/remove saved browser settings/i);
+  });
 });
+
+const validScript = {
+  schemaVersion: 1,
+  title: 'T',
+  language: 'en',
+  format: 'solo',
+  sourceGrounded: true,
+  speakers: [{ id: 'speaker-1', name: 'Host', role: 'Narrates', voice: 'alloy' }],
+  segments: [
+    { id: 'segment-0001', speakerId: 'speaker-1', text: 'Hello.', pauseAfterMs: 0 },
+  ],
+};
 
 const baseJob = {
   schemaVersion: RENDER_JOB_SCHEMA_VERSION,
   id: 'job-1',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
-  script: { title: 'T', segments: [] },
-  settings: { ttsModel: 'tts-1' },
+  script: validScript,
+  settings: {
+    ttsProviderId: 'p1',
+    ttsProviderName: 'Provider',
+    ttsModel: { model: 'tts-1', voices: ['alloy'], responseFormat: 'mp3' },
+  },
   segmentStates: { 'segment-0001': 'pending' },
   status: 'rendering',
 };
@@ -156,9 +188,14 @@ describe('render-job-store', () => {
     expect(loaded.status).toBe('rendering');
   });
 
-  it('returns null for wrong schema version', async () => {
+  it('rejects wrong schema versions', async () => {
     await saveJob({ ...baseJob, schemaVersion: 42 });
-    expect(await loadJob()).toBeNull();
+    await expect(loadJob()).rejects.toMatchObject({ kind: 'storage' });
+  });
+
+  it('rejects malformed jobs with the current version', async () => {
+    await saveJob({ ...baseJob, segmentStates: { unknown: 'completed' } });
+    await expect(loadJob()).rejects.toMatchObject({ kind: 'storage' });
   });
 
   it('persists segments transactionally with job state', async () => {

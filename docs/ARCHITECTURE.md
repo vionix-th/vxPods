@@ -65,6 +65,7 @@ src/
     source-input.js
     voice-preview.js
   domain/
+    podcast-script-schema.js
     prompt-templates.js
     provider-config.js
   features/
@@ -298,9 +299,9 @@ Source + preferences
   -> create recoverable render job
   -> synthesize pending segments in order
   -> persist each completed segment
-  -> assemble/encode requested output
+  -> assemble persisted segments
   -> preview/download
-  -> cleanup after successful export or explicit discard
+  -> cleanup after browser download is triggered or explicit discard
 ```
 
 Prompt construction lives in `features/podcast/podcast-script.js`. It must:
@@ -340,6 +341,7 @@ Prefer uncompressed or consistently decodable provider output for assembly. Deco
 
 - WAV writer produces valid RIFF/WAVE headers and ordered PCM data.
 - MP3 encoder is isolated behind one module and may run in a Web Worker.
+- Main-thread MP3 fallback is limited to worker-construction failure; worker runtime failures are reported instead of repeating CPU-heavy work on the UI thread.
 - Encoding exposes progress and cancellation.
 - Final export may require a Blob and therefore remains subject to browser memory limits.
 - Storage or memory failure preserves completed segment data and explains recovery options.
@@ -364,7 +366,7 @@ One versioned document stores:
 }
 ```
 
-Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice. This pre-release schema is reset to version 1; superseded settings documents are discarded rather than migrated.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice. This pre-release schema is version 1. Unsupported or unreadable documents render safe defaults but remain untouched; normal writes are blocked until explicit restore or clear-local-data replaces them.
 Prompt defaults and their canonical contract live in `domain/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
@@ -386,9 +388,12 @@ Database stores one `RenderJob` plus segment Blob records keyed by job and segme
 ```
 
 - Writes are transactional where job state depends on a Blob write.
+- Every loaded job validates its schema version, canonical script, immutable provider/model settings, timestamps, status, and exact segment-state keys before workflow code uses it.
+- Resume and retry require the saved provider ID and always use the saved TTS model; changing the currently selected provider/model cannot alter a recovered render.
+- Startup restores a completed job from its persisted segments without provider access; unfinished jobs offer Resume/Discard.
 - Startup removes data older than seven days unless currently active.
 - Creating a new render requires explicit confirmation before replacing recoverable work.
-- Cleanup occurs after successful export or explicit discard; export failure retains recovery data.
+- Cleanup occurs after the UI triggers the browser download or after explicit discard; preparation, encoding, and download-trigger failures retain recovery data.
 - A “Clear local data” operation removes both storage systems after confirmation.
 
 ## 12. Offline shell

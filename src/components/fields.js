@@ -36,8 +36,24 @@ export function cardHeader(title, level = 'h2') {
  * @param {string} [args.placeholder]
  * @param {string} [args.autocomplete]
  * @param {string} [args.inputmode]
+ * @param {'text'|'password'|'number'} [args.type]
+ * @param {number} [args.min]
+ * @param {number} [args.max]
+ * @param {number} [args.step]
  */
-export function textField({ label, value = '', required, help, placeholder, autocomplete, inputmode }) {
+export function textField({
+  label,
+  value = '',
+  required,
+  help,
+  placeholder,
+  autocomplete,
+  inputmode,
+  type = 'text',
+  min,
+  max,
+  step,
+}) {
   const id = nextId();
   const wrapper = document.createElement('div');
   wrapper.className = 'field';
@@ -46,12 +62,15 @@ export function textField({ label, value = '', required, help, placeholder, auto
   labelEl.textContent = required ? `${label} (required)` : label;
   const input = document.createElement('input');
   input.id = id;
-  input.type = 'text';
+  input.type = type;
   input.value = value;
   if (required) input.required = true;
   if (placeholder) input.placeholder = placeholder;
   if (autocomplete) input.autocomplete = autocomplete;
   if (inputmode) input.inputMode = inputmode;
+  if (min !== undefined) input.min = String(min);
+  if (max !== undefined) input.max = String(max);
+  if (step !== undefined) input.step = String(step);
   wrapper.append(labelEl, input);
   if (help) wrapper.append(helpText(help, input));
   return { wrapper, input };

@@ -13,6 +13,7 @@ import { createProgress } from '../../components/progress.js';
 import { createErrorScope, notify } from '../../components/error-message.js';
 import { confirmDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
+import { openProviderSettings } from '../providers/provider-form.js';
 import {
   getSelectedProviderId,
   listProviders,
@@ -81,7 +82,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     button.addEventListener('click', () => {
       const card = stepCards.get(step.id);
       if (card && !card.hidden) {
-        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        scrollTo(card);
         card.focus?.();
       }
     });
@@ -292,6 +293,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   let audioUrl = null;
   let previousScriptStatus = 'idle';
   let previousRenderStatus = 'idle';
+  let lastReviewedScript = null;
   /** @type {HTMLButtonElement | null} */
   let resumeButton = null;
 
@@ -455,6 +457,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
    */
   async function doExport(format) {
     exportErrors.clear();
+    let downloadTriggered = false;
     const button = format === 'wav' ? downloadWavButton : downloadMp3Button;
     downloadWavButton.disabled = true;
     downloadMp3Button.disabled = true;
@@ -466,12 +469,15 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
         button.textContent = `Encoding MP3: ${Math.round((done / total) * 100)}%`;
       });
       downloadBlob(blob, filename);
+      downloadTriggered = true;
+      await controller.completeExport();
       progress.announce('Export complete.');
     } catch (err) {
-      exportErrors.show(err, {
+      const retry = downloadTriggered ? {} : {
         actionLabel: 'Retry export',
         onAction: () => doExport(format),
-      });
+      };
+      exportErrors.show(err, retry);
     } finally {
       downloadWavButton.disabled = false;
       downloadMp3Button.disabled = false;
@@ -531,8 +537,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       speakerSettings.applyButton.disabled = state.renderStatus !== 'idle';
       const wasHidden = review.element.hidden;
       review.element.hidden = false;
-      review.update(state.script);
-      if (wasHidden) review.element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (state.script !== lastReviewedScript) {
+        review.update(state.script);
+        lastReviewedScript = state.script;
+      }
+      if (wasHidden) scrollTo(review.element);
       if (previousScriptStatus !== 'ready') {
         notify({ type: 'success', title: 'Script ready', message: 'Review it or render audio.' });
       }
@@ -541,7 +550,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     const renderActive = state.renderStatus !== 'idle';
     if (renderActive && renderCard.hidden) {
       renderCard.hidden = false;
-      renderCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      scrollTo(renderCard);
     }
     const script = state.script;
     if (script && renderActive) {
@@ -571,12 +580,17 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
         retry.className = 'button button-secondary button-small';
         retry.textContent = 'Retry segment';
         retry.addEventListener('click', async () => {
-          const provider = await requireProvider({
-            slot: 'tts',
-            getSelected: ttsProviderSelect.getSelected,
-            refresh: ttsProviderSelect.refresh,
-          });
-          if (provider) await controller.retrySegment(segment.id, provider, selectedTtsModel());
+          try {
+            const job = await controller.getRecoverableJob();
+            const provider = job && providerForJob(job);
+            if (!job || !provider) {
+              showMissingRecoveryProvider(renderErrors, job);
+              return;
+            }
+            await controller.retrySegment(segment.id, provider);
+          } catch (error) {
+            renderErrors.show(error);
+          }
         });
         item.append(label, retry);
         failedList.append(item);
@@ -606,7 +620,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
         audioUrl = URL.createObjectURL(state.output.wav);
         audio.src = audioUrl;
       }
-      if (wasHidden) exportCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (wasHidden) scrollTo(exportCard);
       if (previousRenderStatus === 'rendering') {
         notify({ type: 'success', title: 'Audio ready', message: 'Preview it or download WAV or MP3.' });
       }
@@ -620,8 +634,22 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   // ---------- Recovery
 
   async function checkRecovery() {
-    const job = await controller.getRecoverableJob();
-    if (!job || job.status === 'ready') return;
+    let job;
+    try {
+      job = await controller.getRecoverableJob();
+    } catch (error) {
+      renderInvalidRecovery(error);
+      return;
+    }
+    if (!job) return;
+    if (job.status === 'ready') {
+      try {
+        await controller.restoreReadyRender();
+      } catch (error) {
+        renderInvalidRecovery(error);
+      }
+      return;
+    }
     recoveryCard.hidden = false;
     recoveryCard.replaceChildren();
     recoveryCard.append(cardHeader('Unfinished podcast render'));
@@ -651,14 +679,17 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
     resume.addEventListener('click', async () => {
       recoveryErrors.clear();
-      const provider = await requireProvider({
-        slot: 'tts',
-        getSelected: ttsProviderSelect.getSelected,
-        refresh: ttsProviderSelect.refresh,
-      });
-      if (!provider) return;
-      recoveryCard.hidden = true;
-      await controller.resumeRender(provider);
+      const provider = providerForJob(job);
+      if (!provider) {
+        showMissingRecoveryProvider(recoveryErrors, job);
+        return;
+      }
+      try {
+        await controller.resumeRender(provider);
+        recoveryCard.hidden = true;
+      } catch (error) {
+        recoveryErrors.show(error);
+      }
     });
 
     discard.addEventListener('click', async () => {
@@ -675,11 +706,55 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     recoveryCard.append(meta, actions);
   }
 
+  function providerForJob(job) {
+    return listProviders().find((provider) => provider.id === job.settings.ttsProviderId) ?? null;
+  }
+
+  function showMissingRecoveryProvider(errorScope, job) {
+    const name = job?.settings.ttsProviderName ?? job?.settings.ttsProviderId ?? 'unknown';
+    errorScope.show(new AppError({
+      kind: 'validation',
+      message: `This render requires TTS configuration “${name}”. Restore it or discard the render.`,
+      retryable: false,
+      status: undefined,
+    }), {
+      actionLabel: 'Open provider settings',
+      onAction: () => openProviderSettings({ onChange: refreshProviderSuggestions }),
+    });
+  }
+
+  function renderInvalidRecovery(error) {
+    recoveryCard.hidden = false;
+    recoveryCard.replaceChildren();
+    recoveryCard.append(cardHeader('Saved render unavailable'));
+    const message = document.createElement('p');
+    message.className = 'help-text';
+    message.textContent = error instanceof Error ? error.message : 'Saved render data could not be read.';
+    const discard = document.createElement('button');
+    discard.type = 'button';
+    discard.className = 'button button-danger';
+    discard.textContent = 'Discard saved render';
+    discard.addEventListener('click', async () => {
+      try {
+        await controller.discardRender();
+        recoveryCard.hidden = true;
+      } catch (discardError) {
+        renderErrors.show(discardError);
+      }
+    });
+    recoveryCard.append(message, discard);
+  }
+
   /**
    * @param {import('../../storage/render-job-store.js').RenderJob} job
    */
   function completedCount(job) {
     return Object.values(job.segmentStates).filter((s) => s === 'completed').length;
+  }
+
+  function scrollTo(element) {
+    const reduceMotion = globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' });
   }
 
   // ---------- Online state

@@ -1,12 +1,15 @@
 /**
  * MP3 encoding, isolated behind one module. Runs in a Web Worker when
- * available; falls back to main-thread encoding otherwise.
+ * available; falls back to main-thread encoding when a worker cannot be
+ * constructed.
  */
 
 import { AppError } from '../services/errors.js';
 import { encodeMp3Bytes, floatToInt16 } from './mp3-core.js';
 
 export { MP3_TARGET_KBPS } from './mp3-core.js';
+
+class WorkerUnavailableError extends AppError {}
 
 /**
  * Encode PCM into an MP3 Blob on the main thread.
@@ -41,7 +44,7 @@ export function encodeMp3InWorker({ channels, sampleRate, signal, onProgress }) 
       });
     } catch (err) {
       reject(
-        new AppError({
+        new WorkerUnavailableError({
           kind: 'encoding',
           message: 'Unable to start background encoder.',
           retryable: false,
@@ -122,7 +125,8 @@ export function encodeMp3InWorker({ channels, sampleRate, signal, onProgress }) 
 
 /**
  * Encode MP3, preferring the worker and falling back to main thread when
- * worker construction or module workers are unsupported.
+ * worker construction is unsupported. Runtime worker failures are surfaced;
+ * silently repeating a failed encode on the main thread can freeze the UI.
  * @param {Parameters<typeof encodeMp3InWorker>[0]} args
  * @returns {Promise<Blob>}
  */
@@ -130,7 +134,7 @@ export async function encodeMp3(args) {
   try {
     return await encodeMp3InWorker(args);
   } catch (err) {
-    if (err instanceof AppError && err.kind === 'cancelled') throw err;
-    return encodeMp3MainThread(args);
+    if (err instanceof WorkerUnavailableError) return encodeMp3MainThread(args);
+    throw err;
   }
 }

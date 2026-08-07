@@ -10,8 +10,9 @@
  * @param {{ tts: HTMLElement, podcast: HTMLElement }} args.panels
  * @param {'tts'|'podcast'} args.initialMode
  * @param {(mode: 'tts'|'podcast') => void} [args.onModeChange]
+ * @param {(error: unknown) => void} [args.onPersistenceError]
  */
-export function createModeSwitch({ nav, panels, initialMode, onModeChange }) {
+export function createModeSwitch({ nav, panels, initialMode, onModeChange, onPersistenceError }) {
   /** @type {Record<'tts'|'podcast', HTMLButtonElement>} */
   const buttons = {
     tts: modeButton('Text to Speech', 'tts'),
@@ -28,14 +29,15 @@ export function createModeSwitch({ nav, panels, initialMode, onModeChange }) {
     button.type = 'button';
     button.className = 'mode-button';
     button.textContent = label;
-    button.addEventListener('click', () => activate(mode));
+    button.addEventListener('click', () => activate(mode, { persist: true }));
     return button;
   }
 
   /**
    * @param {'tts'|'podcast'} mode
+   * @param {{ persist?: boolean }} [options]
    */
-  function activate(mode) {
+  function activate(mode, options = {}) {
     for (const [key, button] of Object.entries(buttons)) {
       const active = key === mode;
       button.setAttribute('aria-pressed', String(active));
@@ -43,10 +45,16 @@ export function createModeSwitch({ nav, panels, initialMode, onModeChange }) {
     }
     panels.tts.hidden = mode !== 'tts';
     panels.podcast.hidden = mode !== 'podcast';
-    onModeChange?.(mode);
+    if (options.persist !== false) {
+      try {
+        onModeChange?.(mode);
+      } catch (error) {
+        onPersistenceError?.(error);
+      }
+    }
   }
 
-  activate(initialMode);
+  activate(initialMode, { persist: false });
 
   return { activate };
 }

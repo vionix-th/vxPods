@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { encodeWavPcm16 } from '../../src/audio/wav-writer.js';
 import { assembleSegments, decodePcmS16Le } from '../../src/audio/audio-assembler.js';
+import { encodeMp3 } from '../../src/audio/mp3-encoder.js';
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe('decodePcmS16Le', () => {
   it('deinterleaves signed samples and preserves native rate', () => {
@@ -119,5 +122,26 @@ describe('assembleSegments', () => {
 
   it('rejects empty input', () => {
     expect(() => assembleSegments([], 1000)).toThrowError();
+  });
+});
+
+describe('encodeMp3', () => {
+  it('surfaces worker runtime failures without repeating work on the main thread', async () => {
+    class FailingWorker {
+      postMessage() {
+        queueMicrotask(() => this.onmessage({
+          data: { type: 'error', message: 'worker encoding failed' },
+        }));
+      }
+
+      terminate() {}
+      addEventListener() {}
+      removeEventListener() {}
+    }
+    vi.stubGlobal('Worker', FailingWorker);
+    await expect(encodeMp3({
+      channels: [new Float32Array([0, 0.1])],
+      sampleRate: 44100,
+    })).rejects.toThrowError(/worker encoding failed/);
   });
 });
