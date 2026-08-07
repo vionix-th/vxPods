@@ -20,11 +20,11 @@ const SOURCE_LANGUAGE_POLICY = [
   'Do not translate unless the source explicitly asks for translation.',
   'Set language to the source language BCP 47 tag, such as th or en.',
 ].join(' ');
+const LEGACY_TONE_VALUE = 'format- and speaker-role-defined';
 
 /**
  * @typedef {Object} PodcastPreferences
  * @property {string} formatInstructions
- * @property {string} tone
  * @property {string} audience
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers 1-8
  * @property {string} textModel
@@ -73,10 +73,10 @@ export function buildScriptPromptValues(source, prefs) {
       `speaker ${index + 1}: id "${speaker.id}", name "${speaker.name}", role "${speaker.role}"`)
     .join('; ');
   return {
-    // Legacy custom prompt overrides may still render {{format}}.
+    // Legacy custom prompt overrides may still render {{format}} or {{tone}}.
     format: prefs.speakers.length === 1 ? 'solo' : 'conversation',
     formatDescription: prefs.formatInstructions,
-    tone: prefs.tone,
+    tone: LEGACY_TONE_VALUE,
     audience: prefs.audience,
     speakers: speakerList,
     speakerIds: prefs.speakers.map((speaker) => speaker.id).join(', '),

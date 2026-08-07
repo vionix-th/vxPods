@@ -71,7 +71,7 @@ function renderFormatList(body, options, noticeMessage) {
   const notice = createLocalNotice();
   const heading = pageHeader(
     'Format templates',
-    'Reusable structural instructions. Generation-page edits remain temporary.',
+    'Reusable structure, interaction, and show-level delivery instructions. Generation-page edits remain temporary.',
     'Add format',
     () => renderFormatForm(body, options, null),
   );
@@ -244,7 +244,7 @@ function renderProfileForm(body, options, existing) {
     value: existing?.role ?? '',
     required: true,
     rows: 6,
-    help: 'Describe personality, expertise, behavior, and speaking characteristics.',
+    help: 'Describe contribution, stance, personality, expertise, behavior, and individual delivery.',
   });
   role.input.maxLength = 4000;
   const actions = formActions(() => renderProfileList(body, options), existing ? 'Save changes' : 'Save profile');

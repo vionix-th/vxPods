@@ -53,7 +53,7 @@ Primary jobs:
 
 - “Read this text aloud so I can listen to it.”
 - “Turn this essay or summary into an understandable conversation.”
-- “Let me control tone, speakers, and voices before rendering.”
+- “Let me control format, speakers, and voices before rendering.”
 - “Let me recover a long render if the page closes or a request fails.”
 - “Let me download audio and retain the structured script.”
 
@@ -117,7 +117,6 @@ Acceptance:
 Users can configure:
 
 - A saved format template plus temporary editable format instructions.
-- Tone.
 - Intended audience.
 - One through eight ordered speakers with stable IDs, names, and roles.
 - Confirmation before removing a speaker from the generation draft.
@@ -133,13 +132,19 @@ Defaults:
 
 - Conversation format instructions.
 - Host and Expert speaker profiles.
-- Conversational tone.
 - General audience.
 - Source-grounded generation.
 - One TTS request at a time.
 
 Source-grounded generation is mandatory in R1. Factual claims must remain traceable to supplied source. Natural transitions, introductions, and summaries may connect or restate source material.
 Users may override prompt wording after an explicit warning; generated scripts still require normal JSON/schema validation.
+
+Prompt behavior has explicit ownership:
+
+- Global script instructions own the output contract, source grounding, source-language policy, sequential-audio constraints, and format-neutral speech quality.
+- The selected format owns structure, interaction patterns, and any show-level delivery. Conversational formats require responsive turns, purposeful follow-ups, variable turn length, and contextual rather than scheduled names, acknowledgements, or discourse markers. Non-conversational formats must not be forced into dialogue.
+- Speaker roles own individual participation tendencies and delivery within the selected format; they do not override its structure or manufacture unsupported conflict, expertise, or personal experience.
+- Validation repair changes only what reported schema errors require and otherwise preserves valid script content and order.
 
 ### FR-5 Podcast script generation
 
@@ -156,6 +161,7 @@ Users may override prompt wording after an explicit warning; generated scripts s
 Acceptance:
 
 - TTS rendering becomes available after script validation succeeds.
+- Interactive formats produce contextually connected turns rather than adjacent independent monologues; narrative and lecture formats retain their requested non-conversational structure.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
 - Speaker changes apply to the script-wide speaker definitions rather than individual turns; temporary voice previews do not create recoverable render work.

@@ -29,6 +29,24 @@ describe('podcast template store', () => {
     );
   });
 
+  it('keeps interaction policy in formats and participation tendencies in roles', () => {
+    const formats = Object.fromEntries(
+      STARTER_FORMAT_TEMPLATES.map((record) => [record.id, record.instructions]),
+    );
+    const roles = Object.fromEntries(
+      STARTER_SPEAKER_PROFILES.map((record) => [record.id, record.role]),
+    );
+
+    expect(formats['format-conversation']).toContain('preceding contribution');
+    expect(formats['format-conversation']).toContain('names sparingly');
+    expect(formats['format-interview']).toContain('preceding answer');
+    expect(formats['format-panel-discussion']).toContain('do not manufacture controversy');
+    expect(formats['format-narrative']).toContain('do not force an interview');
+    expect(formats['format-lecture']).toContain('do not turn the lecture into an interview');
+    expect(roles['profile-interviewer']).toContain('focused follow-ups');
+    expect(roles['profile-skeptic']).toContain('Does not disagree reflexively');
+  });
+
   it('creates, updates, and deletes formats with unique names', () => {
     const created = addFormatTemplate({ name: 'Briefing', instructions: 'Use concise briefing sections.' });
     expect(listFormatTemplates().at(-1)).toEqual(created);

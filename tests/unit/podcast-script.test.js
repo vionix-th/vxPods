@@ -16,7 +16,6 @@ import {
 
 const prefs = {
   formatInstructions: 'Create a natural conversation.',
-  tone: 'conversational',
   audience: 'general',
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
@@ -47,7 +46,14 @@ describe('buildScriptPrompt', () => {
     expect(messages[0].role).toBe('system');
     expect(messages[0].content).toContain('schemaVersion');
     expect(messages[0].content).toContain('factual claim');
+    expect(messages[0].content).toContain('Instruction ownership');
+    expect(messages[0].content).toContain('rather than adjacent monologues');
+    expect(messages[0].content).toContain('Do not force conversational behavior');
+    expect(messages[0].content).toContain('Do not write simultaneous speech');
     expect(messages[0].content).toContain('Do not translate');
+    expect(messages[1].content).toContain('authoritative for structure, interaction, and show-level delivery');
+    expect(messages[1].content).toContain('solely as material to transform');
+    expect(messages[1].content).not.toContain('Tone:');
     expect(messages[1].content).toContain('<<<SOURCE');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
     expect(messages[1].content).toContain('SOURCE>>>');
@@ -62,6 +68,7 @@ describe('buildScriptPrompt', () => {
       scriptUser: 'Custom {{formatDescription}} {{tone}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
     });
     expect(messages[1].content).toContain('Custom');
+    expect(messages[1].content).toContain('format- and speaker-role-defined');
     expect(messages[0].content).toContain('source language');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
   });
@@ -79,6 +86,8 @@ describe('buildRepairMessages', () => {
     const messages = buildRepairMessages('{"bad":true}', ['title missing']);
     expect(messages.some((m) => m.content.includes('{"bad":true}'))).toBe(true);
     expect(messages.some((m) => m.content.includes('title missing'))).toBe(true);
+    expect(messages[0].content).toContain('smallest changes required');
+    expect(messages[0].content).toContain('Do not add new factual claims');
   });
 
   it('uses a valid repair override', () => {
@@ -90,6 +99,11 @@ describe('buildRepairMessages', () => {
 });
 
 describe('prompt templates', () => {
+  it('does not require or emit a script-wide tone placeholder', () => {
+    expect(DEFAULT_PROMPT_TEMPLATES.scriptUser).not.toContain('{{tone}}');
+    expect(validatePromptTemplate('scriptUser', DEFAULT_PROMPT_TEMPLATES.scriptUser).valid).toBe(true);
+  });
+
   it('falls back to bundled default for invalid local overrides', () => {
     expect(resolvePromptTemplates({ scriptUser: 'missing placeholders' }).scriptUser).toBe(
       DEFAULT_PROMPT_TEMPLATES.scriptUser,

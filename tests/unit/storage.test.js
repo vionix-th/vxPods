@@ -66,13 +66,13 @@ describe('local-settings', () => {
     const raw = JSON.stringify(legacy);
     localStorage.setItem(STORAGE_KEY, raw);
     const migrated = loadSettings();
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
     expect(migrated.formatTemplates).toHaveLength(5);
     expect(migrated.speakerProfiles).toHaveLength(5);
     expect(migrated.promptTemplates).toEqual(legacy.promptTemplates);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
     saveSettings(migrated);
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).schemaVersion).toBe(2);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
   });
 
   it('accepts and migrates version 1 settings backups', () => {
@@ -84,11 +84,31 @@ describe('local-settings', () => {
       preferences: { mode: 'tts' },
       promptTemplates: {},
     });
-    expect(restored.schemaVersion).toBe(2);
+    expect(restored.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
     expect(restored.formatTemplates[0].name).toBe('Conversation');
   });
 
-  it('rejects invalid version 2 template collections during restore', () => {
+  it('upgrades untouched version 2 starter prompts and preserves user changes', () => {
+    const legacy = defaultSettings();
+    legacy.schemaVersion = 2;
+    legacy.formatTemplates[0].instructions = 'Create a natural conversation among the available speakers. Let speakers respond to one another, use clear transitions, and avoid repetitive agreement.';
+    legacy.speakerProfiles[0].role = 'Welcoming guide who frames the topic, manages transitions, and summarizes key points without adding facts.';
+    legacy.speakerProfiles[2].role = 'User-authored expert behavior.';
+    legacy.formatTemplates = legacy.formatTemplates.filter((record) => record.id !== 'format-interview');
+    const raw = JSON.stringify(legacy);
+    localStorage.setItem(STORAGE_KEY, raw);
+
+    const migrated = loadSettings();
+
+    expect(migrated.schemaVersion).toBe(SETTINGS_SCHEMA_VERSION);
+    expect(migrated.formatTemplates[0].instructions).toContain('genuinely interactive conversation');
+    expect(migrated.speakerProfiles[0].role).toContain('Facilitates the selected format');
+    expect(migrated.speakerProfiles[2].role).toBe('User-authored expert behavior.');
+    expect(migrated.formatTemplates.some((record) => record.id === 'format-interview')).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+
+  it('rejects invalid template collections during restore', () => {
     const backup = defaultSettings();
     backup.formatTemplates.push({
       id: 'duplicate-name',

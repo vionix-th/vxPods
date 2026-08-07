@@ -111,7 +111,12 @@ export function createPodcastSpeakerSettings({
       profile.wrapper.append(profileRow);
 
       const name = textField({ label: 'Name', value: speaker.name, required: true });
-      const role = textAreaField({ label: 'Role', value: speaker.role, rows: 3 });
+      const role = textAreaField({
+        label: 'Role',
+        value: speaker.role,
+        rows: 3,
+        help: 'Define this speaker’s contribution, stance, and individual delivery.',
+      });
       const voice = selectField({
         label: 'Voice',
         options: voiceOptions,

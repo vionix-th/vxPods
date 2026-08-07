@@ -265,7 +265,9 @@ test('prompt templates use dedicated pages and validate edits', async ({ page })
   await expect(dialog.getByRole('tab', { name: 'Repair brief' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Preview rendered prompt' }).click();
   await expect(dialog.getByRole('heading', { name: 'Rendered generation request' })).toBeVisible();
-  await expect(dialog.getByText(/Tone: conversational\. Audience: general\./)).toBeVisible();
+  const userMessage = dialog.locator('.prompt-preview-message').filter({ hasText: 'User message' }).locator('pre');
+  await expect(userMessage).not.toContainText('Tone:');
+  await expect(userMessage).toContainText('Audience: general');
   await dialog.getByRole('button', { name: 'Edit templates' }).last().click();
   const scriptUser = dialog.getByLabel('Script user instructions');
   await expect(scriptUser).toHaveAttribute('readonly', '');
@@ -300,6 +302,7 @@ test('podcast template CRUD persists while generation edits remain session-only'
 
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const panel = page.locator('#panel-podcast');
+  await expect(panel.getByLabel('Tone')).toHaveCount(0);
   await panel.getByLabel('Format template').selectOption({ label: 'Briefing' });
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(
     'Use a concise briefing with three ordered sections.',
@@ -326,7 +329,7 @@ test('podcast template CRUD persists while generation edits remain session-only'
 
   await page.reload();
   await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
-  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/Create a natural conversation/);
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/genuinely interactive conversation/);
   await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Host');
   await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Expert');
 });

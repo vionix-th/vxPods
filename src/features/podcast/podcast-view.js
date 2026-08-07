@@ -115,7 +115,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       ?? conversationStarter.instructions,
     required: true,
     rows: 5,
-    help: 'Temporary generation instructions. Save reusable formats from Settings → Podcast.',
+    help: 'Define structure, interaction, and show-level delivery. Save reusable formats from Settings → Podcast.',
   });
   formatInstructionsField.input.maxLength = 4000;
   const formatResetButton = document.createElement('button');
@@ -133,7 +133,6 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     formatStatus,
     formatResetButton,
   );
-  const toneField = textField({ label: 'Tone', value: 'conversational' });
   const audienceField = textField({ label: 'Audience', value: 'general' });
   const textProviderSelect = createProviderSelect({
     label: 'Script configuration',
@@ -159,7 +158,6 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
   prefsCard.append(
     formatEditor,
-    toneField.wrapper,
     audienceField.wrapper,
     textProviderSelect.element,
     ttsProviderSelect.element,
@@ -443,7 +441,6 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   function readPrefs() {
     return {
       formatInstructions: formatInstructionsField.input.value.trim(),
-      tone: toneField.input.value.trim() || 'conversational',
       audience: audienceField.input.value.trim() || 'general',
       speakers: speakerSettings.read(),
       textModel: textModelField.input.value.trim(),

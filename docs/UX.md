@@ -80,13 +80,14 @@ Same input behavior as Text to Speech. Supporting copy: “vxPods uses this sour
 Essential controls:
 
 - Saved Format template and editable temporary Format instructions.
-- Tone.
 - Audience.
 - Script and TTS configurations, plus their model selects. Options come from the selected provider configurations.
 
 All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. Without a selected saved configuration, the affected model and voice selects are empty and disabled. The lists are never presented as discovered provider capabilities.
 
 Format selection copies saved instructions into a session-only draft. Editing marks temporary changes; Reset restores current saved content. Switching while dirty confirms before discarding. Deleting the selected saved template leaves the draft intact as Custom.
+
+Bundled format instructions describe observable structure, interaction, and any show-level delivery rather than a generic request to “sound natural.” Conversation, Interview, and Panel Discussion use responsive turns, purposeful follow-ups, and contextual name or acknowledgement use. Narrative and Lecture use continuity and purposeful speaker handoffs without forced banter. Speaker profiles describe individual participation and delivery inside the selected format; no script-wide Tone control competes with those per-speaker instructions.
 
 Step 3, “Generate or update script”, is the single source of truth for one through eight ordered speaker drafts. Each card has a stable ID, profile selector/application action, name, multi-line role, provider-specific voice, preview, Remove, Move up, and Move down. Add focuses the new card. Remove opens a confirmation naming the speaker; cancellation preserves the cast, while confirmation focuses the nearest remaining card. Host and Expert are initial defaults. Once a script exists, “Apply speaker changes to script” updates name, role, and voice by ID only when cast IDs match. Added, removed, or reordered speakers affect the next generation and leave the current script renderable with a stale-settings warning. Voice previews do not create render jobs or persist audio.
 

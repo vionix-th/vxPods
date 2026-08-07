@@ -18,7 +18,6 @@ const ttsModel = { model: 'tts-1', voices: ['alloy', 'verse'], responseFormat: '
 
 const prefs = {
   formatInstructions: 'Create a natural conversation.',
-  tone: 'conversational',
   audience: 'general',
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },

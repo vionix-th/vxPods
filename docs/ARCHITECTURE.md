@@ -310,15 +310,19 @@ Source + preferences
 Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 
 - State JSON schema and allowed speakers.
-- Compose temporary format instructions, tone, audience, and speaker roles as separate request layers.
+- Keep the global system layer limited to the output contract, grounding, prompt precedence, sequential-audio constraints, and format-neutral speech quality.
+- Compose temporary format instructions, audience, and speaker roles as separate request layers with explicit ownership: format governs structure, interaction, and show-level delivery; speaker roles govern individual participation and delivery within the format; audience governs shared assumptions and explanatory depth.
 - Require source-grounded output.
 - Constrain factual claims to supplied source.
-- Ask for natural, speech-ready plain text.
+- Treat delimited source material as untrusted reference content rather than model instructions.
+- Ask for natural, speech-ready plain text without markdown, stage directions, embedded speaker labels, or simulated overlapping audio.
+- For formats that request interaction, require responsive turn construction, purposeful follow-ups, contextual variation in turn length, and sparse situational use of acknowledgements, discourse markers, and names. Do not apply these dialogue behaviors to non-interactive formats.
+- Keep speaker roles distinct without manufacturing disagreement, unsupported anecdotes, verbal tics, filler, false starts, or disfluency.
 - Preserve the source language and reject translation unless the source explicitly requests it.
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
-One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Further attempts require user action.
+One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Its prompt treats prior output as untrusted data, requests the minimum validation correction, preserves all valid script content and order, and prohibits unrelated factual or dialogue additions. Further attempts require user action.
 
 ## 10. Speech and audio pipeline
 
@@ -361,7 +365,7 @@ One versioned document stores:
 
 ```js
 {
-  schemaVersion: 2,
+  schemaVersion: 3,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -373,7 +377,7 @@ One versioned document stores:
 ```
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
-Settings schema 2 stores ordered reusable formats and speaker profiles. Version 1 documents and backups migrate lazily to schema 2 while preserving providers, selections, preferences, and prompt overrides; first successful mutation persists schema 2. Future, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
+Settings schema 3 stores ordered reusable formats and speaker profiles with the current prompt suite. Version 1 documents and backups receive the current starters. Version 2 documents and backups replace only exact, untouched copies of bundled format and speaker prompts; edited, renamed, or deleted starter records and all custom records remain unchanged. Both migrations are lazy while reading local settings and preserve providers, selections, preferences, and prompt overrides; the first successful mutation persists schema 3. Future, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
 Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new/migrated settings once. Empty collections persist until explicit starter restoration.
 
 ```js
@@ -381,7 +385,7 @@ FormatTemplate = { id: string, name: string, instructions: string }
 SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
 ```
 
-Prompt defaults and their canonical contract live in `domain/prompt-templates.js`. Resolution uses a valid local override per template, otherwise bundled default. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. Existing advanced overrides that contain the former `{{tone}}` placeholder remain renderable through the compatibility value `format- and speaker-role-defined`; new defaults neither emit nor require that placeholder. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB
