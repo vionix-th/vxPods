@@ -54,11 +54,11 @@ describe('local-settings', () => {
     expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
-  it('preserves unsupported settings until explicit restore or clear', () => {
-    const raw = JSON.stringify({ ...defaultSettings(), schemaVersion: 2 });
+  it('preserves settings with an unsupported schema version until explicit restore or clear', () => {
+    const raw = JSON.stringify({ ...defaultSettings(), schemaVersion: 'invalid' });
     localStorage.setItem(STORAGE_KEY, raw);
     expect(inspectSettings()).toMatchObject({ status: 'unsupported', settings: defaultSettings() });
-    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported version/i);
+    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported schema version/i);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
   });
 
@@ -72,9 +72,9 @@ describe('local-settings', () => {
     expect(() => restoreSettingsBackup(backup)).toThrow(/invalid format templates/i);
   });
 
-  it('preserves superseded settings until explicit restore or clear', () => {
+  it('preserves unsupported settings until explicit restore or clear', () => {
     const raw = JSON.stringify({
-      schemaVersion: 2,
+      schemaVersion: 'invalid',
       providers: [{ id: 'p1', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-x' }],
       selectedChatProviderId: 'p1',
       selectedTtsProviderId: null,
@@ -82,7 +82,7 @@ describe('local-settings', () => {
     });
     localStorage.setItem(STORAGE_KEY, raw);
     expect(inspectSettings()).toMatchObject({ status: 'unsupported', settings: defaultSettings() });
-    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported version/i);
+    expect(() => saveSettings(defaultSettings())).toThrowError(/unsupported schema version/i);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
 
     restoreSettingsBackup(defaultSettings());
@@ -106,8 +106,8 @@ describe('local-settings', () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe('{not json');
   });
 
-  it('falls back on unknown future schema version', () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ schemaVersion: 999 }));
+  it('falls back when settings omit the current-format marker', () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({}));
     expect(loadSettings()).toEqual(defaultSettings());
   });
 
@@ -136,7 +136,7 @@ describe('local-settings', () => {
       ...defaultSettings(),
       providers: [{
         id: 'bad', name: 'Bad', baseUrl: 'https://api.example/v1', apiKey: 'key',
-        textGeneration: { api: 'legacy', models: ['m'] },
+        textGeneration: { api: 'unsupported-api', models: ['m'] },
         ttsModels: [],
       }],
     }));
@@ -175,7 +175,6 @@ const validScript = {
   schemaVersion: 1,
   title: 'T',
   language: 'en',
-  format: 'solo',
   sourceGrounded: true,
   speakers: [{ id: 'speaker-1', name: 'Host', role: 'Narrates', voice: 'alloy' }],
   segments: [
@@ -208,8 +207,8 @@ describe('render-job-store', () => {
     expect(loaded.script).not.toHaveProperty('format');
   });
 
-  it('rejects wrong schema versions', async () => {
-    await saveJob({ ...baseJob, schemaVersion: 42 });
+  it('rejects jobs without the current-format marker', async () => {
+    await saveJob({ ...baseJob, schemaVersion: undefined });
     await expect(loadJob()).rejects.toMatchObject({ kind: 'storage' });
   });
 

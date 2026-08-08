@@ -49,7 +49,7 @@ export function openSettings(options = {}) {
   return handle;
 }
 
-/** Backward-compatible provider-focused entry point. */
+/** Provider-focused entry point for feature callers. */
 export function openProviderSettings(options = {}) {
   return openSettings(options);
 }

@@ -1,5 +1,5 @@
 /**
- * Versioned localStorage settings. Only the current document format is supported.
+ * Versioned browser-local settings. Schema version 1 is the current baseline.
  */
 
 import { AppError } from '../services/errors.js';
@@ -88,7 +88,7 @@ export function inspectSettings(storage = globalThis.localStorage) {
       status: 'unsupported',
       settings: defaultSettings(),
       error: settingsReadError(
-        'Saved settings use an unsupported version. Restore a compatible backup or clear local data before saving new settings.',
+        'Saved settings use an unsupported schema version. Restore a compatible backup or clear local data before saving new settings.',
       ),
     };
   }

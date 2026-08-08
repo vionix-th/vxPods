@@ -148,7 +148,7 @@ Create each folder with its first owned module.
 
 ### Storage modules
 
-- Own serialization, parsing, validation, schema versions, migrations, quota errors, and cleanup.
+- Own serialization, parsing, current-schema validation, schema versions, quota errors, and cleanup.
 - Persist domain records and Blob data.
 - Create and revoke object URLs at UI boundaries.
 
@@ -214,7 +214,7 @@ State is divided by owner rather than held in one global tree:
 
 - TTS and Podcast controllers each own an observable workflow store.
 - Podcast script generation and audio rendering use separate status fields because rendering can be recovered independently.
-- Provider configuration and selections are exposed through the provider-store facade backed by versioned local settings.
+- Provider configuration and selections are exposed through the provider-store facade backed by local settings.
 - One application-level online-state service owns browser connectivity listeners and publishes changes to mounted workflows.
 - Mode is persisted through the provider-store facade; the router receives a persistence callback.
 
@@ -273,7 +273,7 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
 
 Validation rules:
 
-- `schemaVersion` equals `1`; other versions are unsupported.
+- `schemaVersion` is `1`.
 - `language` is a valid canonical BCP 47 tag that describes the source and spoken-script language.
 - `format` is not part of the render contract; reusable format instructions are request-scoped generation input.
 - `speakers` contains one through eight records independent of format instructions.
@@ -377,7 +377,7 @@ One versioned document stores:
 ```
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
-Settings schema 1 stores ordered reusable formats and speaker profiles with the current prompt suite. Other, unreadable, or corrupt documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement. Unsupported settings and backups require explicit recreation under the current format.
+Settings schema 1 stores ordered reusable formats and speaker profiles with the current prompt suite. It is the first and only supported settings schema. Unreadable, corrupt, or unsupported documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement. No migration paths exist.
 Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new settings once. Empty collections persist until explicit starter restoration.
 
 ```js
@@ -394,7 +394,7 @@ Database stores one `RenderJob` plus segment Blob records keyed by job and segme
 
 ```js
 {
-  schemaVersion: 2,
+  schemaVersion: 1,
   id: string,
   createdAt: string,
   updatedAt: string,
@@ -496,4 +496,4 @@ Opt-in live provider tests use a git-ignored local target document containing on
 
 Create ADR under `docs/adr/` for material changes to technology baseline, system boundaries, persistence model, external integrations, runtime dependencies, or public/stored contracts.
 
-ADR states context, decision, consequences, considered alternatives, and migration effect.
+ADR states context, decision, consequences, considered alternatives, and data effect.

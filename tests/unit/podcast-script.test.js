@@ -91,10 +91,9 @@ describe('buildRepairMessages', () => {
 });
 
 describe('prompt templates', () => {
-  it('rejects removed legacy placeholders', () => {
-    expect(DEFAULT_PROMPT_TEMPLATES.scriptUser).not.toContain('{{tone}}');
+  it('rejects unsupported placeholders', () => {
     expect(validatePromptTemplate('scriptUser', DEFAULT_PROMPT_TEMPLATES.scriptUser).valid).toBe(true);
-    expect(validatePromptTemplate('scriptUser', '{{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}} {{tone}}').valid).toBe(false);
+    expect(validatePromptTemplate('scriptUser', '{{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}} {{unknownPlaceholder}}').valid).toBe(false);
   });
 
   it('falls back to bundled default for invalid local overrides', () => {
@@ -142,8 +141,8 @@ describe('validateScript', () => {
     }
   });
 
-  it('rejects unsupported schema versions', () => {
-    const result = validateScript({ ...validScript, schemaVersion: 2 });
+  it('rejects scripts without the current-format marker', () => {
+    const result = validateScript({ ...validScript, schemaVersion: undefined });
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.errors.join(' ')).toContain('schemaVersion');
   });

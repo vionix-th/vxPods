@@ -23,6 +23,6 @@ Users must add a voice before using unknown models and must supply accurate raw-
 - Parallel model, voice, and format maps: rejected because related capability data can drift.
 - Query provider capabilities: rejected because OpenAI-compatible APIs do not define a portable capability endpoint.
 
-## Migration and rollback
+## Versioning and rollback
 
-The product is pre-release. Settings and podcast-script schemas are version 1; render-job schema is version 2. Superseded records are discarded with no migration or backward-compatibility path. Rollback requires clearing local data or explicitly recreating configuration in the older shape.
+The product is pre-release. Current settings, podcast-script, and render-job schemas are reset to version 1. They are the first supported schemas. No migration or backward-compatibility paths exist. Records outside the current schemas are cleared or recreated explicitly.

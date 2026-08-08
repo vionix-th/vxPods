@@ -93,7 +93,7 @@ describe('podcast script generation', () => {
   it('invalid output fails with schema error and one repair option', async () => {
     const textGeneration = vi
       .fn()
-      .mockResolvedValueOnce({ content: '{"schemaVersion":7}', model: 'm' })
+      .mockResolvedValueOnce({ content: '{"invalid":true}', model: 'm' })
       .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' });
     const controller = createPodcastController({ textGeneration, speech: speechOk(), decode: fakeDecode });
     await controller.generateScript('source text', prefs, textProvider);
@@ -154,8 +154,8 @@ describe('podcast script generation', () => {
     expect(controller.store.get()).toMatchObject({ status: 'ready', script: validScript });
   });
 
-  it('rejects unsupported script versions', () => {
-    const unsupported = { ...structuredClone(validScript), schemaVersion: 2 };
+  it('rejects scripts outside the current format', () => {
+    const unsupported = { ...structuredClone(validScript), schemaVersion: undefined };
     const controller = createPodcastController();
     expect(() => controller.importScript(unsupported)).toThrowError(/schemaVersion must be 1/i);
   });

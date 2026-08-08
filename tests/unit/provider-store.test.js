@@ -126,7 +126,7 @@ describe('validateProviderInput', () => {
     }).textGeneration).toEqual({ api: 'responses', models: ['gpt-5.6-luna'] });
     expect(() => validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
-      textGeneration: { api: 'legacy', models: ['m'] },
+      textGeneration: { api: 'unsupported-api', models: ['m'] },
     })).toThrowError(/supported text generation API/);
   });
 });
@@ -192,7 +192,7 @@ describe('provider CRUD', () => {
     addProvider(input);
     expect(() => restoreSettingsBackup('{not json')).toThrowError(/valid JSON/);
     const invalidApi = exportSettingsBackup();
-    invalidApi.providers[0].textGeneration.api = 'legacy';
+    invalidApi.providers[0].textGeneration.api = 'unsupported-api';
     expect(() => restoreSettingsBackup(invalidApi)).toThrowError(/invalid provider configuration/);
     expect(listProviders()).toHaveLength(1);
   });

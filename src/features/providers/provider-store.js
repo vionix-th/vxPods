@@ -1,6 +1,6 @@
 /**
  * Provider configuration records: validation, URL normalization, and CRUD
- * over the versioned localStorage settings document.
+ * over the browser-local settings document.
  */
 
 import { AppError } from '../../services/errors.js';

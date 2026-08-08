@@ -36,10 +36,10 @@ describe('live provider target validation', () => {
     });
   });
 
-  it('rejects the previous TTS-only target shape', () => {
+  it('rejects a TTS-only target shape', () => {
     expect(() => validateLiveProviderDocument({
       targets: [{
-        name: 'Legacy TTS',
+        name: 'TTS only',
         baseUrl: 'https://api.test/v1',
         apiKey: 'test-secret',
         model: 'speech-a',
