@@ -10,7 +10,6 @@ export const MAX_SPEAKERS = 8;
  * @property {number} schemaVersion
  * @property {string} title
  * @property {string} language
- * @property {boolean} sourceGrounded
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers
  * @property {{ id: string, speakerId: string, text: string, pauseAfterMs: number }[]} segments
  */
@@ -37,8 +36,6 @@ export function validateScript(value) {
   if (!canonicalLanguageTag(v.language)) {
     errors.push('language must be a valid BCP 47 language tag.');
   }
-  if (v.sourceGrounded !== true) errors.push('sourceGrounded must be true.');
-
   const speakers = Array.isArray(v.speakers) ? v.speakers : null;
   if (!speakers) {
     errors.push('speakers must be an array.');
@@ -124,7 +121,6 @@ export function normalizeScript(value) {
     schemaVersion: SCRIPT_SCHEMA_VERSION,
     title: String(value.title).trim(),
     language: canonicalLanguageTag(value.language) || '',
-    sourceGrounded: true,
     speakers: value.speakers.map((speaker) => ({
       id: String(speaker.id),
       name: String(speaker.name).trim(),

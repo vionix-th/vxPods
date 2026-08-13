@@ -35,13 +35,12 @@ const SOURCE_LANGUAGE_POLICY = [
  * @property {number} schemaVersion
  * @property {string} title
  * @property {string} language
- * @property {boolean} sourceGrounded
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers
  * @property {{ id: string, speakerId: string, text: string, pauseAfterMs: number }[]} segments
  */
 
 /**
- * Build API-neutral messages for source-grounded script generation.
+ * Build API-neutral messages for source-anchored script generation.
  * Source text is clearly delimited from instructions.
  *
  * @param {string} source

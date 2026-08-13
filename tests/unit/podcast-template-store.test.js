@@ -15,36 +15,81 @@ import {
 import {
   STARTER_FORMAT_TEMPLATES,
   STARTER_SPEAKER_PROFILES,
+  TEMPLATE_TEXT_MAX_LENGTH,
 } from '../../src/domain/podcast-templates.js';
 
 beforeEach(() => localStorage.clear());
 
 describe('podcast template store', () => {
   it('seeds starters in canonical order', () => {
-    expect(listFormatTemplates().map((record) => record.name)).toEqual(
-      STARTER_FORMAT_TEMPLATES.map((record) => record.name),
-    );
+    expect(listFormatTemplates().map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'format-conversation', name: 'Conversation' },
+      { id: 'format-interview', name: 'Interview' },
+      { id: 'format-narrative', name: 'Narrative' },
+      { id: 'format-lecture', name: 'Lecture' },
+      { id: 'format-panel-discussion', name: 'Panel Discussion' },
+    ]);
     expect(listSpeakerProfiles().map((record) => record.label)).toEqual(
       STARTER_SPEAKER_PROFILES.map((record) => record.label),
     );
   });
 
-  it('keeps interaction policy in formats and participation tendencies in roles', () => {
+  it('gives every starter format a distinct format-aware discourse contract', () => {
     const formats = Object.fromEntries(
       STARTER_FORMAT_TEMPLATES.map((record) => [record.id, record.instructions]),
     );
+
+    expect(formats['format-conversation']).toContain('develop the subject together');
+    expect(formats['format-conversation']).toContain('permanent moderator');
+    expect(formats['format-conversation']).toContain('rotate mechanically');
+    expect(formats['format-interview']).toContain('first speaker as interviewer');
+    expect(formats['format-interview']).toContain('substance of prior answers');
+    expect(formats['format-interview']).toContain('several interviewees');
+    expect(formats['format-interview']).toContain('fixed questionnaire');
+    expect(formats['format-narrative']).toContain('non-interactive spoken narrative');
+    expect(formats['format-narrative']).toContain('temporal, causal, or thematic organization');
+    expect(formats['format-narrative']).toContain('continuity across handoffs');
+    expect(formats['format-lecture']).toContain('non-interactive spoken lecture');
+    expect(formats['format-lecture']).toContain('deliberate order');
+    expect(formats['format-lecture']).toContain('complementary teaching functions');
+    expect(formats['format-panel-discussion']).toContain('first speaker as moderator');
+    expect(formats['format-panel-discussion']).toContain('without mediating every contribution');
+    expect(formats['format-panel-discussion']).toContain('panelists engage one another');
+    expect(formats['format-panel-discussion']).toContain('fixed speaker rotation');
+    for (const record of STARTER_FORMAT_TEMPLATES) {
+      expect(record.instructions).toContain('With one speaker');
+      expect(record.instructions).not.toContain('source-grounded');
+      expect(record.instructions.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
+    }
+  });
+
+  it('keeps starter roles stable and focused on contribution and delivery', () => {
+    expect(STARTER_SPEAKER_PROFILES.map(({ id, label, defaultSpeakerName }) => ({
+      id,
+      label,
+      defaultSpeakerName,
+    }))).toEqual([
+      { id: 'profile-host', label: 'Host', defaultSpeakerName: 'Maya' },
+      { id: 'profile-interviewer', label: 'Interviewer', defaultSpeakerName: 'Rowan' },
+      { id: 'profile-expert', label: 'Expert', defaultSpeakerName: 'Leah' },
+      { id: 'profile-narrator', label: 'Narrator', defaultSpeakerName: 'Nora' },
+      { id: 'profile-skeptic', label: 'Skeptic', defaultSpeakerName: 'Elias' },
+    ]);
+
     const roles = Object.fromEntries(
       STARTER_SPEAKER_PROFILES.map((record) => [record.id, record.role]),
     );
-
-    expect(formats['format-conversation']).toContain('preceding contribution');
-    expect(formats['format-conversation']).toContain('names sparingly');
-    expect(formats['format-interview']).toContain('preceding answer');
-    expect(formats['format-panel-discussion']).toContain('do not manufacture controversy');
-    expect(formats['format-narrative']).toContain('do not force an interview');
-    expect(formats['format-lecture']).toContain('do not turn the lecture into an interview');
-    expect(roles['profile-interviewer']).toContain('focused follow-ups');
-    expect(roles['profile-skeptic']).toContain('Does not disagree reflexively');
+    for (const record of STARTER_SPEAKER_PROFILES) {
+      expect(record.role).not.toContain('source-grounded');
+      expect(record.role).not.toContain('In interactive formats');
+      expect(record.role).not.toContain('In non-interactive formats');
+      expect(record.role.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
+    }
+    expect(roles['profile-host']).toContain('without monopolizing questions or transitions');
+    expect(roles['profile-interviewer']).toContain('focused inquiry from prior answers');
+    expect(roles['profile-expert']).toContain('source\'s claims from analysis or interpretation');
+    expect(roles['profile-narrator']).toContain('context and continuity');
+    expect(roles['profile-skeptic']).toContain('alternative interpretations');
   });
 
   it('creates, updates, and deletes formats with unique names', () => {

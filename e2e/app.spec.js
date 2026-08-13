@@ -37,7 +37,6 @@ const SCRIPT = {
   schemaVersion: 1,
   title: 'E2E Show',
   language: 'en',
-  sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
     { id: 'speaker-2', name: 'Guest', role: 'Explains', voice: 'verse' },
@@ -329,9 +328,9 @@ test('podcast template CRUD persists while generation edits remain session-only'
 
   await page.reload();
   await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
-  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/genuinely interactive conversation/);
-  await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Host');
-  await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Expert');
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/interactive peer conversation/);
+  await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Maya');
+  await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Leah');
 });
 
 test('podcast cast supports stable add, remove, reorder, and stale-script state', async ({ page }) => {

@@ -31,7 +31,6 @@ const validScript = {
   schemaVersion: 1,
   title: 'Test Show',
   language: 'en',
-  sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
     { id: 'speaker-2', name: 'Guest', role: 'Explains', voice: 'verse' },

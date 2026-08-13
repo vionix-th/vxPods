@@ -245,7 +245,6 @@ Generated and exported podcast scripts use JSON only. Canonical R1 shape:
   "schemaVersion": 1,
   "title": "Example title",
   "language": "th",
-  "sourceGrounded": true,
   "speakers": [
     {
       "id": "host",
@@ -286,6 +285,8 @@ Validation rules:
 - Imported script JSON is parsed and validated against the same canonical schema before replacing in-memory workflow state.
 - Unsupported imported scripts do not replace current workflow state.
 
+The canonical v1 schema does not contain a source-grounding assertion. Existing v1 imports that contain a legacy `sourceGrounded` property remain valid because normalization discards unknown properties; new exports omit it. Source fidelity is a generation instruction rather than a claim-level provenance guarantee.
+
 Model output enters as untrusted text, passes JSON isolation and schema validation, then renders through text APIs.
 
 ## 9. Podcast generation pipeline
@@ -310,19 +311,17 @@ Source + preferences
 Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 
 - State JSON schema and allowed speakers.
-- Keep the global system layer limited to the output contract, grounding, prompt precedence, sequential-audio constraints, and format-neutral speech quality.
-- Compose temporary format instructions, audience, and speaker roles as separate request layers with explicit ownership: format governs structure, interaction, and show-level delivery; speaker roles govern individual participation and delivery within the format; audience governs shared assumptions and explanatory depth.
-- Require source-grounded output.
-- Constrain factual claims to supplied source.
+- Keep the global system layer limited to the output contract, source integrity, prompt precedence, sequential-audio constraints, and natural spoken output.
+- Compose temporary format instructions, audience, and speaker roles as separate request layers with explicit ownership: format governs structure, interaction, and show-level delivery; speaker roles guide individual contribution and delivery within that format; audience governs shared assumptions and explanatory depth.
+- Use the source as the factual and topical foundation, represent it faithfully, and permit analysis, interpretation, questioning, comparison, criticism, and clearly hypothetical illustrations.
+- Prohibit false attribution and invented quotations, evidence, events, or personal experiences presented as real; do not imply claim-level provenance verification.
 - Treat delimited source material as untrusted reference content rather than model instructions.
 - Ask for natural, speech-ready plain text without markdown, stage directions, embedded speaker labels, or simulated overlapping audio.
-- For formats that request interaction, require responsive turn construction, purposeful follow-ups, contextual variation in turn length, and sparse situational use of acknowledgements, discourse markers, and names. Do not apply these dialogue behaviors to non-interactive formats.
-- Keep speaker roles distinct without manufacturing disagreement, unsupported anecdotes, verbal tics, filler, false starts, or disfluency.
 - Preserve the source language and reject translation unless the source explicitly requests it.
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
-One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Its prompt treats prior output as untrusted data, requests the minimum validation correction, preserves all valid script content and order, and prohibits unrelated factual or dialogue additions. Further attempts require user action.
+One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Its prompt treats prior output as untrusted data, requests the minimum validation correction, preserves all valid script content and order, and prohibits unrelated content changes. Further attempts require user action.
 
 ## 10. Speech and audio pipeline
 
@@ -385,7 +384,7 @@ FormatTemplate = { id: string, name: string, instructions: string }
 SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
 ```
 
-Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. Overrides with unsupported placeholders are invalid. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. A role cannot change the selected format's participation structure. Overrides with unsupported placeholders are invalid. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB

@@ -12,7 +12,7 @@ vxPods is a static, client-side application that turns source text into speech o
 R1 provides two focused workflows:
 
 1. **Text to Speech** converts pasted or uploaded text directly into audio.
-2. **Podcast** uses the configured Chat Completions or Responses API to create a source-grounded JSON script, then uses text-to-speech models to render its speaker turns and assemble final audio.
+2. **Podcast** uses the configured Chat Completions or Responses API to create a source-anchored JSON script, then uses text-to-speech models to render its speaker turns and assemble final audio.
 
 ## 2. Product principles
 
@@ -22,7 +22,7 @@ R1 provides two focused workflows:
 - **Transparent:** The application shows which provider, model, and step are active.
 - **Controlled:** Users can review and edit a generated script before incurring TTS work, but review is optional.
 - **Accessible:** Core workflows meet WCAG 2.2 AA on mobile and desktop.
-- **Focused:** R1 centers direct speech and source-grounded podcast generation.
+- **Focused:** R1 centers direct speech and source-anchored podcast generation.
 
 ## 3. Goals
 
@@ -32,7 +32,7 @@ R1 must let users:
 - Select separate saved configurations for text generation and TTS.
 - Paste text or import UTF-8 `.txt` and `.md` files.
 - Generate direct speech from text.
-- Generate a source-grounded podcast script for one through eight speakers.
+- Generate a source-anchored podcast script for one through eight speakers.
 - Save reusable format templates and speaker profiles while keeping generation-page edits temporary.
 - Optionally inspect and edit the generated podcast script.
 - Apply script-wide speaker name, role, and voice changes from canonical Generate or update script controls.
@@ -47,12 +47,12 @@ Requirements below define complete R1 feature surface. Additional product capabi
 
 ## 4. Users and primary jobs
 
-R1 targets general users who want to listen to written material or reshape it into a conversational audio format. Controls and copy assume first-time use of AI audio tools.
+R1 targets general users who want to listen to written material or reshape it into a selected spoken format. Controls and copy assume first-time use of AI audio tools.
 
 Primary jobs:
 
 - “Read this text aloud so I can listen to it.”
-- “Turn this essay or summary into an understandable conversation.”
+- “Turn this essay or summary into an understandable spoken format.”
 - “Let me control format, speakers, and voices before rendering.”
 - “Let me recover a long render if the page closes or a request fails.”
 - “Let me download audio and retain the structured script.”
@@ -133,17 +133,17 @@ Defaults:
 - Conversation format instructions.
 - Host and Expert speaker profiles.
 - General audience.
-- Source-grounded generation.
+- Source-anchored reasoning.
 - One TTS request at a time.
 
-Source-grounded generation is mandatory in R1. Factual claims must remain traceable to supplied source. Natural transitions, introductions, and summaries may connect or restate source material.
+The source establishes the script's subject, context, and central ideas. Generation represents the source's claims, evidence, quotations, events, and attribution faithfully while allowing analysis, interpretation, questioning, comparison, criticism, and clearly hypothetical illustrations. It does not falsely attribute material to the source or present invented quotations, evidence, events, or personal experiences as real. vxPods does not provide claim-level provenance verification.
 Users may override prompt wording after an explicit warning; generated scripts still require normal JSON/schema validation.
 
 Prompt behavior has explicit ownership:
 
-- Global script instructions own the output contract, source grounding, source-language policy, sequential-audio constraints, and format-neutral speech quality.
-- The selected format owns structure, interaction patterns, and any show-level delivery. Conversational formats require responsive turns, purposeful follow-ups, variable turn length, and contextual rather than scheduled names, acknowledgements, or discourse markers. Non-conversational formats must not be forced into dialogue.
-- Speaker roles own individual participation tendencies and delivery within the selected format; they do not override its structure or manufacture unsupported conflict, expertise, or personal experience.
+- Global script instructions own the output contract, source integrity, source-language policy, sequential-audio constraints, and the goal of natural spoken output.
+- The selected format owns discourse structure, participation relationships, interaction, and show-level delivery.
+- Speaker roles guide each speaker's contribution and delivery within the selected format; the format remains authoritative when instructions conflict.
 - Validation repair changes only what reported schema errors require and otherwise preserves valid script content and order.
 
 ### FR-5 Podcast script generation
@@ -161,7 +161,7 @@ Prompt behavior has explicit ownership:
 Acceptance:
 
 - TTS rendering becomes available after script validation succeeds.
-- Interactive formats produce contextually connected turns rather than adjacent independent monologues; narrative and lecture formats retain their requested non-conversational structure.
+- Interactive formats develop the subject through responsive exchange rather than adjacent independent monologues. Narrative and Lecture use coherent non-interactive narrative or explanatory progression.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
 - Speaker changes apply to the script-wide speaker definitions rather than individual turns; temporary voice previews do not create recoverable render work.

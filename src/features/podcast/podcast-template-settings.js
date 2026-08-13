@@ -141,7 +141,7 @@ function renderFormatForm(body, options, existing) {
     value: existing?.instructions ?? '',
     required: true,
     rows: 8,
-    help: 'Describe structure, interaction, pacing, or delivery. Maximum 4,000 characters.',
+    help: 'Describe discourse structure, interaction, pacing, or show-level delivery. Maximum 4,000 characters.',
   });
   instructions.input.maxLength = 4000;
   const actions = formActions(() => renderFormatList(body, options), existing ? 'Save changes' : 'Save format');
@@ -244,7 +244,7 @@ function renderProfileForm(body, options, existing) {
     value: existing?.role ?? '',
     required: true,
     rows: 6,
-    help: 'Describe contribution, stance, personality, expertise, behavior, and individual delivery.',
+    help: 'Describe contribution, epistemic stance, behavior, and individual delivery within the selected format.',
   });
   role.input.maxLength = 4000;
   const actions = formActions(() => renderProfileList(body, options), existing ? 'Save changes' : 'Save profile');

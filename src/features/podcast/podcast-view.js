@@ -93,7 +93,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   // ---------- Step 1: source
   const source = createSourceInput({
     title: 'Add source',
-    help: 'vxPods uses this source to write a factual, conversational script.',
+    help: 'vxPods uses this material as the basis for a spoken script in the selected format.',
   });
 
   // ---------- Step 2: preferences
@@ -115,7 +115,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       ?? conversationStarter.instructions,
     required: true,
     rows: 5,
-    help: 'Define structure, interaction, and show-level delivery. Save reusable formats from Settings → Podcast.',
+    help: 'Define discourse structure, interaction, and show-level delivery. Save reusable formats from Settings → Podcast.',
   });
   formatInstructionsField.input.maxLength = 4000;
   const formatResetButton = document.createElement('button');

@@ -29,7 +29,6 @@ const validScript = {
   schemaVersion: 1,
   title: 'Demo',
   language: 'en',
-  sourceGrounded: true,
   speakers: [
     { id: 'speaker-1', name: 'Host', role: 'Guides', voice: 'alloy' },
     { id: 'speaker-2', name: 'Guest', role: 'Explains', voice: 'verse' },
@@ -41,18 +40,28 @@ const validScript = {
 };
 
 describe('buildScriptPrompt', () => {
-  it('delimits source and states schema + grounding', () => {
+  it('delimits source and states the schema, Script Brief, and source-use contract', () => {
     const messages = buildScriptPrompt('SOURCE TEXT HERE', prefs);
     expect(messages[0].role).toBe('system');
     expect(messages[0].content).toContain('schemaVersion');
-    expect(messages[0].content).toContain('factual claim');
     expect(messages[0].content).toContain('Instruction ownership');
-    expect(messages[0].content).toContain('rather than adjacent monologues');
-    expect(messages[0].content).toContain('Do not force conversational behavior');
+    expect(messages[0].content).toContain('Source use');
+    expect(messages[0].content).toContain('factual and topical foundation');
+    expect(messages[0].content).toContain('analyze, interpret, question, compare, or criticize');
+    expect(messages[0].content).toContain('clearly hypothetical illustrations');
+    expect(messages[0].content).toContain('Do not attribute a claim to the source');
     expect(messages[0].content).toContain('Do not write simultaneous speech');
     expect(messages[0].content).toContain('Do not translate');
+    expect(messages[0].content).not.toContain('sourceGrounded');
+    expect(messages[0].content).not.toContain('Every factual claim');
+    expect(messages[0].content).not.toContain('conceptual repair');
+    expect(messages[0].content).not.toContain('manufacture conflict');
+    expect(messages[0].content).not.toContain('Vary segment length');
+    expect(messages[1].content).toContain('SCRIPT BRIEF');
+    expect(messages[1].content).toContain('coherent, engaging podcast script');
+    expect(messages[1].content).toContain('written for listening');
     expect(messages[1].content).toContain('authoritative for structure, interaction, and show-level delivery');
-    expect(messages[1].content).toContain('solely as material to transform');
+    expect(messages[1].content).toContain('reference and topic material');
     expect(messages[1].content).not.toContain('Tone:');
     expect(messages[1].content).toContain('<<<SOURCE');
     expect(messages[1].content).toContain('SOURCE TEXT HERE');
@@ -79,7 +88,8 @@ describe('buildRepairMessages', () => {
     expect(messages.some((m) => m.content.includes('{"bad":true}'))).toBe(true);
     expect(messages.some((m) => m.content.includes('title missing'))).toBe(true);
     expect(messages[0].content).toContain('smallest changes required');
-    expect(messages[0].content).toContain('Do not add new factual claims');
+    expect(messages[0].content).toContain('Do not add or rewrite script content');
+    expect(messages[0].content).not.toContain('sourceGrounded');
   });
 
   it('uses a valid repair override', () => {
@@ -139,6 +149,14 @@ describe('validateScript', () => {
       expect(result.script.title).toBe('Demo');
       expect(result.script.segments).toHaveLength(2);
     }
+  });
+
+  it('accepts a legacy v1 sourceGrounded field and drops it from the canonical script', () => {
+    const legacy = { ...structuredClone(validScript), sourceGrounded: true };
+    const result = validateScript(legacy);
+    expect(result.valid).toBe(true);
+    if (result.valid) expect(result.script).not.toHaveProperty('sourceGrounded');
+    expect(exportableScript(legacy)).not.toHaveProperty('sourceGrounded');
   });
 
   it('rejects scripts without the current-format marker', () => {
@@ -229,7 +247,6 @@ describe('exportableScript', () => {
       'language',
       'schemaVersion',
       'segments',
-      'sourceGrounded',
       'speakers',
       'title',
     ]);

@@ -175,7 +175,6 @@ const validScript = {
   schemaVersion: 1,
   title: 'T',
   language: 'en',
-  sourceGrounded: true,
   speakers: [{ id: 'speaker-1', name: 'Host', role: 'Narrates', voice: 'alloy' }],
   segments: [
     { id: 'segment-0001', speakerId: 'speaker-1', text: 'Hello.', pauseAfterMs: 0 },
