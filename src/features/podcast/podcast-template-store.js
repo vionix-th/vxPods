@@ -1,11 +1,13 @@
-/** CRUD facade for reusable Podcast format templates and speaker profiles. */
+/** CRUD facade for reusable Podcast Episode directions, Formats, and speaker profiles. */
 
 import { AppError } from '../../services/errors.js';
 import { loadSettings, saveSettings, subscribeSettingsRestore } from '../../storage/local-settings.js';
 import {
   STARTER_FORMAT_TEMPLATES,
+  STARTER_EPISODE_DIRECTION_TEMPLATES,
   STARTER_SPEAKER_PROFILES,
   validateFormatTemplateInput,
+  validateEpisodeDirectionTemplateInput,
   validateSpeakerProfileInput,
 } from '../../domain/podcast-templates.js';
 
@@ -14,6 +16,10 @@ const listeners = new Set();
 
 export function listFormatTemplates() {
   return loadSettings().formatTemplates;
+}
+
+export function listEpisodeDirectionTemplates() {
+  return loadSettings().episodeDirectionTemplates;
 }
 
 export function listSpeakerProfiles() {
@@ -59,6 +65,34 @@ export function deleteFormatTemplate(id) {
   persist(settings);
 }
 
+export function addEpisodeDirectionTemplate(input) {
+  const settings = loadSettings();
+  const valid = validateEpisodeDirectionTemplateInput(input, settings.episodeDirectionTemplates);
+  const record = { id: generateId('direction'), ...valid };
+  settings.episodeDirectionTemplates.push(record);
+  persist(settings);
+  return record;
+}
+
+export function updateEpisodeDirectionTemplate(id, input) {
+  const settings = loadSettings();
+  const index = settings.episodeDirectionTemplates.findIndex((record) => record.id === id);
+  if (index === -1) throw validationError('Episode direction not found.');
+  const valid = validateEpisodeDirectionTemplateInput(input, settings.episodeDirectionTemplates, id);
+  settings.episodeDirectionTemplates[index] = { id, ...valid };
+  persist(settings);
+  return settings.episodeDirectionTemplates[index];
+}
+
+export function deleteEpisodeDirectionTemplate(id) {
+  const settings = loadSettings();
+  if (!settings.episodeDirectionTemplates.some((record) => record.id === id)) {
+    throw validationError('Episode direction not found.');
+  }
+  settings.episodeDirectionTemplates = settings.episodeDirectionTemplates.filter((record) => record.id !== id);
+  persist(settings);
+}
+
 export function addSpeakerProfile(input) {
   const settings = loadSettings();
   const valid = validateSpeakerProfileInput(input, settings.speakerProfiles);
@@ -95,6 +129,18 @@ export function restoreFormatStarters() {
     (record) => record.name,
   );
   settings.formatTemplates = records;
+  persist(settings);
+  return skipped;
+}
+
+export function restoreEpisodeDirectionStarters() {
+  const settings = loadSettings();
+  const { records, skipped } = restoreStarters(
+    settings.episodeDirectionTemplates,
+    STARTER_EPISODE_DIRECTION_TEMPLATES,
+    (record) => record.name,
+  );
+  settings.episodeDirectionTemplates = records;
   persist(settings);
   return skipped;
 }

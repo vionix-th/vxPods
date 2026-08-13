@@ -5,6 +5,7 @@
 
 import { renderPromptTemplate, resolvePromptTemplates } from '../../domain/prompt-templates.js';
 import { MIN_SPEAKERS, MAX_SPEAKERS } from '../../domain/podcast-script-schema.js';
+import { validateEpisodePlan } from '../../domain/episode-plan-schema.js';
 
 export {
   SCRIPT_SCHEMA_VERSION,
@@ -23,6 +24,7 @@ const SOURCE_LANGUAGE_POLICY = [
 
 /**
  * @typedef {Object} PodcastPreferences
+ * @property {string} episodeDirection
  * @property {string} formatInstructions
  * @property {string} audience
  * @property {{ id: string, name: string, role: string, voice: string }[]} speakers 1-8
@@ -59,6 +61,43 @@ export function buildScriptPrompt(source, prefs, templateOverrides = {}) {
   ];
 }
 
+/** Build the planning request from source and request-scoped editorial inputs. */
+export function buildPlanPrompt(source, prefs, templateOverrides = {}) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  const values = buildScriptPromptValues(source, prefs);
+  return [
+    { role: 'system', content: renderPromptTemplate(templates.plannerSystem, values) },
+    { role: 'user', content: renderPromptTemplate(templates.plannerUser, values) },
+  ];
+}
+
+/** Build a complete-plan revision request using the same current planning inputs. */
+export function buildPlanRevisionMessages(source, prefs, plan, request, templateOverrides = {}) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  return [
+    ...buildPlanPrompt(source, prefs, templateOverrides),
+    { role: 'assistant', content: JSON.stringify(plan) },
+    {
+      role: 'user',
+      content: renderPromptTemplate(templates.planRevisionUser, { revisionRequest: request }),
+    },
+  ];
+}
+
+/** Add a validated editorial plan to the existing script prompt without changing its override contract. */
+export function buildWriterPrompt(source, prefs, plan, templateOverrides = {}) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  return [
+    ...buildScriptPrompt(source, prefs, templateOverrides),
+    {
+      role: 'user',
+      content: renderPromptTemplate(templates.episodePlanHandoff, {
+        episodePlan: JSON.stringify(plan, null, 2),
+      }),
+    },
+  ];
+}
+
 /**
  * Build runtime values for script prompt rendering and preview. Values remain
  * request-scoped; callers must not persist source text.
@@ -71,6 +110,7 @@ export function buildScriptPromptValues(source, prefs) {
       `speaker ${index + 1}: id "${speaker.id}", name "${speaker.name}", role "${speaker.role}"`)
     .join('; ');
   return {
+    episodeDirection: prefs.episodeDirection,
     formatDescription: prefs.formatInstructions,
     audience: prefs.audience,
     speakers: speakerList,
@@ -90,6 +130,9 @@ export function validatePodcastPreferences(prefs) {
   if (!prefs || typeof prefs !== 'object') return { valid: false, errors: ['Podcast settings are missing.'] };
   if (typeof prefs.formatInstructions !== 'string' || !prefs.formatInstructions.trim()) {
     errors.push('Format instructions must not be empty.');
+  }
+  if (typeof prefs.episodeDirection !== 'string' || !prefs.episodeDirection.trim()) {
+    errors.push('Episode direction must not be empty.');
   }
   if (!Array.isArray(prefs.speakers) || prefs.speakers.length < MIN_SPEAKERS || prefs.speakers.length > MAX_SPEAKERS) {
     errors.push(`Choose ${MIN_SPEAKERS}-${MAX_SPEAKERS} speakers.`);
@@ -140,6 +183,27 @@ export function buildRepairMessages(priorOutput, errors, templateOverrides = {})
       }),
     },
   ];
+}
+
+/** Build the one allowed validation-only repair for an invalid EpisodePlan. */
+export function buildPlanRepairMessages(priorOutput, errors, templateOverrides = {}) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  return [
+    { role: 'system', content: renderPromptTemplate(templates.planRepairSystem, {}) },
+    { role: 'assistant', content: priorOutput },
+    {
+      role: 'user',
+      content: renderPromptTemplate(templates.planRepairUser, {
+        validationErrors: errors.map((error) => `- ${error}`).join('\n'),
+      }),
+    },
+  ];
+}
+
+/** Parse and validate untrusted model output as a canonical EpisodePlan. */
+export function parseEpisodePlan(raw, speakerIds) {
+  const parsed = extractJson(raw);
+  return validateEpisodePlan(parsed, speakerIds);
 }
 
 /**

@@ -54,6 +54,24 @@ describe('local-settings', () => {
     expect(loaded.providers[0].textGeneration.models).toContain('gpt-4o-mini');
   });
 
+  it('seeds Episode directions when an existing v1 document or backup omits the additive field', () => {
+    const legacy = defaultSettings();
+    delete legacy.episodeDirectionTemplates;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+    expect(loadSettings().episodeDirectionTemplates.map((record) => record.name)).toContain('Essential Overview');
+
+    const restored = restoreSettingsBackup(legacy);
+    expect(restored.episodeDirectionTemplates.map((record) => record.name)).toContain('Essential Overview');
+  });
+
+  it('preserves an explicitly empty Episode direction collection', () => {
+    const doc = defaultSettings();
+    doc.episodeDirectionTemplates = [];
+    saveSettings(doc);
+    expect(loadSettings().episodeDirectionTemplates).toEqual([]);
+    expect(restoreSettingsBackup(doc).episodeDirectionTemplates).toEqual([]);
+  });
+
   it('preserves settings with an unsupported schema version until explicit restore or clear', () => {
     const raw = JSON.stringify({ ...defaultSettings(), schemaVersion: 'invalid' });
     localStorage.setItem(STORAGE_KEY, raw);

@@ -47,28 +47,48 @@ const SCRIPT = {
   ],
 };
 
+const PLAN = {
+  schemaVersion: 1,
+  workingTitle: 'E2E editorial plan',
+  editorialGoal: 'Explain the source’s central idea.',
+  listenerPromise: 'Understand the central idea and why it matters.',
+  formatApproach: 'Develop the topic through the selected format.',
+  priorities: ['Central idea'],
+  exclusions: [],
+  speakerContributions: [
+    { speakerId: 'speaker-1', contribution: 'Orient the listener and connect the discussion.' },
+    { speakerId: 'speaker-2', contribution: 'Explain the central idea and its implications.' },
+  ],
+  beats: [{ id: 'beat-1', title: 'Central idea', purpose: 'Establish and develop the main issue.' }],
+  ending: 'Consolidate the listener takeaway.',
+};
+
 /** Route all provider traffic to mocks. Returns call counters. */
 async function mockProviders(page, { failSpeechAtCall } = {}) {
   const counters = { chat: 0, responses: 0, speech: 0 };
   await page.route('**/v1/chat/completions', async (route) => {
     counters.chat += 1;
+    const request = route.request().postDataJSON();
+    const output = JSON.stringify(request).includes('You are the editorial planner') ? PLAN : SCRIPT;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        choices: [{ message: { content: JSON.stringify(SCRIPT) } }],
+        choices: [{ message: { content: JSON.stringify(output) } }],
         model: 'mock-chat',
       }),
     });
   });
   await page.route('**/v1/responses', async (route) => {
     counters.responses += 1;
+    const request = route.request().postDataJSON();
+    const output = JSON.stringify(request).includes('You are the editorial planner') ? PLAN : SCRIPT;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         status: 'completed',
-        output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(SCRIPT) }] }],
+        output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(output) }] }],
         model: 'mock-response',
       }),
     });
@@ -261,7 +281,7 @@ test('prompt templates use dedicated pages and validate edits', async ({ page })
   await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
   await dialog.getByRole('button', { name: 'Advanced prompts' }).click();
   await expect(dialog.getByRole('tab', { name: 'Script rules' })).toBeVisible();
-  await expect(dialog.getByRole('tab', { name: 'Repair brief' })).toBeVisible();
+  await expect(dialog.getByRole('tab', { name: 'Repair brief', exact: true })).toBeVisible();
   await dialog.getByRole('button', { name: 'Preview rendered prompt' }).click();
   await expect(dialog.getByRole('heading', { name: 'Rendered generation request' })).toBeVisible();
   const userMessage = dialog.locator('.prompt-preview-message').filter({ hasText: 'User message' }).locator('pre');
@@ -283,6 +303,13 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Episode direction templates' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add direction' }).click();
+  await dialog.getByLabel('Episode direction name (required)').fill('Author focus');
+  await dialog.getByLabel('Episode direction instructions (required)').fill('Focus on the author’s central interpretive question.');
+  await dialog.getByRole('button', { name: 'Save direction' }).click();
+  await expect(dialog.getByText('Author focus', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Formats' }).click();
   await expect(dialog.getByRole('heading', { name: 'Format templates' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Add format' }).click();
   await dialog.getByLabel('Format name (required)').fill('Briefing');
@@ -302,12 +329,15 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const panel = page.locator('#panel-podcast');
   await expect(panel.getByLabel('Tone')).toHaveCount(0);
+  await panel.getByLabel('Episode direction template').selectOption({ label: 'Author focus' });
+  await expect(panel.getByLabel('Episode direction (required)')).toHaveValue('Focus on the author’s central interpretive question.');
+  await panel.getByLabel('Episode direction (required)').fill('Temporary author focus.');
   await panel.getByLabel('Format template').selectOption({ label: 'Briefing' });
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(
     'Use a concise briefing with three ordered sections.',
   );
   await panel.getByLabel('Format instructions (required)').fill('Temporary briefing change.');
-  await expect(panel.getByText('Temporary changes.')).toBeVisible();
+  await expect(panel.locator('.format-draft-editor').nth(1).locator(':scope > .help-text')).toHaveText('Temporary changes.');
 
   const firstSpeaker = panel.locator('.speaker-card').first();
   await firstSpeaker.getByLabel('Speaker profile').selectOption({ label: 'Coach' });
@@ -317,16 +347,19 @@ test('podcast template CRUD persists while generation edits remain session-only'
 
   await page.getByRole('button', { name: 'Settings' }).click();
   await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Formats' }).click();
   await dialog.getByRole('button', { name: 'Delete Briefing' }).click();
   await page
     .getByRole('dialog', { name: 'Delete format template' })
     .getByRole('button', { name: 'Delete format' })
     .click();
   await dialog.getByRole('button', { name: 'Close dialog' }).click();
+  await expect(panel.getByLabel('Episode direction template').locator('option:checked')).toHaveText('Author focus');
   await expect(panel.getByLabel('Format template')).toHaveValue('__custom__');
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue('Temporary briefing change.');
 
   await page.reload();
+  await expect(panel.getByLabel('Episode direction template')).toHaveValue('direction-essential-overview');
   await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/interactive peer conversation/);
   await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Maya');
@@ -371,9 +404,9 @@ test('podcast cast supports stable add, remove, reorder, and stale-script state'
   await panel.getByLabel(/Text to speak/).fill('Source material for cast behavior.');
   await panel.getByRole('button', { name: 'Generate script' }).click();
   await expect(panel.getByText('E2E Show')).toBeVisible();
-  expect(counters.chat).toBe(1);
+  expect(counters.chat).toBe(2);
   await panel.getByRole('button', { name: 'Add speaker' }).click();
-  await expect(panel.getByText(/Current script uses previous generation settings/)).toBeVisible();
+  await expect(panel.getByText(/current plan and script reflect earlier/i)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Apply speaker changes to script' })).toBeDisabled();
   await cards.nth(2).getByRole('button', { name: 'Remove Speaker 3' }).click();
   await removeDialog.getByRole('button', { name: 'Remove speaker', exact: true }).click();
@@ -384,6 +417,65 @@ test('podcast cast supports stable add, remove, reorder, and stale-script state'
   await expect(panel.getByText('E2E Show — Host, Reordered Guest · 2 turns')).toBeVisible();
   await expect(cards.nth(0)).toHaveAttribute('data-speaker-id', 'speaker-2');
   await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-1');
+});
+
+test('reviewed podcast planning supports approval, structured edits, revision, and stale warnings', async ({ page }) => {
+  const counters = await mockProviders(page);
+  await addProvider(page);
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const panel = page.locator('#panel-podcast');
+  await panel.getByLabel(/Text to speak/).fill('Source material for editorial planning.');
+  await panel.getByLabel('Review plan before writing').check();
+  await panel.getByRole('button', { name: 'Create plan', exact: true }).click();
+  await expect(panel.getByRole('heading', { name: 'Editorial plan' })).toBeVisible();
+  await expect(panel.getByText('E2E editorial plan', { exact: true })).toBeVisible();
+  await expect(panel.getByText('E2E Show')).toHaveCount(0);
+  expect(counters.chat).toBe(1);
+
+  await panel.getByRole('button', { name: 'Edit plan' }).click();
+  await panel.getByLabel('Working title (required)').fill('Edited editorial plan');
+  await expect(panel.getByRole('button', { name: 'Save edits' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Cancel edits' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Generate script from plan' })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: 'Create new plan' })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: 'Create plan', exact: true })).toBeDisabled();
+  await expect(panel.getByRole('button', { name: 'Import script JSON' })).toBeDisabled();
+  await expect(panel.getByLabel('Review plan before writing')).toBeDisabled();
+  await expect(panel.getByLabel('Ask for changes to this plan')).toBeHidden();
+  await page.context().setOffline(true);
+  await expect(panel.getByLabel('Working title (required)')).toHaveValue('Edited editorial plan');
+  await page.context().setOffline(false);
+  await panel.getByLabel('Working title (required)').fill('');
+  await panel.getByRole('button', { name: 'Save edits' }).click();
+  await expect(panel.getByRole('button', { name: 'Save edits' })).toBeVisible();
+  await expect(panel.getByLabel('Working title (required)')).toHaveValue('');
+  await panel.getByLabel('Working title (required)').fill('Edited editorial plan');
+  await panel.getByRole('button', { name: 'Add beat' }).click();
+  await panel.getByLabel('Beat title (required)').last().fill('Implications');
+  await panel.getByLabel('Beat purpose (required)').last().fill('Develop the implications.');
+  await panel.getByRole('button', { name: 'Move beat 2 up' }).click();
+  await panel.getByRole('button', { name: 'Save edits' }).click();
+  await expect(panel.getByRole('button', { name: 'Edit plan' })).toBeFocused();
+  await expect(panel.getByText('Edited editorial plan', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: 'Edit plan' }).click();
+  await panel.getByLabel('Working title (required)').fill('Discard this title');
+  await panel.getByRole('button', { name: 'Cancel edits' }).click();
+  await expect(panel.getByRole('button', { name: 'Edit plan' })).toBeFocused();
+  await expect(panel.getByText('Edited editorial plan', { exact: true })).toBeVisible();
+
+  await panel.getByLabel('Ask for changes to this plan').fill('Return to the source’s central framing.');
+  await panel.getByRole('button', { name: 'Revise plan' }).click();
+  await expect(panel.getByText('E2E editorial plan', { exact: true })).toBeVisible();
+  expect(counters.chat).toBe(2);
+
+  await panel.getByRole('button', { name: 'Generate script from plan' }).click();
+  await expect(panel.getByText('E2E Show')).toBeVisible();
+  expect(counters.chat).toBe(3);
+  await panel.locator('.speaker-card').first().getByLabel('Voice').selectOption('verse');
+  await expect(panel.getByText(/current plan and script reflect earlier/i)).toBeHidden();
+  await panel.getByLabel(/Text to speak/).fill('Changed source material.');
+  await expect(panel.getByText(/current plan and script reflect earlier/i)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Render audio' })).toBeEnabled();
 });
 
 test('direct TTS happy path: generate, play, download', async ({ page }) => {
@@ -408,7 +500,7 @@ test('podcast: generate script, render, export JSON and WAV', async ({ page }) =
   await panel.getByLabel(/Text to speak/).fill('Source material for the podcast.');
   await panel.getByRole('button', { name: 'Generate script' }).click();
   await expect(panel.getByText('E2E Show')).toBeVisible();
-  expect(counters.chat).toBe(1);
+  expect(counters.chat).toBe(2);
 
   await panel.getByRole('button', { name: 'Render audio' }).click();
   await expect(panel.getByLabel('Podcast preview')).toBeVisible();
@@ -437,7 +529,7 @@ test('podcast: Responses configuration selects API-specific models and generates
   await panel.getByLabel(/Text to speak/).fill('Source material for Responses.');
   await panel.getByRole('button', { name: 'Generate script' }).click();
   await expect(panel.getByText('E2E Show')).toBeVisible();
-  expect(counters.responses).toBe(1);
+  expect(counters.responses).toBe(2);
   expect(counters.chat).toBe(0);
 });
 

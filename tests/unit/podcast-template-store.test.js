@@ -1,19 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   addFormatTemplate,
+  addEpisodeDirectionTemplate,
   addSpeakerProfile,
   deleteFormatTemplate,
+  deleteEpisodeDirectionTemplate,
   deleteSpeakerProfile,
   listFormatTemplates,
+  listEpisodeDirectionTemplates,
   listSpeakerProfiles,
   restoreFormatStarters,
+  restoreEpisodeDirectionStarters,
   restoreSpeakerProfileStarters,
   subscribePodcastTemplates,
   updateFormatTemplate,
+  updateEpisodeDirectionTemplate,
   updateSpeakerProfile,
 } from '../../src/features/podcast/podcast-template-store.js';
 import {
   STARTER_FORMAT_TEMPLATES,
+  STARTER_EPISODE_DIRECTION_TEMPLATES,
   STARTER_SPEAKER_PROFILES,
   TEMPLATE_TEXT_MAX_LENGTH,
 } from '../../src/domain/podcast-templates.js';
@@ -22,6 +28,12 @@ beforeEach(() => localStorage.clear());
 
 describe('podcast template store', () => {
   it('seeds starters in canonical order', () => {
+    expect(listEpisodeDirectionTemplates().map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: 'direction-essential-overview', name: 'Essential Overview' },
+      { id: 'direction-focused-exploration', name: 'Focused Exploration' },
+      { id: 'direction-critical-examination', name: 'Critical Examination' },
+      { id: 'direction-practical-interpretation', name: 'Practical Interpretation' },
+    ]);
     expect(listFormatTemplates().map(({ id, name }) => ({ id, name }))).toEqual([
       { id: 'format-conversation', name: 'Conversation' },
       { id: 'format-interview', name: 'Interview' },
@@ -32,6 +44,36 @@ describe('podcast template store', () => {
     expect(listSpeakerProfiles().map((record) => record.label)).toEqual(
       STARTER_SPEAKER_PROFILES.map((record) => record.label),
     );
+  });
+
+  it('keeps Episode direction starters editorially distinct and bounded', () => {
+    const directions = Object.fromEntries(
+      STARTER_EPISODE_DIRECTION_TEMPLATES.map((record) => [record.id, record.instructions]),
+    );
+    expect(directions['direction-essential-overview']).toContain('central argument');
+    expect(directions['direction-focused-exploration']).toContain('in depth');
+    expect(directions['direction-critical-examination']).toContain('plausible alternatives');
+    expect(directions['direction-practical-interpretation']).toContain('why');
+    for (const record of STARTER_EPISODE_DIRECTION_TEMPLATES) {
+      expect(record.instructions.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
+    }
+  });
+
+  it('creates, updates, deletes, and restores Episode directions', () => {
+    const created = addEpisodeDirectionTemplate({ name: 'Author intent', instructions: 'Follow the author\'s chosen angle.' });
+    expect(listEpisodeDirectionTemplates().at(-1)).toEqual(created);
+    const updated = updateEpisodeDirectionTemplate(created.id, {
+      name: 'Author focus', instructions: 'Follow the author\'s selected focus.',
+    });
+    expect(updated.name).toBe('Author focus');
+    expect(() => addEpisodeDirectionTemplate({
+      name: 'author focus', instructions: 'Duplicate.',
+    })).toThrow(/already exists/i);
+    deleteEpisodeDirectionTemplate(created.id);
+    expect(listEpisodeDirectionTemplates().some((record) => record.id === created.id)).toBe(false);
+    deleteEpisodeDirectionTemplate('direction-essential-overview');
+    expect(restoreEpisodeDirectionStarters()).toEqual([]);
+    expect(listEpisodeDirectionTemplates()[0].id).toBe('direction-essential-overview');
   });
 
   it('gives every starter format a distinct format-aware discourse contract', () => {

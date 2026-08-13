@@ -79,26 +79,31 @@ Same input behavior as Text to Speech. Supporting copy: “vxPods uses this mate
 
 Essential controls:
 
+- Saved Episode direction and editable temporary direction instructions.
 - Saved Format template and editable temporary Format instructions.
 - Audience.
 - Script and TTS configurations, plus their model selects. Options come from the selected provider configurations.
 
 All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. Without a selected saved configuration, the affected model and voice selects are empty and disabled. The lists are never presented as discovered provider capabilities.
 
-Format selection copies saved instructions into a session-only draft. Editing marks temporary changes; Reset restores current saved content. Switching while dirty confirms before discarding. Deleting the selected saved template leaves the draft intact as Custom.
+Episode Direction and Format selection each copy saved instructions into a session-only draft. Editing marks temporary changes; Reset restores current saved content. Switching while dirty confirms before discarding. Deleting the selected saved template leaves the draft intact as Custom.
+
+Episode direction defines purpose, angle, priorities, depth, and intentional omissions. Essential Overview is the default. Format continues to define discourse and participation structure; Speaker Roles remain tendencies within that structure.
 
 Bundled format instructions describe the defining discourse structure, participation relationships, interaction, and show-level delivery. Conversation, Interview, and Panel Discussion define distinct interactive structures; Narrative and Lecture define non-interactive progression and speaker handoffs. Speaker profiles describe stable contribution and delivery tendencies within the selected format; no role overrides that format and no script-wide Tone control competes with per-speaker instructions.
 
-Step 3, “Generate or update script”, is the single source of truth for one through eight ordered speaker drafts. Each card has a stable ID, profile selector/application action, name, multi-line role, provider-specific voice, preview, Remove, Move up, and Move down. Add focuses the new card. Remove opens a confirmation naming the speaker; cancellation preserves the cast, while confirmation focuses the nearest remaining card. Host and Expert are initial defaults. Once a script exists, “Apply speaker changes to script” updates name, role, and voice by ID only when cast IDs match. Added, removed, or reordered speakers affect the next generation and leave the current script renderable with a stale-settings warning. Voice previews do not create render jobs or persist audio.
+Step 3, “Plan”, is the single source of truth for one through eight ordered speaker drafts. Each card has a stable ID, profile selector/application action, name, multi-line role, provider-specific voice, preview, Remove, Move up, and Move down. Add focuses the new card. Remove opens a confirmation naming the speaker; cancellation preserves the cast, while confirmation focuses the nearest remaining card. Host and Expert are initial defaults. Once a script exists, “Apply speaker changes to script” updates name, role, and voice by ID only when cast IDs match. Added, removed, or reordered speakers affect the next generation and leave the current script renderable with a stale-settings warning. Voice previews do not create render jobs or persist audio.
 
-### Step 3: Generate or update script
+### Step 3: Plan
 
-- Summary names the selected script configuration, text-generation API, and model. Generated title and spoken turns preserve the source language unless the source explicitly requests translation.
-- Actions: “Generate script”, “Apply speaker changes to script”, and “Import script JSON”. Import validates a canonical script file, opens it in Review, and does not require a text-generation configuration. Replacing an existing script or unfinished render requires confirmation.
-- Status explains “Writing and validating JSON script”.
-- Invalid output offers “Repair script” once; then “Generate again”.
+- Summary names the selected script configuration, text-generation API, and model. The ordered speaker editor remains the single source of truth for the cast.
+- “Review plan before writing” is unchecked and session-only. The default “Generate script” action shows “Planning episode…” followed by “Writing and validating script…”. When checked, the action becomes “Create plan” and stops after planning.
+- A valid plan stays visible in Quick and reviewed flows. Its read view shows working title, goal, listener promise, Format approach, priorities, exclusions, speaker contributions, progression, and ending.
+- “Edit plan” follows the same explicit edit lifecycle as structured script editing: it becomes “Save edits”, exposes “Cancel edits”, preserves an in-progress draft across workflow and connectivity updates, and retains invalid edits for correction. Writing, replacement-plan generation, and model revision are unavailable until edits are saved or cancelled. List and beat actions use compact, accessible move and delete controls; save and cancel restore focus to the edit action and announce the outcome. “Ask for changes to this plan” requests a complete replacement plan. “Generate script from plan” is disabled while the plan is stale.
+- Invalid plan output offers one “Repair plan” action. Network/provider failure offers retry. Cancel retains the last valid plan and script.
+- “Import script JSON” bypasses planning and opens the script directly in the next step.
 
-### Step 4: Review or skip
+### Step 4: Script
 
 After validation:
 
@@ -112,6 +117,8 @@ After validation:
 - Primary action: “Render audio”.
 
 Review is optional: users may render immediately. Structured editing remains the default; raw JSON editing is an explicit advanced path guarded by the same schema validation used for imports and pre-render validation. JSON remains the script download format.
+
+Source or planning-input changes mark the plan and current script stale. A stale script remains reviewable and renderable with a warning. Voice-only changes do not stale the plan.
 
 ### Step 5: Render
 
@@ -147,7 +154,7 @@ On startup with one recoverable render:
 
 ## 6. Settings
 
-Settings use one responsive dialog or full-height mobile sheet. The dialog has three persistent sections: Providers, Podcast, and Data & privacy, arranged in a compact horizontal navigation bar. Podcast contains Formats, Speaker profiles, and Advanced prompts pages. Every Settings page uses shared outer insets, title/supporting-text spacing, content-group gaps, and action alignment. Add/edit workflows open focused subpages with a Back action. Data backup, restore, and Clear local data appear only in Data & privacy. The clear action sits in a distinct Danger zone and confirms the complete removal scope before deleting local settings and unfinished work.
+Settings use one responsive dialog or full-height mobile sheet. The dialog has three persistent sections: Providers, Podcast, and Data & privacy, arranged in a compact horizontal navigation bar. Podcast contains Episode directions, Formats, Speaker profiles, and Advanced prompts pages. Every Settings page uses shared outer insets, title/supporting-text spacing, content-group gaps, and action alignment. Add/edit workflows open focused subpages with a Back action. Data backup, restore, and Clear local data appear only in Data & privacy. The clear action sits in a distinct Danger zone and confirms the complete removal scope before deleting local settings and unfinished work.
 
 Saved configuration list:
 
@@ -173,11 +180,11 @@ Script and TTS selectors elsewhere display saved configuration name plus endpoin
 
 When an action needs an unavailable provider configuration, provider settings opens directly on the creation form. Saving selects that configuration for the required text-generation or TTS slot and resumes the action.
 
-Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates current-format JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, format templates, speaker profiles, and advanced prompt templates without merging. Unsupported backups require recreation under the current format.
+Settings provide JSON export and restore. Export warns that API keys are unencrypted. Restore validates current-format JSON and requires confirmation because it fully replaces provider configurations, model/voice lists, selections, Episode Direction templates, Format templates, speaker profiles, and advanced prompt templates without merging. Unsupported backups require recreation under the current format.
 
-Format and speaker-profile lists support add, edit, confirmed delete, and starter restoration. Starter restoration resets bundled IDs, restores missing starters, retains custom records, and reports names skipped because a custom record already uses them. Saved record edits do not mutate active generation drafts.
+Episode Direction, Format, and speaker-profile lists support add, edit, confirmed delete, and starter restoration. Starter restoration resets bundled IDs, restores missing starters, retains custom records, and reports names skipped because a custom record already uses them. Saved record edits do not mutate active generation drafts.
 
-Advanced prompts retain the existing message-layer editor. Each script-generation and repair message layer has its own keyboard-operable tab/page and is read-only until explicitly unlocked. A preview toggle replaces template editing with a full-width rendered view of final script system and user messages using current Podcast source and settings; unsaved editor changes are included and the user may refresh inputs explicitly. Returning to editing restores the selected template page. Saving modified instructions requires confirmation. Each template and all templates together can restore bundled defaults. Missing required runtime placeholders prevent save and identify exact missing placeholder.
+Advanced prompts group keyboard-operable message pages into Planning, Writing, and Validation repair. Each planner, revision, writer, approved-plan handoff, and repair layer has its own tab/page and is read-only until explicitly unlocked. A preview toggle replaces template editing with a full-width rendered view of the planner request and, when a current plan exists, the writer request; unsaved editor changes are included and the user may refresh inputs explicitly. Returning to editing restores the selected template page. Saving modified instructions requires confirmation. Each template and all templates together can restore bundled defaults. Missing required runtime placeholders prevent save and identify exact missing placeholder.
 
 ## 7. Responsive behavior
 
@@ -318,7 +325,7 @@ Examples:
 - User can identify separate text-generation and TTS configurations and the selected text-generation API.
 - Podcast can be rendered directly after script validation.
 - User can edit speaker turns through structured editor.
-- User can manage reusable formats and speaker profiles, then temporarily adapt copied values for one generation.
+- User can manage reusable Episode directions, Formats, and speaker profiles, then temporarily adapt copied values for one generation.
 - User can add, remove, and keyboard-reorder one through eight speaker cards without changing an existing script implicitly.
 - User can review and edit canonical script JSON without invalid changes replacing the current valid script.
 - Partial failure preserves and exposes completed work.

@@ -4,6 +4,10 @@ import {
   validateScript,
   normalizeScript,
   buildScriptPrompt,
+  buildPlanPrompt,
+  buildPlanRevisionMessages,
+  buildPlanRepairMessages,
+  buildWriterPrompt,
   buildRepairMessages,
   exportableScript,
   validatePodcastPreferences,
@@ -15,6 +19,7 @@ import {
 } from '../../src/domain/prompt-templates.js';
 
 const prefs = {
+  episodeDirection: 'Prioritize the central argument.',
   formatInstructions: 'Create a natural conversation.',
   audience: 'general',
   speakers: [
@@ -37,6 +42,22 @@ const validScript = {
     { id: 'segment-0001', speakerId: 'speaker-1', text: 'Welcome.', pauseAfterMs: 350 },
     { id: 'segment-0002', speakerId: 'speaker-2', text: 'Thanks.', pauseAfterMs: 0 },
   ],
+};
+
+const validPlan = {
+  schemaVersion: 1,
+  workingTitle: 'Plan',
+  editorialGoal: 'Explain the central claim.',
+  listenerPromise: 'Understand the claim.',
+  formatApproach: 'Use a responsive conversation.',
+  priorities: ['Central claim'],
+  exclusions: [],
+  speakerContributions: [
+    { speakerId: 'speaker-1', contribution: 'Frame the issue.' },
+    { speakerId: 'speaker-2', contribution: 'Explain the claim.' },
+  ],
+  beats: [{ id: 'beat-1', title: 'Issue', purpose: 'Develop the issue.' }],
+  ending: 'Consolidate the takeaway.',
 };
 
 describe('buildScriptPrompt', () => {
@@ -100,7 +121,43 @@ describe('buildRepairMessages', () => {
   });
 });
 
+describe('two-stage prompt construction', () => {
+  it('builds a planner request with separated editorial ownership and current inputs', () => {
+    const messages = buildPlanPrompt('SOURCE TEXT HERE', prefs);
+    expect(messages[0].content).toContain('editorial planner');
+    expect(messages[0].content).toContain('Episode direction supplies purpose');
+    expect(messages[0].content).toContain('not exact dialogue or turn order');
+    expect(messages[1].content).toContain(prefs.episodeDirection);
+    expect(messages[1].content).toContain(prefs.formatInstructions);
+    expect(messages[1].content).toContain('SOURCE TEXT HERE');
+  });
+
+  it('hands the approved plan to the writer without invalidating existing script overrides', () => {
+    const messages = buildWriterPrompt('SOURCE', prefs, validPlan, {
+      scriptUser: 'Custom {{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}}',
+    });
+    expect(messages[1].content).toContain('Custom');
+    expect(messages[2].content).toContain('APPROVED EPISODE PLAN');
+    expect(messages[2].content).toContain('Central claim');
+  });
+
+  it('builds complete-plan revision and validation-only repair requests', () => {
+    const revision = buildPlanRevisionMessages('SOURCE', prefs, validPlan, 'Narrow the focus.');
+    expect(revision.at(-2).content).toContain('workingTitle');
+    expect(revision.at(-1).content).toContain('Narrow the focus.');
+    const repair = buildPlanRepairMessages('{"bad":true}', ['workingTitle must be non-empty text.']);
+    expect(repair[1].content).toContain('"bad"');
+    expect(repair[2].content).toContain('workingTitle');
+  });
+});
+
 describe('prompt templates', () => {
+  it('keeps every bundled planning, writing, and repair template valid', () => {
+    for (const [id, template] of Object.entries(DEFAULT_PROMPT_TEMPLATES)) {
+      expect(validatePromptTemplate(id, template), id).toEqual({ valid: true });
+    }
+  });
+
   it('rejects unsupported placeholders', () => {
     expect(validatePromptTemplate('scriptUser', DEFAULT_PROMPT_TEMPLATES.scriptUser).valid).toBe(true);
     expect(validatePromptTemplate('scriptUser', '{{formatDescription}} {{audience}} {{speakers}} {{speakerIds}} {{voices}} {{source}} {{unknownPlaceholder}}').valid).toBe(false);

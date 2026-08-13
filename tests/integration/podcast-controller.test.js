@@ -17,6 +17,7 @@ const ttsProvider = {
 const ttsModel = { model: 'tts-1', voices: ['alloy', 'verse'], responseFormat: 'mp3' };
 
 const prefs = {
+  episodeDirection: 'Prioritize the central argument.',
   formatInstructions: 'Create a natural conversation.',
   audience: 'general',
   speakers: [
@@ -42,8 +43,28 @@ const validScript = {
   ],
 };
 
+function planFor(speakers = validScript.speakers) {
+  return {
+    schemaVersion: 1,
+    workingTitle: 'Test plan',
+    editorialGoal: 'Explain the central argument.',
+    listenerPromise: 'Understand the issue and its implications.',
+    formatApproach: 'Develop the issue through a responsive conversation.',
+    priorities: ['The central argument'],
+    exclusions: [],
+    speakerContributions: speakers.map((speaker) => ({
+      speakerId: speaker.id,
+      contribution: `Contribute as ${speaker.name}.`,
+    })),
+    beats: [{ id: 'beat-1', title: 'Central issue', purpose: 'Establish and develop the main question.' }],
+    ending: 'Consolidate the implications.',
+  };
+}
+
 function textReturning(script) {
-  return vi.fn().mockResolvedValue({ content: JSON.stringify(script), model: 'm' });
+  return vi.fn()
+    .mockResolvedValueOnce({ content: JSON.stringify(planFor(script.speakers)), model: 'm' })
+    .mockResolvedValue({ content: JSON.stringify(script), model: 'm' });
 }
 
 function speechOk() {
@@ -60,6 +81,100 @@ beforeEach(() => {
 });
 
 describe('podcast script generation', () => {
+  it('reviewed mode stops after planning and writes only after explicit generation', async () => {
+    const textGeneration = textReturning(validScript);
+    const controller = createPodcastController({ textGeneration });
+    await controller.generatePlan('source text', prefs, textProvider);
+    expect(textGeneration).toHaveBeenCalledTimes(1);
+    expect(controller.store.get()).toMatchObject({ status: 'ready', script: null, planStale: false });
+    expect(controller.store.get().plan.workingTitle).toBe('Test plan');
+
+    await controller.generateScriptFromPlan('source text', prefs, textProvider);
+    expect(textGeneration).toHaveBeenCalledTimes(2);
+    expect(controller.store.get().script.title).toBe('Test Show');
+  });
+
+  it('enforces planning-input staleness while excluding voice-only changes', async () => {
+    const voiceOnlyGeneration = textReturning(validScript);
+    const voiceController = createPodcastController({ textGeneration: voiceOnlyGeneration });
+    await voiceController.generatePlan('source text', prefs, textProvider);
+    const voicePrefs = {
+      ...prefs,
+      speakers: prefs.speakers.map((speaker, index) => index === 0 ? { ...speaker, voice: 'nova' } : speaker),
+    };
+    await voiceController.generateScriptFromPlan('source text', voicePrefs, textProvider);
+    expect(voiceController.store.get()).toMatchObject({ status: 'ready', planStale: false });
+
+    const staleGeneration = textReturning(validScript);
+    const staleController = createPodcastController({ textGeneration: staleGeneration });
+    await staleController.generatePlan('source text', prefs, textProvider);
+    await expect(staleController.generateScriptFromPlan('changed source', prefs, textProvider))
+      .rejects.toThrow(/stale episode plan/i);
+    expect(staleController.store.get()).toMatchObject({ planStale: true });
+    expect(staleGeneration).toHaveBeenCalledTimes(1);
+  });
+
+  it('revises and directly edits a plan while preserving a stale script', async () => {
+    const revised = { ...planFor(), editorialGoal: 'Use a narrower editorial goal.' };
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(revised), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.revisePlan('source', prefs, textProvider, 'Narrow the goal.');
+    expect(controller.store.get()).toMatchObject({ scriptStale: true, planStale: false });
+    expect(controller.store.get().script.title).toBe('Test Show');
+    const edited = controller.applyEditedPlan(
+      { ...revised, ending: 'End with the unresolved implication.' },
+      'source',
+      prefs,
+    );
+    expect(edited.ending).toContain('unresolved implication');
+  });
+
+  it('offers one plan repair and stops with a reviewable plan', async () => {
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: '{"invalid":true}', model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generatePlan('source', prefs, textProvider);
+    expect(controller.store.get()).toMatchObject({ status: 'failed', planRepairAvailable: true });
+    await controller.repairPlan();
+    expect(controller.store.get()).toMatchObject({ status: 'ready', planRepairAvailable: false, script: null });
+    expect(textGeneration).toHaveBeenCalledTimes(2);
+  });
+
+  it('retries a failed writer without rerunning planning', async () => {
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockRejectedValueOnce(new AppError({ kind: 'network', message: 'offline', retryable: true }))
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    expect(controller.store.get()).toMatchObject({ status: 'failed', plan: planFor() });
+    await controller.retryScriptGeneration();
+    expect(controller.store.get().script.title).toBe('Test Show');
+    expect(textGeneration).toHaveBeenCalledTimes(3);
+  });
+
+  it('cancels writing while retaining the valid plan', async () => {
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockImplementationOnce(({ signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new AppError({
+          kind: 'cancelled', message: 'Request cancelled.', retryable: false,
+        })), { once: true });
+      }));
+    const controller = createPodcastController({ textGeneration });
+    const run = controller.generateScript('source', prefs, textProvider);
+    await vi.waitFor(() => expect(controller.store.get().generationPhase).toBe('writing-script'));
+    controller.cancelGeneration();
+    await run;
+    expect(controller.store.get()).toMatchObject({ status: 'cancelled', script: null });
+    expect(controller.store.get().plan.workingTitle).toBe('Test plan');
+  });
+
   it('valid output becomes ready script', async () => {
     const controller = createPodcastController({
       textGeneration: textReturning(validScript),
@@ -92,6 +207,7 @@ describe('podcast script generation', () => {
   it('invalid output fails with schema error and one repair option', async () => {
     const textGeneration = vi
       .fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
       .mockResolvedValueOnce({ content: '{"invalid":true}', model: 'm' })
       .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' });
     const controller = createPodcastController({ textGeneration, speech: speechOk(), decode: fakeDecode });
@@ -105,9 +221,9 @@ describe('podcast script generation', () => {
     state = controller.store.get();
     expect(state.status).toBe('ready');
     expect(state.script.title).toBe('Test Show');
-    expect(textGeneration).toHaveBeenCalledTimes(2);
+    expect(textGeneration).toHaveBeenCalledTimes(3);
     // repair request included validation errors
-    const repairCall = textGeneration.mock.calls[1][0];
+    const repairCall = textGeneration.mock.calls[2][0];
     expect(JSON.stringify(repairCall.messages)).toContain('schemaVersion');
   });
 

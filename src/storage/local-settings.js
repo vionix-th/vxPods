@@ -6,10 +6,13 @@ import { AppError } from '../services/errors.js';
 import { TEMPLATE_IDS, validatePromptTemplate } from '../domain/prompt-templates.js';
 import {
   isValidFormatTemplateCollection,
+  isValidEpisodeDirectionTemplateCollection,
   isValidSpeakerProfileCollection,
   normalizeFormatTemplates,
+  normalizeEpisodeDirectionTemplates,
   normalizeSpeakerProfiles,
   starterFormatTemplates,
+  starterEpisodeDirectionTemplates,
   starterSpeakerProfiles,
 } from '../domain/podcast-templates.js';
 import {
@@ -33,6 +36,7 @@ const restoreListeners = new Set();
  * @property {{ mode: 'tts' | 'podcast' }} preferences
  * @property {Partial<Record<import('../domain/prompt-templates.js').PromptTemplateId, string>>} promptTemplates
  * @property {import('../domain/podcast-templates.js').FormatTemplate[]} formatTemplates
+ * @property {import('../domain/podcast-templates.js').EpisodeDirectionTemplate[]} episodeDirectionTemplates
  * @property {import('../domain/podcast-templates.js').SpeakerProfile[]} speakerProfiles
  */
 
@@ -44,6 +48,7 @@ export function defaultSettings() {
     selectedTtsProviderId: null,
     preferences: { mode: 'tts' },
     promptTemplates: {},
+    episodeDirectionTemplates: starterEpisodeDirectionTemplates(),
     formatTemplates: starterFormatTemplates(),
     speakerProfiles: starterSpeakerProfiles(),
   };
@@ -153,6 +158,10 @@ export function validateSettingsBackup(backup) {
   if (!isValidFormatTemplateCollection(raw.formatTemplates)) {
     throw validationError('Settings file contains invalid format templates.');
   }
+  if (Object.hasOwn(raw, 'episodeDirectionTemplates') &&
+      !isValidEpisodeDirectionTemplateCollection(raw.episodeDirectionTemplates)) {
+    throw validationError('Settings file contains invalid episode direction templates.');
+  }
   if (!isValidSpeakerProfileCollection(raw.speakerProfiles)) {
     throw validationError('Settings file contains invalid speaker profiles.');
   }
@@ -203,6 +212,9 @@ function validateDocument(doc) {
       : null,
     preferences: { mode: doc.preferences?.mode === 'podcast' ? 'podcast' : 'tts' },
     promptTemplates: validPromptTemplateOverrides(doc.promptTemplates),
+    episodeDirectionTemplates: Object.hasOwn(doc, 'episodeDirectionTemplates')
+      ? normalizeEpisodeDirectionTemplates(doc.episodeDirectionTemplates)
+      : starterEpisodeDirectionTemplates(),
     formatTemplates: normalizeFormatTemplates(doc.formatTemplates),
     speakerProfiles: normalizeSpeakerProfiles(doc.speakerProfiles),
   };

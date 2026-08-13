@@ -4,7 +4,7 @@ import { confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { loadSettings, saveSettings } from '../../storage/local-settings.js';
-import { buildScriptPrompt } from './podcast-script.js';
+import { buildPlanPrompt, buildWriterPrompt } from './podcast-script.js';
 import {
   DEFAULT_PROMPT_TEMPLATES,
   PROMPT_TEMPLATE_METADATA,
@@ -14,15 +14,21 @@ import {
 } from '../../domain/prompt-templates.js';
 
 const TEMPLATE_PAGES = {
-  scriptSystem: { tab: 'Script rules', messageType: 'System message' },
-  scriptUser: { tab: 'Script brief', messageType: 'User message' },
-  repairSystem: { tab: 'Repair rules', messageType: 'System message' },
-  repairUser: { tab: 'Repair brief', messageType: 'User message' },
+  plannerSystem: { tab: 'Planner rules', messageType: 'System message', group: 'Planning' },
+  plannerUser: { tab: 'Planner brief', messageType: 'User message', group: 'Planning' },
+  planRevisionUser: { tab: 'Plan revision', messageType: 'User message', group: 'Planning' },
+  scriptSystem: { tab: 'Script rules', messageType: 'System message', group: 'Writing' },
+  scriptUser: { tab: 'Script brief', messageType: 'User message', group: 'Writing' },
+  episodePlanHandoff: { tab: 'Plan handoff', messageType: 'User message', group: 'Writing' },
+  planRepairSystem: { tab: 'Plan repair rules', messageType: 'System message', group: 'Validation repair' },
+  planRepairUser: { tab: 'Plan repair brief', messageType: 'User message', group: 'Validation repair' },
+  repairSystem: { tab: 'Repair rules', messageType: 'System message', group: 'Validation repair' },
+  repairUser: { tab: 'Repair brief', messageType: 'User message', group: 'Validation repair' },
 };
 
 /**
  * @param {HTMLElement} body
- * @param {{ onBack: () => void, backLabel?: string, onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences } }} options
+ * @param {{ onBack: () => void, backLabel?: string, onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences, plan?: import('../../domain/episode-plan-schema.js').EpisodePlan | null } }} options
  */
 export function renderPromptTemplateSettings(body, options) {
   body.replaceChildren();
@@ -81,6 +87,19 @@ export function renderPromptTemplateSettings(body, options) {
   workspace.className = 'prompt-editor-workspace';
   workspace.append(panel, preview);
 
+  const groups = new Map();
+  for (const groupName of ['Planning', 'Writing', 'Validation repair']) {
+    const group = document.createElement('div');
+    group.className = 'prompt-template-group';
+    const label = document.createElement('span');
+    label.className = 'prompt-template-group-label';
+    label.textContent = groupName;
+    const controls = document.createElement('div');
+    controls.className = 'prompt-template-group-controls';
+    group.append(label, controls);
+    tabList.append(group);
+    groups.set(groupName, controls);
+  }
   for (const id of TEMPLATE_IDS) {
     const tab = document.createElement('button');
     tab.type = 'button';
@@ -102,7 +121,7 @@ export function renderPromptTemplateSettings(body, options) {
       tabs.get(nextId).focus();
     });
     tabs.set(id, tab);
-    tabList.append(tab);
+    groups.get(TEMPLATE_PAGES[id].group).append(tab);
   }
 
   const footer = document.createElement('div');
@@ -296,8 +315,24 @@ export function renderPromptTemplateSettings(body, options) {
       preview.append(message);
       return;
     }
-    const messages = buildScriptPrompt(previewContext.source, previewContext.prefs, drafts);
-    for (const message of messages) {
+    appendMessages('Planning request', buildPlanPrompt(previewContext.source, previewContext.prefs, drafts));
+    if (previewContext.plan) {
+      appendMessages(
+        'Writing request',
+        buildWriterPrompt(previewContext.source, previewContext.prefs, previewContext.plan, drafts),
+      );
+    } else {
+      const message = document.createElement('p');
+      message.className = 'help-text';
+      message.textContent = 'Create an editorial plan in the Podcast workflow to preview the writing request.';
+      preview.append(message);
+    }
+
+    function appendMessages(requestTitle, messages) {
+      const requestHeading = document.createElement('h5');
+      requestHeading.textContent = requestTitle;
+      preview.append(requestHeading);
+      for (const message of messages) {
       const card = document.createElement('section');
       card.className = 'prompt-preview-message';
       const label = document.createElement('h5');
@@ -306,6 +341,7 @@ export function renderPromptTemplateSettings(body, options) {
       content.textContent = message.content;
       card.append(label, content);
       preview.append(card);
+      }
     }
   }
 

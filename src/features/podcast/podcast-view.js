@@ -1,6 +1,6 @@
 /**
  * Podcast workflow view: guided six-step pipeline.
- * Source → Shape → Script → Review/Edit → Render → Export.
+ * Source → Shape → Plan → Script → Render → Export.
  * A compact stepper shows pipeline position; downstream cards unlock as the
  * workflow advances. Script review offers a structured turn editor plus a
  * raw JSON view with validated advanced editing.
@@ -21,20 +21,28 @@ import {
   subscribeProviders,
 } from '../providers/provider-store.js';
 import { createPodcastScriptReview } from './podcast-script-review.js';
+import { createEpisodePlanReview } from './episode-plan-review.js';
 import { createPodcastSpeakerSettings } from './podcast-speaker-settings.js';
 import {
   TEXT_GENERATION_API_LABELS,
 } from '../../domain/provider-config.js';
 import { downloadBlob, downloadJson } from '../../utils/download.js';
 import { AppError } from '../../services/errors.js';
-import { STARTER_FORMAT_TEMPLATES } from '../../domain/podcast-templates.js';
-import { listFormatTemplates, subscribePodcastTemplates } from './podcast-template-store.js';
+import {
+  STARTER_EPISODE_DIRECTION_TEMPLATES,
+  STARTER_FORMAT_TEMPLATES,
+} from '../../domain/podcast-templates.js';
+import {
+  listEpisodeDirectionTemplates,
+  listFormatTemplates,
+  subscribePodcastTemplates,
+} from './podcast-template-store.js';
 
 const STEPS = [
   { id: 'source', label: 'Source' },
   { id: 'shape', label: 'Shape' },
+  { id: 'plan', label: 'Plan' },
   { id: 'script', label: 'Script' },
-  { id: 'review', label: 'Review' },
   { id: 'render', label: 'Render' },
   { id: 'export', label: 'Export' },
 ];
@@ -101,6 +109,39 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   prefsCard.className = 'card';
   prefsCard.append(cardHeader('Podcast settings'));
 
+  const directionStarter = STARTER_EPISODE_DIRECTION_TEMPLATES[0];
+  let selectedDirectionTemplateId = listEpisodeDirectionTemplates().find((record) =>
+    record.id === directionStarter.id)?.id ?? directionStarter.id;
+  const directionTemplateField = selectField({
+    label: 'Episode direction template',
+    options: [],
+    value: selectedDirectionTemplateId,
+  });
+  const directionInstructionsField = textAreaField({
+    label: 'Episode direction',
+    value: listEpisodeDirectionTemplates().find((record) => record.id === selectedDirectionTemplateId)?.instructions
+      ?? directionStarter.instructions,
+    required: true,
+    rows: 4,
+    help: 'Define this episode’s purpose, angle, priorities, depth, and intentional omissions.',
+  });
+  directionInstructionsField.input.maxLength = 4000;
+  const directionResetButton = document.createElement('button');
+  directionResetButton.type = 'button';
+  directionResetButton.className = 'button button-ghost button-small';
+  directionResetButton.textContent = 'Reset to direction template';
+  const directionStatus = document.createElement('p');
+  directionStatus.className = 'help-text';
+  directionStatus.setAttribute('aria-live', 'polite');
+  const directionEditor = document.createElement('section');
+  directionEditor.className = 'format-draft-editor';
+  directionEditor.append(
+    directionTemplateField.wrapper,
+    directionInstructionsField.wrapper,
+    directionStatus,
+    directionResetButton,
+  );
+
   const conversationStarter = STARTER_FORMAT_TEMPLATES[0];
   let selectedFormatTemplateId = listFormatTemplates().find((record) =>
     record.id === conversationStarter.id)?.id ?? conversationStarter.id;
@@ -157,6 +198,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   });
 
   prefsCard.append(
+    directionEditor,
     formatEditor,
     audienceField.wrapper,
     textProviderSelect.element,
@@ -164,6 +206,64 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     textModelField.wrapper,
     ttsModelField.wrapper,
   );
+
+  function refreshDirectionTemplates() {
+    const templates = listEpisodeDirectionTemplates();
+    const selected = templates.find((record) => record.id === selectedDirectionTemplateId);
+    const optionIds = templates.map((record) => record.id);
+    if (!selected) optionIds.push('__custom__');
+    directionTemplateField.setOptions(optionIds);
+    for (const option of directionTemplateField.input.options) {
+      option.textContent = option.value === '__custom__'
+        ? 'Custom (saved template unavailable)'
+        : templates.find((record) => record.id === option.value)?.name ?? option.value;
+    }
+    directionTemplateField.input.value = selected ? selectedDirectionTemplateId : '__custom__';
+    updateDirectionDraftState();
+  }
+
+  function updateDirectionDraftState() {
+    const selected = listEpisodeDirectionTemplates().find((record) => record.id === selectedDirectionTemplateId);
+    const dirty = !selected || directionInstructionsField.input.value !== selected.instructions;
+    directionStatus.textContent = dirty ? 'Temporary changes.' : 'Using saved Episode direction instructions.';
+    directionResetButton.disabled = !selected || !dirty;
+  }
+
+  directionTemplateField.input.addEventListener('change', async () => {
+    const nextId = directionTemplateField.input.value;
+    if (nextId === '__custom__') return;
+    const current = listEpisodeDirectionTemplates().find((record) => record.id === selectedDirectionTemplateId);
+    const dirty = !current || directionInstructionsField.input.value !== current.instructions;
+    if (dirty) {
+      const confirmed = await confirmDialog({
+        title: 'Switch Episode direction',
+        message: 'Discard temporary Episode direction changes and load another template?',
+        confirmLabel: 'Discard and switch',
+      });
+      if (!confirmed) {
+        refreshDirectionTemplates();
+        return;
+      }
+    }
+    const next = listEpisodeDirectionTemplates().find((record) => record.id === nextId);
+    if (!next) return refreshDirectionTemplates();
+    selectedDirectionTemplateId = next.id;
+    directionInstructionsField.input.value = next.instructions;
+    updateDirectionDraftState();
+    markScriptDraftStale();
+  });
+  directionInstructionsField.input.addEventListener('input', () => {
+    updateDirectionDraftState();
+    markScriptDraftStale();
+  });
+  directionResetButton.addEventListener('click', () => {
+    const selected = listEpisodeDirectionTemplates().find((record) => record.id === selectedDirectionTemplateId);
+    if (!selected) return;
+    directionInstructionsField.input.value = selected.instructions;
+    updateDirectionDraftState();
+    markScriptDraftStale();
+    directionInstructionsField.input.focus();
+  });
 
   function refreshFormatTemplates() {
     const templates = listFormatTemplates();
@@ -225,7 +325,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     markScriptDraftStale();
     formatInstructionsField.input.focus();
   });
-  subscribePodcastTemplates(refreshFormatTemplates);
+  subscribePodcastTemplates(() => {
+    refreshDirectionTemplates();
+    refreshFormatTemplates();
+  });
+  refreshDirectionTemplates();
   refreshFormatTemplates();
 
   function refreshProviderSuggestions() {
@@ -252,10 +356,10 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   ttsModelField.input.addEventListener('change', () => speakerSettings.refresh());
   subscribeProviders(refreshProviderSuggestions);
 
-  // ---------- Step 3: script generation
+  // ---------- Step 3: editorial planning and script generation
   const scriptCard = document.createElement('section');
   scriptCard.className = 'card';
-  scriptCard.append(cardHeader('Generate or update script'));
+  scriptCard.append(cardHeader('Plan and generate'));
   const scriptSummary = document.createElement('p');
   scriptSummary.className = 'help-text';
   const speakerSettings = createPodcastSpeakerSettings({
@@ -266,10 +370,22 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     onStructureChange: markScriptDraftStale,
   });
   refreshProviderSuggestions();
+  const reviewPlanLabel = document.createElement('label');
+  reviewPlanLabel.className = 'checkbox-row';
+  const reviewPlanInput = document.createElement('input');
+  reviewPlanInput.type = 'checkbox';
+  const reviewPlanText = document.createElement('span');
+  reviewPlanText.textContent = 'Review plan before writing';
+  reviewPlanLabel.append(reviewPlanInput, reviewPlanText);
   const generateScriptButton = document.createElement('button');
   generateScriptButton.type = 'button';
   generateScriptButton.className = 'button button-primary';
   generateScriptButton.textContent = 'Generate script';
+  const cancelGenerationButton = document.createElement('button');
+  cancelGenerationButton.type = 'button';
+  cancelGenerationButton.className = 'button button-secondary';
+  cancelGenerationButton.textContent = 'Cancel generation';
+  cancelGenerationButton.hidden = true;
   const importScriptButton = document.createElement('button');
   importScriptButton.type = 'button';
   importScriptButton.className = 'button button-secondary';
@@ -282,6 +398,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   scriptActions.className = 'action-row';
   scriptActions.append(
     generateScriptButton,
+    cancelGenerationButton,
     speakerSettings.applyButton,
     importScriptButton,
     importScriptInput,
@@ -294,7 +411,27 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   scriptStale.hidden = true;
   scriptStale.textContent = 'Current script uses previous generation settings. Generate again to apply format or cast changes.';
   const scriptErrors = createErrorScope();
-  scriptCard.append(scriptSummary, scriptStale, speakerSettings.element, scriptActions, scriptStatus);
+  const planReview = createEpisodePlanReview({
+    announce: (message) => progress.announce(message),
+    onEditingChange: () => syncOnline(),
+    onApply: (plan) => controller.applyEditedPlan(plan, source.getText(), readPrefs()),
+    onGenerate: () => runScriptFromPlan(),
+    onCreateNew: () => runPlanOnly(),
+    onRevise: async (request) => {
+      const provider = await selectedTextProvider();
+      if (!provider) return;
+      await controller.revisePlan(source.getText(), readPrefs(), provider, request);
+    },
+  });
+  scriptCard.append(
+    scriptSummary,
+    scriptStale,
+    speakerSettings.element,
+    reviewPlanLabel,
+    scriptActions,
+    scriptStatus,
+    planReview.element,
+  );
 
   // ---------- Step 4: review & edit
   const review = createPodcastScriptReview({
@@ -372,8 +509,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
   stepCards.set('source', source.element);
   stepCards.set('shape', prefsCard);
-  stepCards.set('script', scriptCard);
-  stepCards.set('review', review.element);
+  stepCards.set('plan', scriptCard);
+  stepCards.set('script', review.element);
   stepCards.set('render', renderCard);
   stepCards.set('export', exportCard);
 
@@ -382,6 +519,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   let previousScriptStatus = 'idle';
   let previousRenderStatus = 'idle';
   let lastReviewedScript = null;
+  let lastPresentedPlan = null;
   /** @type {HTMLButtonElement | null} */
   let resumeButton = null;
 
@@ -420,9 +558,9 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   let generationShapeChanged = false;
 
   function markScriptDraftStale() {
-    if (!controller.store.get().script) return;
+    if (!controller.store.get().script && !controller.store.get().plan) return;
     generationShapeChanged = true;
-    scriptStale.hidden = !generationShapeChanged;
+    controller.markPlanningInputsStale();
     syncSpeakerApplyState();
   }
 
@@ -440,6 +578,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
 
   function readPrefs() {
     return {
+      episodeDirection: directionInstructionsField.input.value.trim(),
       formatInstructions: formatInstructionsField.input.value.trim(),
       audience: audienceField.input.value.trim() || 'general',
       speakers: speakerSettings.read(),
@@ -461,18 +600,25 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   textModelField.input.addEventListener('input', updateScriptSummary);
   updateScriptSummary();
 
-  source.element.addEventListener('input', () => syncStepper(controller.store.get()));
+  source.element.addEventListener('input', () => {
+    syncStepper(controller.store.get());
+    markScriptDraftStale();
+  });
+  audienceField.input.addEventListener('input', markScriptDraftStale);
+  reviewPlanInput.addEventListener('change', () => {
+    generateScriptButton.textContent = reviewPlanInput.checked ? 'Create plan' : 'Generate script';
+  });
 
   // ---------- Script generation
 
-  generateScriptButton.addEventListener('click', async () => {
+  async function selectedTextProvider() {
     scriptErrors.clear();
     const provider = await requireProvider({
       slot: 'text',
       getSelected: textProviderSelect.getSelected,
       refresh: textProviderSelect.refresh,
     });
-    if (!provider) return;
+    if (!provider) return null;
     const prefs = readPrefs();
     if (!prefs.textModel) {
       scriptErrors.show(new AppError({
@@ -481,11 +627,43 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
         retryable: false,
         status: undefined,
       }));
-      return;
+      return null;
     }
-    await controller.generateScript(source.getText(), prefs, provider);
-    if (controller.store.get().script) clearScriptDraftStale();
+    return provider;
+  }
+
+  async function runPlanOnly() {
+    const provider = await selectedTextProvider();
+    if (!provider) return;
+    try {
+      await controller.generatePlan(source.getText(), readPrefs(), provider);
+    } catch (error) {
+      scriptErrors.show(error);
+    }
+  }
+
+  async function runScriptFromPlan() {
+    const provider = await selectedTextProvider();
+    if (!provider) return;
+    try {
+      await controller.generateScriptFromPlan(source.getText(), readPrefs(), provider);
+    } catch (error) {
+      scriptErrors.show(error);
+    }
+  }
+
+  generateScriptButton.addEventListener('click', async () => {
+    const provider = await selectedTextProvider();
+    if (!provider) return;
+    try {
+      if (reviewPlanInput.checked) await controller.generatePlan(source.getText(), readPrefs(), provider);
+      else await controller.generateScript(source.getText(), readPrefs(), provider);
+    } catch (error) {
+      scriptErrors.show(error);
+    }
+    if (controller.store.get().script && !controller.store.get().scriptStale) clearScriptDraftStale();
   });
+  cancelGenerationButton.addEventListener('click', () => controller.cancelGeneration());
 
   importScriptButton.addEventListener('click', () => importScriptInput.click());
   importScriptInput.addEventListener('change', async () => {
@@ -618,6 +796,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       audioUrl = null;
     }
     review.reset();
+    planReview.reset();
+    controller.resetGenerationSession();
     renderCard.hidden = true;
     exportCard.hidden = true;
     source.setText('');
@@ -626,20 +806,65 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   // ---------- Controller state rendering
 
   controller.store.subscribe((state) => {
-    const generating = state.status === 'generating';
+    const generating = state.status === 'generating' || state.status === 'cancelling';
     scriptGenerating = generating;
     syncOnline();
-    scriptStatus.textContent = generating ? 'Writing and validating JSON script…' : '';
+    const phaseLabels = {
+      planning: 'Planning episode…',
+      'revising-plan': 'Revising editorial plan…',
+      'repairing-plan': 'Repairing and validating editorial plan…',
+      'writing-script': 'Writing and validating script…',
+      'repairing-script': 'Repairing and validating script…',
+    };
+    scriptStatus.textContent = generating
+      ? state.status === 'cancelling' ? 'Cancelling generation…' : phaseLabels[state.generationPhase] ?? 'Generating…'
+      : '';
+    cancelGenerationButton.hidden = !generating;
+    cancelGenerationButton.disabled = state.status === 'cancelling';
+    scriptStale.hidden = !state.scriptStale;
+    scriptStale.textContent = state.planStale
+      ? 'The current plan and script reflect earlier source or podcast settings. The existing script remains renderable.'
+      : 'The current script reflects an earlier editorial plan. It remains renderable until regenerated.';
+    planReview.update(state.plan, readPrefs(), {
+      stale: state.planStale,
+      busy: generating,
+      offline: !isOnline(),
+    });
+
+    if (state.status === 'cancelled' && previousScriptStatus === 'cancelling') {
+      progress.announce('Podcast generation cancelled. Existing plan and script are preserved.');
+      generateScriptButton.focus();
+    }
 
     if (state.status === 'failed' && state.error) {
+      const failedInPlan = ['planning', 'revising-plan', 'repairing-plan'].includes(state.failedGenerationPhase);
+      const actionLabel = state.planRepairAvailable
+        ? 'Repair plan'
+        : state.repairAvailable
+          ? 'Repair script'
+          : failedInPlan
+            ? 'Retry plan'
+            : state.failedGenerationPhase === 'writing-script'
+              ? 'Retry script'
+              : 'Generate again';
       scriptErrors.show(state.error, {
-        actionLabel: state.repairAvailable ? 'Repair script' : 'Generate again',
+        actionLabel,
         onAction: () => {
           scriptErrors.clear();
-          if (state.repairAvailable) controller.repairScript();
+          if (state.planRepairAvailable) controller.repairPlan();
+          else if (state.repairAvailable) controller.repairScript();
+          else if (failedInPlan) controller.retryPlanGeneration();
+          else if (state.failedGenerationPhase === 'writing-script') controller.retryScriptGeneration();
           else generateScriptButton.click();
         },
       });
+    }
+
+    if (state.plan && state.status === 'ready' && state.plan !== lastPresentedPlan) {
+      if (!state.script || state.scriptStale) {
+        notify({ type: 'success', title: 'Editorial plan ready', message: 'Review, revise, or use it to generate the script.' });
+      }
+      lastPresentedPlan = state.plan;
     }
 
     if (state.script && state.status === 'ready') {
@@ -647,14 +872,15 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       syncSpeakerApplyState();
       const wasHidden = review.element.hidden;
       review.element.hidden = false;
-      if (state.script !== lastReviewedScript) {
+      const scriptChanged = state.script !== lastReviewedScript;
+      if (scriptChanged) {
         speakerSettings.hydrate(state.script);
         review.update(state.script);
         lastReviewedScript = state.script;
       }
       syncSpeakerApplyState();
-      if (wasHidden) scrollTo(review.element);
-      if (previousScriptStatus !== 'ready') {
+      if (wasHidden && !state.scriptStale) scrollTo(review.element);
+      if (scriptChanged && !state.scriptStale) {
         notify({ type: 'success', title: 'Script ready', message: 'Review it or render audio.' });
       }
     }
@@ -874,9 +1100,18 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   let scriptGenerating = false;
   function syncOnline() {
     const online = isOnline();
-    const renderStatus = controller.store.get().renderStatus;
-    generateScriptButton.disabled = scriptGenerating || !online;
+    const currentState = controller.store.get();
+    const renderStatus = currentState.renderStatus;
+    const planEditing = planReview.isEditing();
+    generateScriptButton.disabled = planEditing || scriptGenerating || !online;
+    importScriptButton.disabled = planEditing || scriptGenerating;
+    reviewPlanInput.disabled = planEditing || scriptGenerating;
     review.renderButton.disabled = review.isEditing() || !online || renderStatus === 'rendering' || renderStatus === 'exporting';
+    planReview.update(currentState.plan, readPrefs(), {
+      stale: currentState.planStale,
+      busy: scriptGenerating,
+      offline: !online,
+    });
     if (resumeButton) resumeButton.disabled = !online;
   }
   subscribeOnline(syncOnline);
@@ -887,7 +1122,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     element: root,
     checkRecovery,
     getPromptPreview() {
-      return { source: source.getText(), prefs: readPrefs() };
+      return { source: source.getText(), prefs: readPrefs(), plan: controller.store.get().plan };
     },
   };
 }

@@ -641,8 +641,25 @@
 
 .prompt-template-tabs {
   display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.prompt-template-group {
+  display: grid;
   gap: var(--space-2);
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.prompt-template-group-label {
+  color: var(--color-text-soft);
+  font: 700 0.78rem var(--font-compact);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.prompt-template-group-controls {
+  display: grid;
+  gap: var(--space-2);
 }
 
 .prompt-template-tab {
@@ -822,7 +839,7 @@
   }
 
   .prompt-template-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .prompt-preview-header {
@@ -906,6 +923,86 @@
 
 .inline-notice-warning {
   border-left-color: #b7791f;
+}
+
+.checkbox-row {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.episode-plan {
+  border-top: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+}
+
+.episode-plan h3,
+.episode-plan h4,
+.episode-plan p {
+  margin-top: 0;
+}
+
+.episode-plan dl,
+.episode-plan-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.episode-plan dt {
+  color: var(--color-heading);
+  font-weight: 700;
+}
+
+.episode-plan dd {
+  margin: 0 0 var(--space-2);
+}
+
+.episode-plan-form fieldset {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  min-width: 0;
+  padding: var(--space-4);
+}
+
+.episode-plan-form legend {
+  color: var(--color-heading);
+  font-weight: 700;
+  padding: 0 var(--space-2);
+}
+
+.episode-plan-revision,
+.episode-plan-edit-list,
+.episode-plan-beats {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.episode-plan-edit-row {
+  align-items: start;
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.episode-plan-edit-row .field {
+  margin: 0;
+}
+
+.episode-plan-edit-row .segment-tools,
+.episode-plan-beat-head .segment-tools {
+  padding-top: var(--space-1);
+}
+
+.episode-plan-beat-head {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .speaker-card {

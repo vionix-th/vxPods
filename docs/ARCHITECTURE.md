@@ -292,12 +292,16 @@ Model output enters as untrusted text, passes JSON isolation and schema validati
 ## 9. Podcast generation pipeline
 
 ```text
-Source + preferences
+Source + Episode direction + Format + Audience + Cast
   -> local validation
-  -> API-neutral text-generation messages
+  -> API-neutral editorial-planner messages
   -> configured Chat Completions or Responses adapter
   -> JSON extraction
-  -> schema validation/normalization
+  -> EpisodePlan validation/normalization
+  -> optional user review, direct edit, or complete-plan revision
+  -> API-neutral script-writer messages with approved plan
+  -> configured text-generation adapter
+  -> PodcastScript validation/normalization
   -> optional user review/edit
   -> final validation
   -> create recoverable render job
@@ -308,9 +312,17 @@ Source + preferences
   -> cleanup after browser download is triggered or explicit discard
 ```
 
-Prompt construction lives in `features/podcast/podcast-script.js`. It must:
+Prompt construction lives in `features/podcast/podcast-script.js`. Planning must:
+
+- Compose source, Episode direction, Format, Audience, and Cast as separately owned inputs.
+- Make editorial selection and omission explicit without prescribing exact dialogue or turn order.
+- Return the canonical session-only EpisodePlan contract and exactly one contribution for each current speaker.
+- Treat delimited source material as untrusted reference content rather than model instructions.
+
+Writing must:
 
 - State JSON schema and allowed speakers.
+- Treat the approved EpisodePlan as authoritative for editorial selection, progression, and episode-specific contributions.
 - Keep the global system layer limited to the output contract, source integrity, prompt precedence, sequential-audio constraints, and natural spoken output.
 - Compose temporary format instructions, audience, and speaker roles as separate request layers with explicit ownership: format governs structure, interaction, and show-level delivery; speaker roles guide individual contribution and delivery within that format; audience governs shared assumptions and explanatory depth.
 - Use the source as the factual and topical foundation, represent it faithfully, and permit analysis, interpretation, questioning, comparison, criticism, and clearly hypothetical illustrations.
@@ -321,7 +333,26 @@ Prompt construction lives in `features/podcast/podcast-script.js`. It must:
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
-One explicit stateless repair request may submit validation errors and prior output through the selected text-generation configuration. Its prompt treats prior output as untrusted data, requests the minimum validation correction, preserves all valid script content and order, and prohibits unrelated content changes. Further attempts require user action.
+One explicit stateless repair request is available independently for invalid EpisodePlan output and invalid PodcastScript output. Each submits validation errors and prior output through the selected text-generation configuration, treats prior output as untrusted data, requests the minimum validation correction, and prohibits unrelated content changes. A repaired plan stops for review rather than continuing to script writing automatically.
+
+`EpisodePlan` is canonical only within the current browser session:
+
+```js
+{
+  schemaVersion: 1,
+  workingTitle: string,
+  editorialGoal: string,
+  listenerPromise: string,
+  formatApproach: string,
+  priorities: string[],
+  exclusions: string[],
+  speakerContributions: { speakerId: string, contribution: string }[],
+  beats: { id: string, title: string, purpose: string }[],
+  ending: string
+}
+```
+
+It is not stored in IndexedDB, embedded in PodcastScript, or exported. Provider requests for planning, revision, writing, and repair receive independent abort signals. Writer retry reuses the last valid plan.
 
 ## 10. Speech and audio pipeline
 
@@ -370,17 +401,19 @@ One versioned document stores:
   selectedTtsProviderId: string | null,
   preferences: { mode: 'tts' | 'podcast' },
   promptTemplates: { /* valid per-template local overrides only; no duration target */ },
+  episodeDirectionTemplates: EpisodeDirectionTemplate[],
   formatTemplates: FormatTemplate[],
   speakerProfiles: SpeakerProfile[]
 }
 ```
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
-Settings schema 1 stores ordered reusable formats and speaker profiles with the current prompt suite. It is the first and only supported settings schema. Unreadable, corrupt, or unsupported documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement. No migration paths exist.
-Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new settings once. Empty collections persist until explicit starter restoration.
+Settings schema 1 stores ordered reusable Episode directions, Formats, and speaker profiles with the current prompt suite. Episode directions are an additive v1 field: records and backups that omit it receive bundled starters, while an explicit empty collection remains empty. Unreadable, corrupt, or unsupported documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
+Episode Direction and Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new settings. Empty collections persist until explicit starter restoration.
 
 ```js
 FormatTemplate = { id: string, name: string, instructions: string }
+EpisodeDirectionTemplate = { id: string, name: string, instructions: string }
 SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
 ```
 

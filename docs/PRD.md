@@ -33,9 +33,9 @@ R1 must let users:
 - Paste text or import UTF-8 `.txt` and `.md` files.
 - Generate direct speech from text.
 - Generate a source-anchored podcast script for one through eight speakers.
-- Save reusable format templates and speaker profiles while keeping generation-page edits temporary.
+- Save reusable Episode directions, Format templates, and speaker profiles while keeping generation-page edits temporary.
 - Optionally inspect and edit the generated podcast script.
-- Apply script-wide speaker name, role, and voice changes from canonical Generate or update script controls.
+- Apply script-wide speaker name, role, and voice changes from the canonical Plan controls.
 - Render, cancel, retry, and resume podcast audio generation.
 - Preview generated audio.
 - Export final audio as WAV or MP3.
@@ -78,7 +78,7 @@ Acceptance:
 - Deleting a configuration removes it and clears any selection that references it.
 - A malformed URL or empty key cannot be saved.
 - A provider-required action with no saved configuration opens provider creation; saving selects the new configuration for that action and resumes it.
-- Users can export every browser-local setting as JSON, including plaintext API keys, provider model/voice lists, selections, format templates, speaker profiles, and advanced prompt templates.
+- Users can export every browser-local setting as JSON, including plaintext API keys, provider model/voice lists, selections, Episode Direction templates, Format templates, speaker profiles, and advanced prompt templates.
 - Restoring a settings JSON file validates it first, then fully replaces all existing settings after confirmation; restore never merges records.
 
 ### FR-2 Source input
@@ -116,6 +116,7 @@ Acceptance:
 
 Users can configure:
 
+- A saved Episode direction plus temporary editable direction instructions.
 - A saved format template plus temporary editable format instructions.
 - Intended audience.
 - One through eight ordered speakers with stable IDs, names, and roles.
@@ -126,10 +127,11 @@ Users can configure:
 - TTS model.
 - Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
-Format templates and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record and reset on reload. Speaker profiles do not store provider-specific voices.
+Episode Direction templates, Format templates, and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record and reset on reload. Speaker profiles do not store provider-specific voices.
 
 Defaults:
 
+- Essential Overview Episode direction.
 - Conversation format instructions.
 - Host and Expert speaker profiles.
 - General audience.
@@ -141,6 +143,7 @@ Users may override prompt wording after an explicit warning; generated scripts s
 
 Prompt behavior has explicit ownership:
 
+- Episode direction owns the episode purpose, angle, priorities, depth, and intentional omissions.
 - Global script instructions own the output contract, source integrity, source-language policy, sequential-audio constraints, and the goal of natural spoken output.
 - The selected format owns discourse structure, participation relationships, interaction, and show-level delivery.
 - Speaker roles guide each speaker's contribution and delivery within the selected format; the format remains authoritative when instructions conflict.
@@ -149,6 +152,11 @@ Prompt behavior has explicit ownership:
 ### FR-5 Podcast script generation
 
 - R1 calls the configured OpenAI-compatible `POST /chat/completions` or `POST /responses` endpoint.
+- Generation first creates and validates a session-only `EpisodePlan`, then creates the canonical script from that plan.
+- Quick generation performs both requests from one action. “Review plan before writing” stops after planning until the user approves or changes the plan.
+- Users can edit plan fields, priorities, exclusions, speaker contributions, and ordered beats directly, or request a complete replacement plan in plain language.
+- Invalid plans offer one explicit validation-only repair. Writer failure retains the valid plan and retries without replanning.
+- Source, Episode direction, Format, Audience, speaker order, IDs, names, or Roles stale the plan and current script. Voice-only changes do not stale the plan. Stale scripts remain renderable with a warning.
 - Model output must conform to the versioned JSON schema defined in `docs/ARCHITECTURE.md`.
 - The application validates and normalizes output before enabling TTS rendering.
 - Validation catches unknown speakers, missing text, empty segments, invalid field types, and schema-version mismatch.
@@ -160,6 +168,8 @@ Prompt behavior has explicit ownership:
 
 Acceptance:
 
+- Quick generation produces a validated plan and script with two ordered model requests; reviewed generation stops after the first request.
+- Plans remain visible after Quick generation and are discarded on reload or Start over.
 - TTS rendering becomes available after script validation succeeds.
 - Interactive formats develop the subject through responsive exchange rather than adjacent independent monologues. Narrative and Lecture use coherent non-interactive narrative or explanatory progression.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.

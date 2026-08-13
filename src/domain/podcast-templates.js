@@ -1,12 +1,36 @@
-/** Canonical reusable Podcast format templates and speaker profiles. */
+/** Canonical reusable Podcast Episode directions, Formats, and speaker profiles. */
 
 import { AppError } from '../services/errors.js';
 
 /** @typedef {{ id: string, name: string, instructions: string }} FormatTemplate */
+/** @typedef {{ id: string, name: string, instructions: string }} EpisodeDirectionTemplate */
 /** @typedef {{ id: string, label: string, defaultSpeakerName: string, role: string }} SpeakerProfile */
 
 export const TEMPLATE_NAME_MAX_LENGTH = 100;
 export const TEMPLATE_TEXT_MAX_LENGTH = 4000;
+
+export const STARTER_EPISODE_DIRECTION_TEMPLATES = Object.freeze([
+  Object.freeze({
+    id: 'direction-essential-overview',
+    name: 'Essential Overview',
+    instructions: 'Prioritize the central argument and the supporting ideas necessary to understand it. Omit secondary material that does not materially improve understanding.',
+  }),
+  Object.freeze({
+    id: 'direction-focused-exploration',
+    name: 'Focused Exploration',
+    instructions: 'Choose one consequential question, tension, or theme in the source and explore it in depth rather than trying to cover the full source evenly.',
+  }),
+  Object.freeze({
+    id: 'direction-critical-examination',
+    name: 'Critical Examination',
+    instructions: 'Examine the source\'s claims, assumptions, evidence, implications, and plausible alternatives without requiring opposition or a predetermined verdict.',
+  }),
+  Object.freeze({
+    id: 'direction-practical-interpretation',
+    name: 'Practical Interpretation',
+    instructions: 'Explain why the source\'s ideas matter and develop implications, applications, or decisions that are supported by the supplied material.',
+  }),
+]);
 
 export const STARTER_FORMAT_TEMPLATES = Object.freeze([
   Object.freeze({
@@ -97,6 +121,10 @@ export function starterFormatTemplates() {
   return STARTER_FORMAT_TEMPLATES.map((record) => ({ ...record }));
 }
 
+export function starterEpisodeDirectionTemplates() {
+  return STARTER_EPISODE_DIRECTION_TEMPLATES.map((record) => ({ ...record }));
+}
+
 export function starterSpeakerProfiles() {
   return STARTER_SPEAKER_PROFILES.map((record) => ({ ...record }));
 }
@@ -110,6 +138,8 @@ export function normalizeFormatTemplate(value) {
     ? { id: value.id, name, instructions }
     : null;
 }
+
+export const normalizeEpisodeDirectionTemplate = normalizeFormatTemplate;
 
 /** @param {unknown} value */
 export function normalizeSpeakerProfile(value) {
@@ -130,6 +160,10 @@ export function normalizeFormatTemplates(value) {
   return normalizeCollection(value, normalizeFormatTemplate, (record) => record.name);
 }
 
+export function normalizeEpisodeDirectionTemplates(value) {
+  return normalizeCollection(value, normalizeEpisodeDirectionTemplate, (record) => record.name);
+}
+
 /** @param {unknown} value */
 export function normalizeSpeakerProfiles(value) {
   return normalizeCollection(value, normalizeSpeakerProfile, (record) => record.label);
@@ -138,6 +172,10 @@ export function normalizeSpeakerProfiles(value) {
 /** @param {unknown} value */
 export function isValidFormatTemplateCollection(value) {
   return Array.isArray(value) && normalizeFormatTemplates(value).length === value.length;
+}
+
+export function isValidEpisodeDirectionTemplateCollection(value) {
+  return Array.isArray(value) && normalizeEpisodeDirectionTemplates(value).length === value.length;
 }
 
 /** @param {unknown} value */
@@ -154,6 +192,13 @@ export function validateFormatTemplateInput(input, records, existingId = null) {
   const name = requireText(input.name, 'Format name', TEMPLATE_NAME_MAX_LENGTH);
   const instructions = requireText(input.instructions, 'Format instructions', TEMPLATE_TEXT_MAX_LENGTH);
   requireUniqueName(name, records, existingId, (record) => record.name, 'format template');
+  return { name, instructions };
+}
+
+export function validateEpisodeDirectionTemplateInput(input, records, existingId = null) {
+  const name = requireText(input.name, 'Episode direction name', TEMPLATE_NAME_MAX_LENGTH);
+  const instructions = requireText(input.instructions, 'Episode direction instructions', TEMPLATE_TEXT_MAX_LENGTH);
+  requireUniqueName(name, records, existingId, (record) => record.name, 'episode direction');
   return { name, instructions };
 }
 

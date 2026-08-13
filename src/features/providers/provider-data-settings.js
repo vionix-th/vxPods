@@ -54,7 +54,7 @@ export function renderProviderDataSettings(body, options) {
       const settings = validateSettingsBackup(await file.text());
       const confirmed = await confirmDialog({
         title: 'Restore settings',
-        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, format templates, speaker profiles, and advanced prompts. Existing settings will be lost.',
+        message: 'This fully replaces all saved provider configurations, model and voice lists, selections, Episode directions, Format templates, speaker profiles, and advanced prompts. Existing settings will be lost.',
         confirmLabel: 'Replace all settings',
       });
       if (!confirmed) return;

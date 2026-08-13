@@ -25,4 +25,4 @@ Users must add a voice before using unknown models and must supply accurate raw-
 
 ## Versioning and rollback
 
-The product is pre-release. Current settings, podcast-script, and render-job schemas are reset to version 1. They are the first supported schemas. No migration or backward-compatibility paths exist. Records outside the current schemas are cleared or recreated explicitly.
+The product is pre-release. Settings, podcast-script, and render-job schemas were reset to version 1 as their first supported schemas. Later additive settings-v1 compatibility is governed by ADR 0003; records outside supported schema versions are still cleared or recreated explicitly.

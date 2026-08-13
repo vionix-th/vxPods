@@ -16,13 +16,18 @@ import { wavBlob, encodeWavPcm16 } from '../../audio/wav-writer.js';
 import { encodeMp3 } from '../../audio/mp3-encoder.js';
 import { sanitizeFilename } from '../../utils/download.js';
 import {
-  buildScriptPrompt,
+  buildPlanPrompt,
+  buildPlanRevisionMessages,
+  buildPlanRepairMessages,
+  buildWriterPrompt,
   buildRepairMessages,
   extractJson,
+  parseEpisodePlan,
   validatePodcastPreferences,
   validateScript,
   exportableScript,
 } from './podcast-script.js';
+import { validateEpisodePlan } from '../../domain/episode-plan-schema.js';
 import * as jobStore from '../../storage/render-job-store.js';
 import { RENDER_JOB_SCHEMA_VERSION } from '../../storage/render-job-store.js';
 import { loadSettings } from '../../storage/local-settings.js';
@@ -41,9 +46,15 @@ const RENDER_TRANSITIONS = {
  * @typedef {Object} PodcastState
  * @property {import('../../app/state.js').FeatureStatus} status script phase
  * @property {import('./podcast-script.js').PodcastScript | null} script
+ * @property {import('../../domain/episode-plan-schema.js').EpisodePlan | null} plan
  * @property {import('../../services/errors.js').AppError | null} error
  * @property {string[]} validationErrors
  * @property {boolean} repairAvailable
+ * @property {boolean} planRepairAvailable
+ * @property {boolean} planStale
+ * @property {boolean} scriptStale
+ * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'repairing-script'|null} generationPhase
+ * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'repairing-script'|null} failedGenerationPhase
  * @property {'idle'|'rendering'|'cancelled'|'failed'|'ready'|'exporting'} renderStatus
  * @property {Record<string, 'pending'|'active'|'completed'|'failed'>} segmentStates
  * @property {string | null} activeSegmentId
@@ -72,10 +83,16 @@ export function createPodcastController(deps = {}) {
 
   const store = createStore(/** @type {PodcastState} */ ({
     status: 'idle',
+    plan: null,
     script: null,
     error: null,
     validationErrors: [],
     repairAvailable: false,
+    planRepairAvailable: false,
+    planStale: false,
+    scriptStale: false,
+    generationPhase: null,
+    failedGenerationPhase: null,
     renderStatus: 'idle',
     segmentStates: {},
     activeSegmentId: null,
@@ -85,6 +102,8 @@ export function createPodcastController(deps = {}) {
 
   /** @type {AbortController | null} */
   let renderController = null;
+  /** @type {AbortController | null} */
+  let generationController = null;
   /** @type {import('../../storage/render-job-store.js').RenderJob | null} */
   let activeJob = null;
   /** @type {import('./podcast-script.js').PodcastPreferences | null} */
@@ -93,6 +112,112 @@ export function createPodcastController(deps = {}) {
   let lastTextProvider = null;
   /** @type {string} */
   let lastRawOutput = '';
+  let lastPlanRawOutput = '';
+  let lastSource = '';
+  let lastPlanRequestMessages = null;
+  let lastPlanRequestPhase = 'planning';
+  let planInputFingerprint = null;
+
+  function validateGenerationInput(source, prefs) {
+    const trimmed = String(source ?? '').trim();
+    if (!trimmed) {
+      throw new AppError({ kind: 'validation', message: 'Add source text first.', retryable: false, status: undefined });
+    }
+    const result = validatePodcastPreferences(prefs);
+    if (!result.valid) {
+      throw new AppError({
+        kind: 'validation', message: result.errors[0], retryable: false, status: undefined,
+        cause: { errors: result.errors },
+      });
+    }
+    return trimmed;
+  }
+
+  function beginGeneration(phase, patch = {}) {
+    generationController?.abort('replaced');
+    generationController = new AbortController();
+    setFeatureStatus(store, 'generating', {
+      error: null,
+      validationErrors: [],
+      repairAvailable: false,
+      planRepairAvailable: false,
+      generationPhase: phase,
+      failedGenerationPhase: null,
+      ...patch,
+    });
+    return generationController.signal;
+  }
+
+  function rememberGeneration(source, prefs, provider) {
+    lastSource = source;
+    lastPrefs = structuredClone(prefs);
+    lastTextProvider = provider;
+  }
+
+  function handleGenerationFailure(err, kind) {
+    const failedGenerationPhase = store.get().generationPhase;
+    const normalized = toAppError(err);
+    const errors = normalized.kind === 'schema'
+      ? normalized.cause?.errors || [normalized.message]
+      : [];
+    if (normalized.kind === 'cancelled') {
+      setFeatureStatus(store, 'cancelled', { error: null, generationPhase: null });
+      return;
+    }
+    setFeatureStatus(store, 'failed', {
+      error: normalized,
+      validationErrors: errors,
+      planRepairAvailable: kind === 'plan' && normalized.kind === 'schema',
+      repairAvailable: kind === 'script' && normalized.kind === 'schema',
+      generationPhase: null,
+      failedGenerationPhase,
+    });
+  }
+
+  async function requestPlan(source, prefs, textProvider, messages, phase) {
+    const trimmed = validateGenerationInput(source, prefs);
+    const signal = beginGeneration(phase);
+    rememberGeneration(trimmed, prefs, textProvider);
+    lastPlanRequestMessages = messages;
+    lastPlanRequestPhase = phase;
+    try {
+      const { content } = await textGeneration({
+        provider: textProvider,
+        model: prefs.textModel,
+        messages,
+        jsonMode: true,
+        signal,
+      });
+      throwIfAborted(signal);
+      lastPlanRawOutput = content;
+      const result = parseAndValidatePlan(content, prefs.speakers.map((speaker) => speaker.id));
+      if (!result.valid) throw schemaError('Episode plan', result.errors);
+      planInputFingerprint = planningFingerprint(trimmed, prefs);
+      store.set({ plan: result.plan, planStale: false, scriptStale: Boolean(store.get().script) });
+      return result.plan;
+    } catch (err) {
+      handleGenerationFailure(err, 'plan');
+      return null;
+    } finally {
+      generationController = null;
+    }
+  }
+
+  /** Generate an EpisodePlan and stop for review. */
+  async function generatePlan(source, prefs, textProvider) {
+    const trimmed = validateGenerationInput(source, prefs);
+    const plan = await requestPlan(
+      trimmed,
+      prefs,
+      textProvider,
+      buildPlanPrompt(trimmed, prefs, getPromptTemplates()),
+      'planning',
+    );
+    if (plan && store.get().status === 'generating') {
+      setFeatureStatus(store, 'ready', { generationPhase: null });
+    }
+    return plan;
+  }
 
   /**
    * Generate a script from source + preferences.
@@ -101,54 +226,178 @@ export function createPodcastController(deps = {}) {
    * @param {{ baseUrl: string, apiKey: string, textGeneration: { api: 'chat-completions'|'responses', models: string[] } }} textProvider
    */
   async function generateScript(source, prefs, textProvider) {
-    const trimmed = String(source ?? '').trim();
-    if (!trimmed) {
-      throw new AppError({
-        kind: 'validation',
-        message: 'Add source text first.',
-        retryable: false,
-        status: undefined,
-      });
+    const trimmed = validateGenerationInput(source, prefs);
+    const plan = await requestPlan(
+      trimmed,
+      prefs,
+      textProvider,
+      buildPlanPrompt(trimmed, prefs, getPromptTemplates()),
+      'planning',
+    );
+    if (!plan || store.get().status !== 'generating') return;
+    await writeScript(trimmed, prefs, textProvider, plan, true);
+  }
+
+  async function writeScript(source, prefs, textProvider, plan, continueStatus = false) {
+    const trimmed = validateGenerationInput(source, prefs);
+    const planResult = validateEpisodePlan(plan, prefs.speakers.map((speaker) => speaker.id));
+    if (!planResult.valid) throw schemaError('Episode plan', planResult.errors);
+    if (!continueStatus) beginGeneration('writing-script');
+    else {
+      generationController = new AbortController();
+      store.set({ generationPhase: 'writing-script' });
     }
-    const preferencesResult = validatePodcastPreferences(prefs);
-    if (!preferencesResult.valid) {
-      throw new AppError({
-        kind: 'validation',
-        message: preferencesResult.errors[0],
-        retryable: false,
-        status: undefined,
-        cause: { errors: preferencesResult.errors },
-      });
-    }
-    setFeatureStatus(store, 'generating', {
-      error: null,
-      validationErrors: [],
-      repairAvailable: false,
-      script: null,
-    });
-    lastPrefs = prefs;
-    lastTextProvider = textProvider;
+    rememberGeneration(trimmed, prefs, textProvider);
+    const signal = generationController?.signal;
     try {
       const { content } = await textGeneration({
         provider: textProvider,
         model: prefs.textModel,
-        messages: buildScriptPrompt(trimmed, prefs, getPromptTemplates()),
+        messages: buildWriterPrompt(trimmed, prefs, planResult.plan, getPromptTemplates()),
         jsonMode: true,
+        signal,
       });
+      throwIfAborted(signal);
       lastRawOutput = content;
       const script = parseAndValidate(content);
-      setFeatureStatus(store, 'ready', { script });
+      setFeatureStatus(store, 'ready', {
+        plan: planResult.plan,
+        script,
+        planStale: false,
+        scriptStale: false,
+        generationPhase: null,
+      });
+      return script;
     } catch (err) {
-      const normalized = toAppError(err);
-      if (normalized.kind === 'schema') {
-        setFeatureStatus(store, 'failed', {
-          error: normalized,
-          validationErrors: normalized.cause?.errors || [normalized.message],
-          repairAvailable: true,
-        });
-      } else {
-        setFeatureStatus(store, 'failed', { error: normalized });
-      }
+      handleGenerationFailure(err, 'script');
+      return null;
+    } finally {
+      generationController = null;
+    }
+  }
+
+  async function generateScriptFromPlan(source, prefs, textProvider) {
+    if (!store.get().plan) throw validationError('Create an episode plan first.');
+    if (planInputFingerprint !== planningFingerprint(source, prefs)) {
+      markPlanningInputsStale();
+    }
+    if (store.get().planStale) throw validationError('Update the stale episode plan before writing a script.');
+    return writeScript(source, prefs, textProvider, store.get().plan);
+  }
+
+  async function retryScriptGeneration() {
+    if (!store.get().plan || !lastPrefs || !lastTextProvider || !lastSource) return;
+    return writeScript(lastSource, lastPrefs, lastTextProvider, store.get().plan);
+  }
+
+  async function retryPlanGeneration() {
+    if (!lastPrefs || !lastTextProvider || !lastSource || !lastPlanRequestMessages) return;
+    const plan = await requestPlan(
+      lastSource,
+      lastPrefs,
+      lastTextProvider,
+      lastPlanRequestMessages,
+      lastPlanRequestPhase,
+    );
+    if (plan && store.get().status === 'generating') {
+      setFeatureStatus(store, 'ready', { generationPhase: null });
+    }
+    return plan;
+  }
+
+  async function revisePlan(source, prefs, textProvider, request) {
+    const plan = store.get().plan;
+    if (!plan) throw validationError('Create an episode plan first.');
+    const revisionRequest = String(request ?? '').trim();
+    if (!revisionRequest) throw validationError('Describe the requested plan changes.');
+    const trimmed = validateGenerationInput(source, prefs);
+    const revised = await requestPlan(
+      trimmed,
+      prefs,
+      textProvider,
+      buildPlanRevisionMessages(trimmed, prefs, plan, revisionRequest, getPromptTemplates()),
+      'revising-plan',
+    );
+    if (revised && store.get().status === 'generating') {
+      setFeatureStatus(store, 'ready', { generationPhase: null, scriptStale: Boolean(store.get().script) });
+    }
+    return revised;
+  }
+
+  function applyEditedPlan(edited, source, prefs) {
+    const result = validateEpisodePlan(edited, prefs.speakers.map((speaker) => speaker.id));
+    if (!result.valid) throw schemaError('Edited episode plan', result.errors);
+    planInputFingerprint = planningFingerprint(source, prefs);
+    store.set({
+      plan: result.plan,
+      planStale: false,
+      scriptStale: Boolean(store.get().script),
+      error: null,
+      validationErrors: [],
+      planRepairAvailable: false,
+    });
+    return result.plan;
+  }
+
+  function markPlanningInputsStale() {
+    store.set({
+      planStale: Boolean(store.get().plan),
+      scriptStale: Boolean(store.get().script),
+    });
+  }
+
+  function cancelGeneration() {
+    if (!generationController || store.get().status !== 'generating') return;
+    setFeatureStatus(store, 'cancelling', { generationPhase: store.get().generationPhase });
+    generationController.abort('user');
+  }
+
+  function resetGenerationSession() {
+    generationController?.abort('reset');
+    generationController = null;
+    planInputFingerprint = null;
+    setFeatureStatus(store, 'idle', {
+      plan: null,
+      script: null,
+      error: null,
+      validationErrors: [],
+      repairAvailable: false,
+      planRepairAvailable: false,
+      planStale: false,
+      scriptStale: false,
+      generationPhase: null,
+      failedGenerationPhase: null,
+    });
+  }
+
+  async function repairPlan() {
+    if (!store.get().planRepairAvailable || !lastPrefs || !lastTextProvider) return;
+    const validationErrors = store.get().validationErrors;
+    const signal = beginGeneration('repairing-plan');
+    try {
+      const { content } = await textGeneration({
+        provider: lastTextProvider,
+        model: lastPrefs.textModel,
+        messages: buildPlanRepairMessages(lastPlanRawOutput, validationErrors, getPromptTemplates()),
+        jsonMode: true,
+        signal,
+      });
+      throwIfAborted(signal);
+      lastPlanRawOutput = content;
+      const result = parseAndValidatePlan(content, lastPrefs.speakers.map((speaker) => speaker.id));
+      if (!result.valid) throw schemaError('Episode plan', result.errors);
+      planInputFingerprint = planningFingerprint(lastSource, lastPrefs);
+      setFeatureStatus(store, 'ready', {
+        plan: result.plan,
+        planStale: false,
+        scriptStale: Boolean(store.get().script),
+        generationPhase: null,
+        validationErrors: [],
+      });
+    } catch (err) {
+      handleGenerationFailure(err, 'none');
+    } finally {
+      generationController = null;
     }
   }
 
@@ -157,25 +406,64 @@ export function createPodcastController(deps = {}) {
    */
   async function repairScript() {
     if (!store.get().repairAvailable || !lastPrefs || !lastTextProvider) return;
-    setFeatureStatus(store, 'generating', { error: null, repairAvailable: false });
+    const validationErrors = store.get().validationErrors;
+    const signal = beginGeneration('repairing-script');
     try {
       const { content } = await textGeneration({
         provider: lastTextProvider,
         model: lastPrefs.textModel,
-        messages: buildRepairMessages(lastRawOutput, store.get().validationErrors, getPromptTemplates()),
+        messages: buildRepairMessages(lastRawOutput, validationErrors, getPromptTemplates()),
         jsonMode: true,
+        signal,
       });
+      throwIfAborted(signal);
       lastRawOutput = content;
       const script = parseAndValidate(content);
-      setFeatureStatus(store, 'ready', { script, validationErrors: [] });
-    } catch (err) {
-      const normalized = toAppError(err);
-      setFeatureStatus(store, 'failed', {
-        error: normalized,
-        validationErrors: normalized.kind === 'schema' ? normalized.cause?.errors || [] : [],
-        repairAvailable: false,
+      setFeatureStatus(store, 'ready', {
+        script,
+        scriptStale: false,
+        validationErrors: [],
+        generationPhase: null,
       });
+    } catch (err) {
+      handleGenerationFailure(err, 'none');
+    } finally {
+      generationController = null;
     }
+  }
+
+  function schemaError(label, errors) {
+    return new AppError({
+      kind: 'schema',
+      message: `${label} failed validation: ${errors[0]}`,
+      retryable: false,
+      status: undefined,
+      cause: { errors },
+    });
+  }
+
+  function parseAndValidatePlan(raw, speakerIds) {
+    try {
+      return parseEpisodePlan(raw, speakerIds);
+    } catch (err) {
+      throw schemaError('Episode plan', [err instanceof Error ? err.message : 'Invalid JSON.']);
+    }
+  }
+
+  function validationError(message) {
+    return new AppError({ kind: 'validation', message, retryable: false, status: undefined });
+  }
+
+  function planningFingerprint(source, prefs) {
+    return JSON.stringify({
+      source: String(source ?? '').trim(),
+      episodeDirection: String(prefs?.episodeDirection ?? '').trim(),
+      formatInstructions: String(prefs?.formatInstructions ?? '').trim(),
+      audience: String(prefs?.audience ?? '').trim(),
+      speakers: Array.isArray(prefs?.speakers)
+        ? prefs.speakers.map(({ id, name, role }) => ({ id, name, role }))
+        : [],
+    });
   }
 
   /**
@@ -223,7 +511,7 @@ export function createPodcastController(deps = {}) {
         cause: { errors: result.errors },
       });
     }
-    store.set({ script: result.script });
+    store.set({ script: result.script, scriptStale: store.get().planStale });
     return result.script;
   }
 
@@ -266,8 +554,12 @@ export function createPodcastController(deps = {}) {
    */
   function importScript(raw) {
     const script = validateImportedScript(raw);
+    planInputFingerprint = null;
     setFeatureStatus(store, 'ready', {
+      plan: null,
       script,
+      planStale: false,
+      scriptStale: false,
       error: null,
       validationErrors: [],
       repairAvailable: false,
@@ -654,9 +946,19 @@ export function createPodcastController(deps = {}) {
 
   return {
     store,
+    generatePlan,
     generateScript,
+    generateScriptFromPlan,
+    retryScriptGeneration,
+    retryPlanGeneration,
+    revisePlan,
+    repairPlan,
     repairScript,
+    applyEditedPlan,
     applyEditedScript,
+    markPlanningInputsStale,
+    cancelGeneration,
+    resetGenerationSession,
     validateImportedScript,
     importScript,
     startRender,

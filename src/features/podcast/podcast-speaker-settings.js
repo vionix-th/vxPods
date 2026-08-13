@@ -174,7 +174,10 @@ export function createPodcastSpeakerSettings({
         name.input.value = selected.defaultSpeakerName || name.input.value;
         role.input.value = selected.role;
         announcement.textContent = `${selected.label} profile applied to Speaker ${index + 1}.`;
+        onStructureChange();
       });
+      name.input.addEventListener('input', onStructureChange);
+      role.input.addEventListener('input', onStructureChange);
 
       card.append(legend, profile.wrapper, name.wrapper, role.wrapper, voice.wrapper, tools);
       cards.append(card);

@@ -1,4 +1,4 @@
-/** Settings pages for reusable Podcast formats, speaker profiles, and advanced prompts. */
+/** Settings pages for reusable Podcast Episode directions, Formats, speaker profiles, and prompts. */
 
 import { confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
@@ -6,21 +6,26 @@ import { textAreaField, textField } from '../../components/fields.js';
 import { toAppError } from '../../services/errors.js';
 import {
   addFormatTemplate,
+  addEpisodeDirectionTemplate,
   addSpeakerProfile,
   deleteFormatTemplate,
+  deleteEpisodeDirectionTemplate,
   deleteSpeakerProfile,
   listFormatTemplates,
+  listEpisodeDirectionTemplates,
   listSpeakerProfiles,
   restoreFormatStarters,
+  restoreEpisodeDirectionStarters,
   restoreSpeakerProfileStarters,
   updateFormatTemplate,
+  updateEpisodeDirectionTemplate,
   updateSpeakerProfile,
 } from './podcast-template-store.js';
 import { renderPromptTemplateSettings } from './prompt-template-form.js';
 
 /**
  * @param {HTMLElement} body
- * @param {{ onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences } }} options
+ * @param {{ onChange?: () => void, getPromptPreview?: () => { source: string, prefs: import('./podcast-script.js').PodcastPreferences, plan?: import('../../domain/episode-plan-schema.js').EpisodePlan | null } }} options
  */
 export function renderPodcastTemplateSettings(body, options = {}) {
   body.replaceChildren();
@@ -32,6 +37,7 @@ export function renderPodcastTemplateSettings(body, options = {}) {
   body.append(navigation, content);
 
   const pages = [
+    ['directions', 'Episode directions'],
     ['formats', 'Formats'],
     ['profiles', 'Speaker profiles'],
     ['prompts', 'Advanced prompts'],
@@ -53,17 +59,115 @@ export function renderPodcastTemplateSettings(body, options = {}) {
       button.classList.toggle('is-active', selected);
       button.setAttribute('aria-current', selected ? 'page' : 'false');
     }
-    if (id === 'formats') renderFormatList(content, options);
+    if (id === 'directions') renderDirectionList(content, options);
+    else if (id === 'formats') renderFormatList(content, options);
     else if (id === 'profiles') renderProfileList(content, options);
     else renderPromptTemplateSettings(content, {
-      onBack: () => showPage('formats'),
-      backLabel: 'Back to formats',
+      onBack: () => showPage('directions'),
+      backLabel: 'Back to Episode directions',
       onChange: options.onChange,
       getPromptPreview: options.getPromptPreview,
     });
   }
 
-  showPage('formats');
+  showPage('directions');
+}
+
+function renderDirectionList(body, options, noticeMessage) {
+  body.replaceChildren();
+  const notice = createLocalNotice();
+  const heading = pageHeader(
+    'Episode direction templates',
+    'Reusable editorial purpose, angle, priority, depth, and omission instructions.',
+    'Add direction',
+    () => renderDirectionForm(body, options, null),
+  );
+  const list = document.createElement('ul');
+  list.className = 'provider-list';
+  const records = listEpisodeDirectionTemplates();
+  if (!records.length) list.append(emptyRow('No Episode direction templates saved.'));
+  for (const record of records) {
+    list.append(templateRow(
+      record.name,
+      record.instructions,
+      () => renderDirectionForm(body, options, record),
+      async () => {
+        const confirmed = await confirmDialog({
+          title: 'Delete Episode direction',
+          message: `Delete “${record.name}”? Active generation drafts keep their copied instructions.`,
+          confirmLabel: 'Delete direction',
+        });
+        if (!confirmed) return;
+        try {
+          deleteEpisodeDirectionTemplate(record.id);
+          options.onChange?.();
+          renderDirectionList(body, options, { type: 'success', title: 'Episode direction deleted', message: 'Saved template removed.' });
+        } catch (error) {
+          notice.showError(toAppError(error));
+        }
+      },
+    ));
+  }
+  const restore = document.createElement('button');
+  restore.type = 'button';
+  restore.className = 'button button-ghost';
+  restore.textContent = 'Restore direction starters';
+  restore.addEventListener('click', async () => {
+    const confirmed = await confirmDialog({
+      title: 'Restore Episode direction starters',
+      message: 'Reset bundled Episode directions and restore missing starters? Custom directions remain saved.',
+      confirmLabel: 'Restore starters',
+    });
+    if (!confirmed) return;
+    try {
+      const skipped = restoreEpisodeDirectionStarters();
+      options.onChange?.();
+      renderDirectionList(body, options, restoreNotice('Episode direction starters restored', skipped));
+    } catch (error) {
+      notice.showError(toAppError(error));
+    }
+  });
+  body.append(heading, notice.element, list, restore);
+  if (noticeMessage) notice.show(noticeMessage);
+}
+
+function renderDirectionForm(body, options, existing) {
+  body.replaceChildren();
+  const notice = createLocalNotice();
+  const heading = pageHeader(
+    existing ? 'Edit Episode direction' : 'Add Episode direction',
+    'Saved instructions become an editable starting point for one episode.',
+  );
+  const form = document.createElement('form');
+  form.className = 'settings-form';
+  form.noValidate = true;
+  const name = textField({ label: 'Episode direction name', value: existing?.name ?? '', required: true });
+  name.input.maxLength = 100;
+  const instructions = textAreaField({
+    label: 'Episode direction instructions',
+    value: existing?.instructions ?? '',
+    required: true,
+    rows: 8,
+    help: 'Describe the episode purpose, angle, priorities, depth, or intentional omissions. Maximum 4,000 characters.',
+  });
+  instructions.input.maxLength = 4000;
+  const actions = formActions(() => renderDirectionList(body, options), existing ? 'Save changes' : 'Save direction');
+  form.append(name.wrapper, instructions.wrapper, notice.element, actions.element);
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    notice.clear();
+    try {
+      const input = { name: name.input.value, instructions: instructions.input.value };
+      if (existing) updateEpisodeDirectionTemplate(existing.id, input);
+      else addEpisodeDirectionTemplate(input);
+      options.onChange?.();
+      renderDirectionList(body, options, { type: 'success', title: 'Episode direction saved', message: 'Template is available on Podcast generation.' });
+    } catch (error) {
+      notice.showError(toAppError(error));
+    }
+  });
+  body.append(heading, form);
+  name.input.focus();
 }
 
 function renderFormatList(body, options, noticeMessage) {
