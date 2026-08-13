@@ -156,7 +156,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       ?? conversationStarter.instructions,
     required: true,
     rows: 5,
-    help: 'Define discourse structure, interaction, and show-level delivery. Save reusable formats from Settings → Podcast.',
+    help: 'Define discourse structure, linguistic behavior, interaction, and show-level delivery. Bundled variants provide editable terminology and definitions.',
   });
   formatInstructionsField.input.maxLength = 4000;
   const formatResetButton = document.createElement('button');

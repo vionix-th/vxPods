@@ -115,7 +115,7 @@ export function createPodcastSpeakerSettings({
         label: 'Role',
         value: speaker.role,
         rows: 3,
-        help: 'Define this speaker’s contribution, stance, and individual delivery within the selected format.',
+        help: 'Define this speaker’s contribution, discourse behavior, stance, and individual delivery within the selected format.',
       });
       const voice = selectField({
         label: 'Voice',

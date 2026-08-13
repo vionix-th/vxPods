@@ -132,8 +132,8 @@ Episode Direction templates, Format templates, and speaker profiles support crea
 Defaults:
 
 - Essential Overview Episode direction.
-- Conversation format instructions.
-- Host and Expert speaker profiles.
+- Conversation — Exploratory format instructions.
+- Host — Facilitator and Expert — Explainer speaker profiles.
 - General audience.
 - Source-anchored reasoning.
 - One TTS request at a time.
@@ -148,6 +148,8 @@ Prompt behavior has explicit ownership:
 - The selected format owns discourse structure, participation relationships, interaction, and show-level delivery.
 - Speaker roles guide each speaker's contribution and delivery within the selected format; the format remains authoritative when instructions conflict.
 - Validation repair changes only what reported schema errors require and otherwise preserves valid script content and order.
+
+Bundled Formats and Speaker Roles are flat, independently editable catalogs with three variants for each of the five established types. Format variants name and define their relevant linguistic behavior—including interactional discourse for Conversation, Interview, and Panel Discussion and non-interactive cohesion for Narrative and Lecture—rather than relying on generic requests to sound natural. Role variants name and define format-adaptive contribution tendencies without changing the selected Format's participation structure.
 
 ### FR-5 Podcast script generation
 
@@ -171,7 +173,7 @@ Acceptance:
 - Quick generation produces a validated plan and script with two ordered model requests; reviewed generation stops after the first request.
 - Plans remain visible after Quick generation and are discarded on reload or Start over.
 - TTS rendering becomes available after script validation succeeds.
-- Interactive formats develop the subject through responsive exchange rather than adjacent independent monologues. Narrative and Lecture use coherent non-interactive narrative or explanatory progression.
+- Interactive formats realize their selected linguistic contract through adjacent-turn dependency, specific uptake, and consequential response rather than adjacent independent monologues. Narrative and Lecture use their selected non-interactive cohesion and explanatory-progression contract without simulated dialogue.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
 - Edits are revalidated before rendering.
 - Speaker changes apply to the script-wide speaker definitions rather than individual turns; temporary voice previews do not create recoverable render work.

@@ -11,6 +11,9 @@ import {
   normalizeFormatTemplates,
   normalizeEpisodeDirectionTemplates,
   normalizeSpeakerProfiles,
+  PODCAST_TEMPLATE_CATALOG_VERSION,
+  replaceFormatStarterCatalog,
+  replaceSpeakerProfileStarterCatalog,
   starterFormatTemplates,
   starterEpisodeDirectionTemplates,
   starterSpeakerProfiles,
@@ -30,6 +33,7 @@ const restoreListeners = new Set();
 /**
  * @typedef {Object} SettingsDocument
  * @property {number} schemaVersion
+ * @property {number} podcastTemplateCatalogVersion
  * @property {ProviderConfig[]} providers
  * @property {string | null} selectedTextProviderId
  * @property {string | null} selectedTtsProviderId
@@ -43,6 +47,7 @@ const restoreListeners = new Set();
 export function defaultSettings() {
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
+    podcastTemplateCatalogVersion: PODCAST_TEMPLATE_CATALOG_VERSION,
     providers: [],
     selectedTextProviderId: null,
     selectedTtsProviderId: null,
@@ -152,6 +157,9 @@ export function validateSettingsBackup(backup) {
   if (raw.schemaVersion !== SETTINGS_SCHEMA_VERSION) {
     throw validationError('Settings file has an unsupported schema version.');
   }
+  if (!isSupportedPodcastTemplateCatalogVersion(raw.podcastTemplateCatalogVersion)) {
+    throw validationError('Settings file contains an unsupported Podcast template catalog version.');
+  }
   if (!Array.isArray(raw.providers) || raw.providers.some((provider) => !isValidProviderRecord(provider))) {
     throw validationError('Settings file contains an invalid provider configuration.');
   }
@@ -191,7 +199,8 @@ export function clearSettings(storage = globalThis.localStorage) {
 function assertDocumentShape(doc) {
   if (!Array.isArray(doc.providers) ||
       !doc.preferences ||
-      (doc.preferences.mode !== 'tts' && doc.preferences.mode !== 'podcast')) {
+      (doc.preferences.mode !== 'tts' && doc.preferences.mode !== 'podcast') ||
+      !isSupportedPodcastTemplateCatalogVersion(doc.podcastTemplateCatalogVersion)) {
     throw new TypeError('Settings document has invalid required fields.');
   }
 }
@@ -201,8 +210,12 @@ function validateDocument(doc) {
     ? doc.providers.filter(isValidProviderRecord).map(normalizeProviderRecord)
     : [];
   const ids = new Set(providers.map((provider) => provider.id));
+  const formatTemplates = normalizeFormatTemplates(doc.formatTemplates);
+  const speakerProfiles = normalizeSpeakerProfiles(doc.speakerProfiles);
+  const replacePodcastStarters = doc.podcastTemplateCatalogVersion !== PODCAST_TEMPLATE_CATALOG_VERSION;
   return {
     schemaVersion: SETTINGS_SCHEMA_VERSION,
+    podcastTemplateCatalogVersion: PODCAST_TEMPLATE_CATALOG_VERSION,
     providers,
     selectedTextProviderId: typeof doc.selectedTextProviderId === 'string' && ids.has(doc.selectedTextProviderId)
       ? doc.selectedTextProviderId
@@ -215,9 +228,18 @@ function validateDocument(doc) {
     episodeDirectionTemplates: Object.hasOwn(doc, 'episodeDirectionTemplates')
       ? normalizeEpisodeDirectionTemplates(doc.episodeDirectionTemplates)
       : starterEpisodeDirectionTemplates(),
-    formatTemplates: normalizeFormatTemplates(doc.formatTemplates),
-    speakerProfiles: normalizeSpeakerProfiles(doc.speakerProfiles),
+    formatTemplates: replacePodcastStarters
+      ? replaceFormatStarterCatalog(formatTemplates)
+      : formatTemplates,
+    speakerProfiles: replacePodcastStarters
+      ? replaceSpeakerProfileStarterCatalog(speakerProfiles)
+      : speakerProfiles,
   };
+}
+
+function isSupportedPodcastTemplateCatalogVersion(value) {
+  return value === undefined ||
+    (Number.isInteger(value) && value >= 0 && value <= PODCAST_TEMPLATE_CATALOG_VERSION);
 }
 
 function validPromptTemplateOverrides(value) {

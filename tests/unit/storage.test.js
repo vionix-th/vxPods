@@ -9,6 +9,7 @@ import {
   SETTINGS_SCHEMA_VERSION,
   STORAGE_KEY,
 } from '../../src/storage/local-settings.js';
+import { PODCAST_TEMPLATE_CATALOG_VERSION } from '../../src/domain/podcast-templates.js';
 import {
   saveJob,
   loadJob,
@@ -70,6 +71,88 @@ describe('local-settings', () => {
     saveSettings(doc);
     expect(loadSettings().episodeDirectionTemplates).toEqual([]);
     expect(restoreSettingsBackup(doc).episodeDirectionTemplates).toEqual([]);
+  });
+
+  it('replaces legacy bundled Podcast templates once while retaining custom records', () => {
+    const legacy = defaultSettings();
+    delete legacy.podcastTemplateCatalogVersion;
+    legacy.formatTemplates = [
+      { id: 'format-conversation', name: 'Conversation', instructions: 'Legacy conversation.' },
+      { id: 'format-custom', name: 'Custom briefing', instructions: 'Custom format.' },
+    ];
+    legacy.speakerProfiles = [
+      { id: 'profile-host', label: 'Host', defaultSpeakerName: 'Old name', role: 'Legacy host.' },
+      { id: 'profile-custom', label: 'Custom guide', defaultSpeakerName: 'Kai', role: 'Custom role.' },
+    ];
+    const raw = JSON.stringify(legacy);
+    localStorage.setItem(STORAGE_KEY, raw);
+
+    const migrated = loadSettings();
+    expect(migrated.podcastTemplateCatalogVersion).toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
+    expect(migrated.formatTemplates).toHaveLength(16);
+    expect(migrated.formatTemplates[0]).toMatchObject({
+      id: 'format-conversation', name: 'Conversation — Exploratory',
+    });
+    expect(migrated.formatTemplates.at(-1)).toMatchObject({ id: 'format-custom', name: 'Custom briefing' });
+    expect(migrated.speakerProfiles).toHaveLength(16);
+    expect(migrated.speakerProfiles[0]).toMatchObject({
+      id: 'profile-host', label: 'Host — Facilitator', defaultSpeakerName: 'Maya',
+    });
+    expect(migrated.speakerProfiles.at(-1)).toMatchObject({ id: 'profile-custom', label: 'Custom guide' });
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+
+    saveSettings(migrated);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).podcastTemplateCatalogVersion)
+      .toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
+  });
+
+  it('replaces explicit empty legacy collections and respects custom ownership of starter names', () => {
+    const emptyLegacy = defaultSettings();
+    delete emptyLegacy.podcastTemplateCatalogVersion;
+    emptyLegacy.formatTemplates = [];
+    emptyLegacy.speakerProfiles = [];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(emptyLegacy));
+    expect(loadSettings().formatTemplates).toHaveLength(15);
+    expect(loadSettings().speakerProfiles).toHaveLength(15);
+
+    const collisionLegacy = defaultSettings();
+    delete collisionLegacy.podcastTemplateCatalogVersion;
+    collisionLegacy.formatTemplates = [{
+      id: 'format-custom-critical',
+      name: 'conversation — critical',
+      instructions: 'Custom critical conversation.',
+    }];
+    collisionLegacy.speakerProfiles = [{
+      id: 'profile-custom-analyst',
+      label: 'expert — analyst',
+      defaultSpeakerName: 'Ada',
+      role: 'Custom analyst.',
+    }];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(collisionLegacy));
+    const migrated = loadSettings();
+    expect(migrated.formatTemplates).toHaveLength(15);
+    expect(migrated.formatTemplates.some((record) => record.id === 'format-conversation-critical')).toBe(false);
+    expect(migrated.formatTemplates.at(-1)).toMatchObject({ id: 'format-custom-critical' });
+    expect(migrated.speakerProfiles).toHaveLength(15);
+    expect(migrated.speakerProfiles.some((record) => record.id === 'profile-expert-analyst')).toBe(false);
+    expect(migrated.speakerProfiles.at(-1)).toMatchObject({ id: 'profile-custom-analyst' });
+  });
+
+  it('persists template deletions after catalog migration and migrates legacy backups', () => {
+    const legacy = defaultSettings();
+    delete legacy.podcastTemplateCatalogVersion;
+    const restored = restoreSettingsBackup(legacy);
+    expect(restored.podcastTemplateCatalogVersion).toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY)).podcastTemplateCatalogVersion)
+      .toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
+
+    restored.formatTemplates = restored.formatTemplates
+      .filter((record) => record.id !== 'format-conversation-critical');
+    restored.speakerProfiles = restored.speakerProfiles
+      .filter((record) => record.id !== 'profile-expert-analyst');
+    saveSettings(restored);
+    expect(loadSettings().formatTemplates.some((record) => record.id === 'format-conversation-critical')).toBe(false);
+    expect(loadSettings().speakerProfiles.some((record) => record.id === 'profile-expert-analyst')).toBe(false);
   });
 
   it('preserves settings with an unsupported schema version until explicit restore or clear', () => {

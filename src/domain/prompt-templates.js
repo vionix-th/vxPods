@@ -99,6 +99,7 @@ export const DEFAULT_PROMPT_TEMPLATES = Object.freeze({
     'Spoken output:',
     '- Write natural, speech-ready plain text. Do not use markdown, stage directions, sound cues, or speaker labels inside segment text.',
     '- Apply the supplied speaker roles consistently within the selected format.',
+    '- Realize the selected Format’s discourse terminology at the level of adjacent turns and speaker handoffs, not only through overall topic ordering.',
     '- The audio renderer plays segments sequentially. Do not write simultaneous speech, overlapping dialogue, or nonverbal listener sounds beneath another speaker.',
     '',
     'Output details:',

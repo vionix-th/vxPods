@@ -329,9 +329,29 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const panel = page.locator('#panel-podcast');
   await expect(panel.getByLabel('Tone')).toHaveCount(0);
+  await expect(panel.getByLabel('Format template').locator('option')).toHaveText([
+    'Conversation — Exploratory',
+    'Conversation — Critical',
+    'Conversation — Reflective',
+    'Interview — Explanatory',
+    'Interview — Investigative',
+    'Interview — Interpretive',
+    'Narrative — Chronological',
+    'Narrative — Causal',
+    'Narrative — Thematic',
+    'Lecture — Conceptual',
+    'Lecture — Case-led',
+    'Lecture — Argumentative',
+    'Panel Discussion — Exploratory',
+    'Panel Discussion — Critical',
+    'Panel Discussion — Comparative',
+    'Briefing',
+  ]);
   await panel.getByLabel('Episode direction template').selectOption({ label: 'Author focus' });
   await expect(panel.getByLabel('Episode direction (required)')).toHaveValue('Focus on the author’s central interpretive question.');
   await panel.getByLabel('Episode direction (required)').fill('Temporary author focus.');
+  await panel.getByLabel('Format template').selectOption({ label: 'Conversation — Critical' });
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/claim–challenge–response/);
   await panel.getByLabel('Format template').selectOption({ label: 'Briefing' });
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(
     'Use a concise briefing with three ordered sections.',
@@ -340,6 +360,29 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await expect(panel.locator('.format-draft-editor').nth(1).locator(':scope > .help-text')).toHaveText('Temporary changes.');
 
   const firstSpeaker = panel.locator('.speaker-card').first();
+  await expect(firstSpeaker.getByLabel('Speaker profile').locator('option')).toHaveText([
+    'Choose profile…',
+    'Host — Facilitator',
+    'Host — Peer Co-host',
+    'Host — Synthesizer',
+    'Interviewer — Clarifier',
+    'Interviewer — Investigator',
+    'Interviewer — Interpretive',
+    'Expert — Explainer',
+    'Expert — Analyst',
+    'Expert — Contextualizer',
+    'Narrator — Chronological',
+    'Narrator — Causal',
+    'Narrator — Thematic',
+    'Skeptic — Evidence Auditor',
+    'Skeptic — Scope Critic',
+    'Skeptic — Alternative-Hypothesis Tester',
+    'Coach',
+  ]);
+  await firstSpeaker.getByLabel('Speaker profile').selectOption({ label: 'Expert — Analyst' });
+  await firstSpeaker.getByRole('button', { name: /Apply profile to/ }).click();
+  await expect(firstSpeaker.getByLabel('Name (required)')).toHaveValue('Leah');
+  await expect(firstSpeaker.getByLabel('Role')).toHaveValue(/claims, evidence, inference/);
   await firstSpeaker.getByLabel('Speaker profile').selectOption({ label: 'Coach' });
   await firstSpeaker.getByRole('button', { name: /Apply profile to/ }).click();
   await expect(firstSpeaker.getByLabel('Name (required)')).toHaveValue('Coach');
@@ -361,7 +404,7 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await page.reload();
   await expect(panel.getByLabel('Episode direction template')).toHaveValue('direction-essential-overview');
   await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
-  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/interactive peer conversation/);
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/turn contingency/);
   await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Maya');
   await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Leah');
 });

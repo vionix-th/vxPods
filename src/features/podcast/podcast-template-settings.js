@@ -175,7 +175,7 @@ function renderFormatList(body, options, noticeMessage) {
   const notice = createLocalNotice();
   const heading = pageHeader(
     'Format templates',
-    'Reusable structure, interaction, and show-level delivery instructions. Generation-page edits remain temporary.',
+    'Reusable discourse structure, linguistic behavior, interaction, and show-level delivery instructions. Bundled variants define editable terminology.',
     'Add format',
     () => renderFormatForm(body, options, null),
   );
@@ -245,7 +245,7 @@ function renderFormatForm(body, options, existing) {
     value: existing?.instructions ?? '',
     required: true,
     rows: 8,
-    help: 'Describe discourse structure, interaction, pacing, or show-level delivery. Maximum 4,000 characters.',
+    help: 'Describe discourse structure, linguistic behavior, interaction, pacing, or show-level delivery. Maximum 4,000 characters.',
   });
   instructions.input.maxLength = 4000;
   const actions = formActions(() => renderFormatList(body, options), existing ? 'Save changes' : 'Save format');
@@ -271,7 +271,7 @@ function renderProfileList(body, options, noticeMessage) {
   const notice = createLocalNotice();
   const heading = pageHeader(
     'Speaker profiles',
-    'Reusable names and roles. Voice remains specific to each generation.',
+    'Reusable names and format-adaptive discourse roles. Voice remains specific to each generation.',
     'Add profile',
     () => renderProfileForm(body, options, null),
   );
@@ -348,7 +348,7 @@ function renderProfileForm(body, options, existing) {
     value: existing?.role ?? '',
     required: true,
     rows: 6,
-    help: 'Describe contribution, epistemic stance, behavior, and individual delivery within the selected format.',
+    help: 'Describe contribution, discourse behavior, epistemic stance, and individual delivery within the selected format.',
   });
   role.input.maxLength = 4000;
   const actions = formActions(() => renderProfileList(body, options), existing ? 'Save changes' : 'Save profile');

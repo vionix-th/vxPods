@@ -17,6 +17,10 @@ import {
   resolvePromptTemplates,
   validatePromptTemplate,
 } from '../../src/domain/prompt-templates.js';
+import {
+  STARTER_FORMAT_TEMPLATES,
+  STARTER_SPEAKER_PROFILES,
+} from '../../src/domain/podcast-templates.js';
 
 const prefs = {
   episodeDirection: 'Prioritize the central argument.',
@@ -72,6 +76,7 @@ describe('buildScriptPrompt', () => {
     expect(messages[0].content).toContain('clearly hypothetical illustrations');
     expect(messages[0].content).toContain('Do not attribute a claim to the source');
     expect(messages[0].content).toContain('Do not write simultaneous speech');
+    expect(messages[0].content).toContain('adjacent turns and speaker handoffs');
     expect(messages[0].content).toContain('Do not translate');
     expect(messages[0].content).not.toContain('sourceGrounded');
     expect(messages[0].content).not.toContain('Every factual claim');
@@ -139,6 +144,31 @@ describe('two-stage prompt construction', () => {
     expect(messages[1].content).toContain('Custom');
     expect(messages[2].content).toContain('APPROVED EPISODE PLAN');
     expect(messages[2].content).toContain('Central claim');
+  });
+
+  it('passes complete selected linguistic Format and Role contracts to planning and writing', () => {
+    const format = STARTER_FORMAT_TEMPLATES.find((record) => record.id === 'format-conversation-critical');
+    const host = STARTER_SPEAKER_PROFILES.find((record) => record.id === 'profile-host-peer-cohost');
+    const expert = STARTER_SPEAKER_PROFILES.find((record) => record.id === 'profile-expert-analyst');
+    const linguisticPrefs = {
+      ...prefs,
+      formatInstructions: format.instructions,
+      speakers: [
+        { ...prefs.speakers[0], role: host.role },
+        { ...prefs.speakers[1], role: expert.role },
+      ],
+    };
+
+    const planning = buildPlanPrompt('SOURCE', linguisticPrefs);
+    const writing = buildWriterPrompt('SOURCE', linguisticPrefs, validPlan);
+    for (const messages of [planning, writing]) {
+      expect(JSON.stringify(messages)).toContain('turn contingency');
+      expect(JSON.stringify(messages)).toContain('claim–challenge–response');
+      expect(JSON.stringify(messages)).toContain('specific uptake');
+      expect(JSON.stringify(messages)).toContain('claims, evidence, inference');
+      expect(JSON.stringify(messages)).toContain('participation structure allowed by the selected Format');
+    }
+    expect(writing[0].content).toContain('adjacent turns and speaker handoffs');
   });
 
   it('builds complete-plan revision and validation-only repair requests', () => {

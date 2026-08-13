@@ -396,6 +396,7 @@ One versioned document stores:
 ```js
 {
   schemaVersion: 1,
+  podcastTemplateCatalogVersion: 1,
   providers: ProviderConfig[],
   selectedTextProviderId: string | null,
   selectedTtsProviderId: string | null,
@@ -409,7 +410,8 @@ One versioned document stores:
 
 Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
 Settings schema 1 stores ordered reusable Episode directions, Formats, and speaker profiles with the current prompt suite. Episode directions are an additive v1 field: records and backups that omit it receive bundled starters, while an explicit empty collection remains empty. Unreadable, corrupt, or unsupported documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
-Episode Direction and Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. Bundled starters seed new settings. Empty collections persist until explicit starter restoration.
+`podcastTemplateCatalogVersion` versions bundled Format and Speaker Profile content independently of the settings schema. A valid document or backup without the current catalog version receives a one-time replacement: records using bundled IDs are reset, all current starters are added, and custom records remain after starters unless their case-insensitive name owns a starter name. The migrated view is not written during a read; the current catalog version persists on the next settings save or explicit backup restore. Once current, deletions and edits persist until explicit starter restoration.
+Episode Direction and Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. The Format and Speaker Profile catalogs each contain fifteen flat starters—three independently editable variants for each established type—with no family metadata or runtime inheritance.
 
 ```js
 FormatTemplate = { id: string, name: string, instructions: string }
@@ -417,7 +419,7 @@ EpisodeDirectionTemplate = { id: string, name: string, instructions: string }
 SpeakerProfile = { id: string, label: string, defaultSpeakerName: string, role: string }
 ```
 
-Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. A role cannot change the selected format's participation structure. Overrides with unsupported placeholders are invalid. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
+Prompt defaults and their canonical contract live in `domain/prompt-templates.js`; bundled format, linguistic-interaction, and speaker-role prompts live in `domain/podcast-templates.js`. Each flat Format and Role starter contains its complete effective contract so editing, preview, export, and restoration never depend on hidden composition. Resolution uses a valid local override per message template, otherwise the bundled default. Script-wide tone is not a canonical preference: show-level delivery belongs to format instructions and individual delivery belongs to speaker roles. A role cannot change the selected format's participation structure. Overrides with unsupported placeholders are invalid. Source text, prior model output, validation errors, and credentials are runtime values only and are never persisted as template data.
 The settings preview reads live Podcast view values and renders final script messages without persisting preview input or output.
 
 ### IndexedDB

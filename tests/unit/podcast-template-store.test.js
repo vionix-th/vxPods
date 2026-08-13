@@ -24,6 +24,42 @@ import {
   TEMPLATE_TEXT_MAX_LENGTH,
 } from '../../src/domain/podcast-templates.js';
 
+const FORMAT_CATALOG = [
+  ['format-conversation', 'Conversation — Exploratory'],
+  ['format-conversation-critical', 'Conversation — Critical'],
+  ['format-conversation-reflective', 'Conversation — Reflective'],
+  ['format-interview', 'Interview — Explanatory'],
+  ['format-interview-investigative', 'Interview — Investigative'],
+  ['format-interview-interpretive', 'Interview — Interpretive'],
+  ['format-narrative', 'Narrative — Chronological'],
+  ['format-narrative-causal', 'Narrative — Causal'],
+  ['format-narrative-thematic', 'Narrative — Thematic'],
+  ['format-lecture', 'Lecture — Conceptual'],
+  ['format-lecture-case-led', 'Lecture — Case-led'],
+  ['format-lecture-argumentative', 'Lecture — Argumentative'],
+  ['format-panel-discussion', 'Panel Discussion — Exploratory'],
+  ['format-panel-discussion-critical', 'Panel Discussion — Critical'],
+  ['format-panel-discussion-comparative', 'Panel Discussion — Comparative'],
+];
+
+const PROFILE_CATALOG = [
+  ['profile-host', 'Host — Facilitator', 'Maya'],
+  ['profile-host-peer-cohost', 'Host — Peer Co-host', 'Maya'],
+  ['profile-host-synthesizer', 'Host — Synthesizer', 'Maya'],
+  ['profile-interviewer', 'Interviewer — Clarifier', 'Rowan'],
+  ['profile-interviewer-investigator', 'Interviewer — Investigator', 'Rowan'],
+  ['profile-interviewer-interpretive', 'Interviewer — Interpretive', 'Rowan'],
+  ['profile-expert', 'Expert — Explainer', 'Leah'],
+  ['profile-expert-analyst', 'Expert — Analyst', 'Leah'],
+  ['profile-expert-contextualizer', 'Expert — Contextualizer', 'Leah'],
+  ['profile-narrator', 'Narrator — Chronological', 'Nora'],
+  ['profile-narrator-causal', 'Narrator — Causal', 'Nora'],
+  ['profile-narrator-thematic', 'Narrator — Thematic', 'Nora'],
+  ['profile-skeptic', 'Skeptic — Evidence Auditor', 'Elias'],
+  ['profile-skeptic-scope-critic', 'Skeptic — Scope Critic', 'Elias'],
+  ['profile-skeptic-alternative-hypothesis-tester', 'Skeptic — Alternative-Hypothesis Tester', 'Elias'],
+];
+
 beforeEach(() => localStorage.clear());
 
 describe('podcast template store', () => {
@@ -34,16 +70,9 @@ describe('podcast template store', () => {
       { id: 'direction-critical-examination', name: 'Critical Examination' },
       { id: 'direction-practical-interpretation', name: 'Practical Interpretation' },
     ]);
-    expect(listFormatTemplates().map(({ id, name }) => ({ id, name }))).toEqual([
-      { id: 'format-conversation', name: 'Conversation' },
-      { id: 'format-interview', name: 'Interview' },
-      { id: 'format-narrative', name: 'Narrative' },
-      { id: 'format-lecture', name: 'Lecture' },
-      { id: 'format-panel-discussion', name: 'Panel Discussion' },
-    ]);
-    expect(listSpeakerProfiles().map((record) => record.label)).toEqual(
-      STARTER_SPEAKER_PROFILES.map((record) => record.label),
-    );
+    expect(listFormatTemplates().map(({ id, name }) => [id, name])).toEqual(FORMAT_CATALOG);
+    expect(listSpeakerProfiles().map(({ id, label, defaultSpeakerName }) =>
+      [id, label, defaultSpeakerName])).toEqual(PROFILE_CATALOG);
   });
 
   it('keeps Episode direction starters editorially distinct and bounded', () => {
@@ -76,28 +105,83 @@ describe('podcast template store', () => {
     expect(listEpisodeDirectionTemplates()[0].id).toBe('direction-essential-overview');
   });
 
-  it('gives every starter format a distinct format-aware discourse contract', () => {
+  it('gives every flat Format variant a complete linguistic contract', () => {
     const formats = Object.fromEntries(
       STARTER_FORMAT_TEMPLATES.map((record) => [record.id, record.instructions]),
     );
+    const families = {
+      conversation: STARTER_FORMAT_TEMPLATES.slice(0, 3),
+      interview: STARTER_FORMAT_TEMPLATES.slice(3, 6),
+      narrative: STARTER_FORMAT_TEMPLATES.slice(6, 9),
+      lecture: STARTER_FORMAT_TEMPLATES.slice(9, 12),
+      panel: STARTER_FORMAT_TEMPLATES.slice(12, 15),
+    };
 
-    expect(formats['format-conversation']).toContain('develop the subject together');
-    expect(formats['format-conversation']).toContain('permanent moderator');
-    expect(formats['format-conversation']).toContain('rotate mechanically');
-    expect(formats['format-interview']).toContain('first speaker as interviewer');
-    expect(formats['format-interview']).toContain('substance of prior answers');
-    expect(formats['format-interview']).toContain('several interviewees');
-    expect(formats['format-interview']).toContain('fixed questionnaire');
-    expect(formats['format-narrative']).toContain('non-interactive spoken narrative');
-    expect(formats['format-narrative']).toContain('temporal, causal, or thematic organization');
-    expect(formats['format-narrative']).toContain('continuity across handoffs');
-    expect(formats['format-lecture']).toContain('non-interactive spoken lecture');
-    expect(formats['format-lecture']).toContain('deliberate order');
-    expect(formats['format-lecture']).toContain('complementary teaching functions');
-    expect(formats['format-panel-discussion']).toContain('first speaker as moderator');
-    expect(formats['format-panel-discussion']).toContain('without mediating every contribution');
-    expect(formats['format-panel-discussion']).toContain('panelists engage one another');
-    expect(formats['format-panel-discussion']).toContain('fixed speaker rotation');
+    for (const record of families.conversation) {
+      for (const term of [
+        'turn contingency', 'specific uptake', 'sequence organization', 'adjacency pairs',
+        'recipient design', 'grounding', 'repair', 'epistemic stance', 'co-construction',
+        'lexical pickup', 'discourse markers', 'turn-entry points',
+      ]) expect(record.instructions).toContain(term);
+      expect(record.instructions).toContain('topical continuity, not interpersonal uptake');
+      expect(record.instructions).toContain('mini-monologues');
+      expect(record.instructions).toContain('rotate mechanically');
+      expect(record.instructions).toContain('decorative filler');
+    }
+    expect(formats['format-conversation']).toContain('shared formulation');
+    expect(formats['format-conversation-critical']).toContain('claim–challenge–response');
+    expect(formats['format-conversation-critical']).toContain('counterexamples');
+    expect(formats['format-conversation-reflective']).toContain('changes of stance');
+    expect(formats['format-conversation-reflective']).toContain('invent personal histories');
+
+    for (const record of families.interview) {
+      for (const term of [
+        'question–answer adjacency pairs', 'answer-dependent follow-up', 'recipient design',
+        'formulation', 'clarification', 'fixed questionnaire',
+      ]) expect(record.instructions).toContain(term);
+      expect(record.instructions).toContain('first speaker as interviewer');
+    }
+    expect(formats['format-interview']).toContain('definitions');
+    expect(formats['format-interview-investigative']).toContain('causal inference');
+    expect(formats['format-interview-interpretive']).toContain('competing readings');
+
+    for (const record of families.narrative) {
+      for (const term of [
+        'non-interactive', 'discourse cohesion', 'anaphoric reference', 'narrative viewpoint',
+        'callbacks', 'information continuity', 'purposeful handoffs', 'simulated conversation',
+      ]) expect(record.instructions).toContain(term);
+      expect(record.instructions).not.toContain('specific uptake');
+      expect(record.instructions).not.toContain('adjacency pairs');
+    }
+    expect(formats['format-narrative']).toContain('temporal deixis');
+    expect(formats['format-narrative-causal']).toContain('mechanisms');
+    expect(formats['format-narrative-thematic']).toContain('motifs');
+
+    for (const record of families.lecture) {
+      for (const term of [
+        'non-interactive', 'conceptual scaffolding', 'information structure',
+        'listener-oriented metadiscourse', 'restrained consolidation', 'teaching-function handoffs',
+      ]) expect(record.instructions).toContain(term);
+      expect(record.instructions).not.toContain('specific uptake');
+      expect(record.instructions).not.toContain('adjacency pairs');
+    }
+    expect(formats['format-lecture']).toContain('definition to distinction');
+    expect(formats['format-lecture-case-led']).toContain('concrete case');
+    expect(formats['format-lecture-argumentative']).toContain('thesis to support');
+
+    for (const record of families.panel) {
+      for (const term of [
+        'first speaker as moderator', 'panelist-to-panelist specific uptake',
+        'multi-party sequence organization', 'recipient design', 'selective moderator synthesis',
+      ]) expect(record.instructions).toContain(term);
+      expect(record.instructions).toContain('without moderator mediation');
+      expect(record.instructions).toMatch(/fixed round|mandatory turns/);
+    }
+    expect(formats['format-panel-discussion']).toContain('complementary perspectives');
+    expect(formats['format-panel-discussion-critical']).toContain('challenge–response');
+    expect(formats['format-panel-discussion-comparative']).toContain('comparison dimensions');
+
+    expect(STARTER_FORMAT_TEMPLATES).toHaveLength(15);
     for (const record of STARTER_FORMAT_TEMPLATES) {
       expect(record.instructions).toContain('With one speaker');
       expect(record.instructions).not.toContain('source-grounded');
@@ -105,33 +189,35 @@ describe('podcast template store', () => {
     }
   });
 
-  it('keeps starter roles stable and focused on contribution and delivery', () => {
-    expect(STARTER_SPEAKER_PROFILES.map(({ id, label, defaultSpeakerName }) => ({
-      id,
-      label,
-      defaultSpeakerName,
-    }))).toEqual([
-      { id: 'profile-host', label: 'Host', defaultSpeakerName: 'Maya' },
-      { id: 'profile-interviewer', label: 'Interviewer', defaultSpeakerName: 'Rowan' },
-      { id: 'profile-expert', label: 'Expert', defaultSpeakerName: 'Leah' },
-      { id: 'profile-narrator', label: 'Narrator', defaultSpeakerName: 'Nora' },
-      { id: 'profile-skeptic', label: 'Skeptic', defaultSpeakerName: 'Elias' },
-    ]);
+  it('keeps flat Role variants stable, distinct, and subordinate to Format', () => {
+    expect(STARTER_SPEAKER_PROFILES.map(({ id, label, defaultSpeakerName }) =>
+      [id, label, defaultSpeakerName])).toEqual(PROFILE_CATALOG);
 
     const roles = Object.fromEntries(
       STARTER_SPEAKER_PROFILES.map((record) => [record.id, record.role]),
     );
+    expect(STARTER_SPEAKER_PROFILES).toHaveLength(15);
     for (const record of STARTER_SPEAKER_PROFILES) {
       expect(record.role).not.toContain('source-grounded');
-      expect(record.role).not.toContain('In interactive formats');
-      expect(record.role).not.toContain('In non-interactive formats');
+      expect(record.role).toContain('only through the participation structure allowed by the selected Format');
+      expect(record.role).toContain('do not introduce moderation, dialogue, or speaker relationships');
       expect(record.role.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
     }
-    expect(roles['profile-host']).toContain('without monopolizing questions or transitions');
-    expect(roles['profile-interviewer']).toContain('focused inquiry from prior answers');
-    expect(roles['profile-expert']).toContain('source\'s claims from analysis or interpretation');
-    expect(roles['profile-narrator']).toContain('context and continuity');
-    expect(roles['profile-skeptic']).toContain('alternative interpretations');
+    expect(roles['profile-host']).toContain('grounding');
+    expect(roles['profile-host-peer-cohost']).toContain('co-construction');
+    expect(roles['profile-host-synthesizer']).toContain('provisional synthesis');
+    expect(roles['profile-interviewer']).toContain('clarification requests');
+    expect(roles['profile-interviewer-investigator']).toContain('evidential basis');
+    expect(roles['profile-interviewer-interpretive']).toContain('competing readings');
+    expect(roles['profile-expert']).toContain('conceptual scaffolding');
+    expect(roles['profile-expert-analyst']).toContain('claims, evidence, inference');
+    expect(roles['profile-expert-contextualizer']).toContain('history, systems, comparisons');
+    expect(roles['profile-narrator']).toContain('temporal orientation');
+    expect(roles['profile-narrator-causal']).toContain('mechanisms');
+    expect(roles['profile-narrator-thematic']).toContain('recurring themes');
+    expect(roles['profile-skeptic']).toContain('evidential basis');
+    expect(roles['profile-skeptic-scope-critic']).toContain('category boundary');
+    expect(roles['profile-skeptic-alternative-hypothesis-tester']).toContain('competing explanations');
   });
 
   it('creates, updates, and deletes formats with unique names', () => {
@@ -168,9 +254,9 @@ describe('podcast template store', () => {
 
   it('retains custom records and skips starter names occupied by custom records', () => {
     deleteFormatTemplate('format-conversation');
-    const custom = addFormatTemplate({ name: 'Conversation', instructions: 'Custom conversation.' });
-    expect(restoreFormatStarters()).toEqual(['Conversation']);
-    expect(listFormatTemplates().find((record) => record.name === 'Conversation')).toEqual(custom);
+    const custom = addFormatTemplate({ name: 'Conversation — Exploratory', instructions: 'Custom conversation.' });
+    expect(restoreFormatStarters()).toEqual(['Conversation — Exploratory']);
+    expect(listFormatTemplates().find((record) => record.name === 'Conversation — Exploratory')).toEqual(custom);
   });
 
   it('notifies subscribers after mutations', () => {
