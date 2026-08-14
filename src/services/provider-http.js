@@ -1,12 +1,12 @@
 import { appError, httpStatusToAppError, parseRetryAfter } from './errors.js';
 
 /**
- * Send one authenticated provider request with consistent offline, timeout,
+ * Send one provider request with optional authentication and consistent offline, timeout,
  * cancellation, network, and HTTP error handling.
  *
  * @param {Object} args
  * @param {string} args.url
- * @param {{ apiKey: string }} args.provider
+ * @param {{ apiKey: string, auth?: 'none'|'bearer' }} args.provider
  * @param {unknown} args.body
  * @param {AbortSignal} [args.signal]
  * @param {number} args.timeoutMs
@@ -36,12 +36,13 @@ export async function sendProviderRequest(args) {
 
   let response;
   try {
+    const headers = { 'content-type': 'application/json' };
+    if (args.provider.auth !== 'none' && args.provider.apiKey) {
+      headers.authorization = `Bearer ${args.provider.apiKey}`;
+    }
     response = await fetch(args.url, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${args.provider.apiKey}`,
-      },
+      headers,
       body: JSON.stringify(args.body),
       signal: controller.signal,
     });

@@ -2,6 +2,7 @@
 
 import { confirmDialog } from '../../components/dialog.js';
 import { textField } from '../../components/fields.js';
+import { createToolButton } from '../../components/tool-button.js';
 import {
   defaultTtsModel,
   normalizeSuggestions,
@@ -46,20 +47,21 @@ export function createIdentifierListEditor({ title, description, itemLabel, addL
       entry.value = field.input.value;
       chips.children[selectedIndex].textContent = entry.value || `New ${itemLabel.toLowerCase()}`;
     });
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'button button-ghost button-small';
-    remove.textContent = `Remove ${itemLabel.toLowerCase()}`;
-    remove.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: `Remove ${itemLabel.toLowerCase()}`,
-        message: `Remove “${entry.value || `this ${itemLabel.toLowerCase()}`}” from this provider configuration?`,
-        confirmLabel: `Remove ${itemLabel.toLowerCase()}`,
-      });
-      if (!confirmed) return;
-      entries.splice(selectedIndex, 1);
-      selectedIndex = Math.max(0, selectedIndex - 1);
-      render();
+    const remove = createToolButton({
+      label: `Remove ${itemLabel.toLowerCase()}`,
+      glyph: '×',
+      className: 'tool-button-danger',
+      onClick: async () => {
+        const confirmed = await confirmDialog({
+          title: `Remove ${itemLabel.toLowerCase()}`,
+          message: `Remove “${entry.value || `this ${itemLabel.toLowerCase()}`}” from this provider configuration?`,
+          confirmLabel: `Remove ${itemLabel.toLowerCase()}`,
+        });
+        if (!confirmed) return;
+        entries.splice(selectedIndex, 1);
+        selectedIndex = Math.max(0, selectedIndex - 1);
+        render();
+      },
     });
     detail.append(field.wrapper, remove);
   }
@@ -183,6 +185,7 @@ export function createTtsModelEditor({ models }) {
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'voice-chip-remove';
+        remove.title = `Remove voice ${voice}`;
         remove.textContent = '×';
         remove.setAttribute('aria-label', `Remove voice ${voice}`);
         remove.addEventListener('click', async () => {
@@ -220,35 +223,36 @@ export function createTtsModelEditor({ models }) {
       }
     });
 
-    const removeModel = document.createElement('button');
-    removeModel.type = 'button';
-    removeModel.className = 'button button-ghost button-small';
-    removeModel.textContent = 'Remove model';
-    removeModel.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: 'Remove TTS model',
-        message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
-        confirmLabel: 'Remove model',
-      });
-      if (!confirmed) return;
-      entries.splice(selectedIndex, 1);
-      selectedIndex = Math.max(0, selectedIndex - 1);
-      render();
+    const removeModel = createToolButton({
+      label: 'Remove model',
+      glyph: '×',
+      className: 'tool-button-danger',
+      onClick: async () => {
+        const confirmed = await confirmDialog({
+          title: 'Remove TTS model',
+          message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
+          confirmLabel: 'Remove model',
+        });
+        if (!confirmed) return;
+        entries.splice(selectedIndex, 1);
+        selectedIndex = Math.max(0, selectedIndex - 1);
+        render();
+      },
     });
 
-    const restoreVoices = document.createElement('button');
-    restoreVoices.type = 'button';
-    restoreVoices.className = 'button button-ghost button-small';
-    restoreVoices.textContent = 'Restore known voices';
-    restoreVoices.addEventListener('click', async () => {
-      const confirmed = await confirmDialog({
-        title: 'Restore known model voices',
-        message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
-        confirmLabel: 'Restore voices',
-      });
-      if (!confirmed) return;
-      entry.voices = defaultTtsModel(entry.model.trim()).voices;
-      renderVoices();
+    const restoreVoices = createToolButton({
+      label: 'Restore known voices',
+      glyph: '↻',
+      onClick: async () => {
+        const confirmed = await confirmDialog({
+          title: 'Restore known model voices',
+          message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
+          confirmLabel: 'Restore voices',
+        });
+        if (!confirmed) return;
+        entry.voices = defaultTtsModel(entry.model.trim()).voices;
+        renderVoices();
+      },
     });
 
     const addVoiceRow = document.createElement('div');

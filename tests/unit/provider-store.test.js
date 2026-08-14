@@ -26,8 +26,8 @@ describe('normalizeBaseUrl', () => {
     expect(normalizeBaseUrl('https://api.openai.com/v1/')).toBe('https://api.openai.com/v1');
   });
 
-  it('rejects non-https URLs for remote hosts', () => {
-    expect(() => normalizeBaseUrl('http://api.example.com/v1')).toThrowError(/HTTPS/);
+  it('accepts HTTP URLs for local, VPN, and custom network endpoints', () => {
+    expect(normalizeBaseUrl('http://api.example.com:1234/v1')).toBe('http://api.example.com:1234/v1');
   });
 
   it('allows http for localhost', () => {
@@ -63,6 +63,7 @@ describe('validateProviderInput', () => {
     expect(out).toMatchObject({
       name: 'My key',
       baseUrl: 'https://api.openai.com/v1',
+      auth: 'bearer',
       apiKey: 'sk-test',
     });
     expect(out.textGeneration).toMatchObject({ api: 'chat-completions' });
@@ -72,10 +73,19 @@ describe('validateProviderInput', () => {
     ]));
   });
 
-  it('rejects empty key', () => {
+  it('rejects empty key for bearer authentication', () => {
     expect(() =>
-      validateProviderInput({ name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: ' ' }),
-    ).toThrowError(/API key/);
+      validateProviderInput({ name: 'x', baseUrl: 'https://api.openai.com/v1', auth: 'bearer', apiKey: ' ' }),
+    ).toThrowError(/API key.*bearer/);
+  });
+
+  it('accepts an unauthenticated provider and clears any key', () => {
+    expect(validateProviderInput({
+      name: 'LM Studio',
+      baseUrl: 'http://192.168.1.20:1234/v1',
+      auth: 'none',
+      apiKey: 'stale-key',
+    })).toMatchObject({ auth: 'none', apiKey: '' });
   });
 
   it('rejects empty name', () => {
@@ -202,6 +212,17 @@ describe('provider CRUD', () => {
     const updated = updateProvider(record.id, { name: 'Renamed', baseUrl: input.baseUrl, apiKey: '' });
     expect(updated.apiKey).toBe('sk-1');
     expect(updated.name).toBe('Renamed');
+  });
+
+  it('update can explicitly switch to no authentication', () => {
+    const record = addProvider(input);
+    const updated = updateProvider(record.id, {
+      name: record.name,
+      baseUrl: record.baseUrl,
+      auth: 'none',
+      apiKey: '',
+    });
+    expect(updated).toMatchObject({ auth: 'none', apiKey: '' });
   });
 
   it('stores normalized, provider-specific model and voice suggestions', () => {

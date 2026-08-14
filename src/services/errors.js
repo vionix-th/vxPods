@@ -179,7 +179,9 @@ function summarizeProviderBody(bodyText) {
   if (!bodyText) return '';
   try {
     const parsed = JSON.parse(bodyText);
-    const msg = parsed?.error?.message || parsed?.message;
+    const msg = typeof parsed?.error === 'string'
+      ? parsed.error
+      : parsed?.error?.message || parsed?.message;
     if (typeof msg === 'string' && msg.trim()) {
       return ` ${truncate(msg.trim(), 200)}`;
     }

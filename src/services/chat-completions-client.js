@@ -23,7 +23,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  * @returns {Promise<{ content: string, model: string | undefined }>}
  */
 export async function createChatCompletion(args) {
-  const { provider, model, messages } = args;
+  const { model, messages } = args;
   const body = {
     model,
     messages,
@@ -33,14 +33,18 @@ export async function createChatCompletion(args) {
   if (args.jsonMode) {
     body.response_format = { type: 'json_object' };
   }
-  const response = await sendProviderRequest({
-    url: `${provider.baseUrl}/chat/completions`,
-    provider,
-    body,
-    signal: args.signal,
-    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    timeoutMessage: 'Request timed out. Check the provider URL and network.',
-  });
+  let response;
+  try {
+    response = await sendChatRequest(args, body);
+  } catch (error) {
+    // Some OpenAI-compatible servers only accept `text` or `json_schema` and
+    // reject OpenAI's `json_object`. The prompts and local schema validation
+    // still enforce JSON when the provider has no compatible response format.
+    if (!shouldRetryWithoutResponseFormat(error, args, body)) throw error;
+    const fallbackBody = { ...body };
+    delete fallbackBody.response_format;
+    response = await sendChatRequest(args, fallbackBody);
+  }
   const json = await parseProviderJson(response);
   const content = json?.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || content.trim() === '') {
@@ -52,6 +56,26 @@ export async function createChatCompletion(args) {
     });
   }
   return { content, model: json?.model };
+}
+
+function sendChatRequest(args, body) {
+  return sendProviderRequest({
+    url: `${args.provider.baseUrl}/chat/completions`,
+    provider: args.provider,
+    body,
+    signal: args.signal,
+    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    timeoutMessage: 'Request timed out. Check the provider URL and network.',
+  });
+}
+
+function shouldRetryWithoutResponseFormat(error, args, body) {
+  return Boolean(
+    args.jsonMode
+      && body.response_format
+      && error?.status === 400
+      && /response[_ ]format/i.test(error.message || ''),
+  );
 }
 
 /**

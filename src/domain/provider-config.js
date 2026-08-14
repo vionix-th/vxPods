@@ -22,6 +22,7 @@ import { AppError } from '../services/errors.js';
  * @property {string} id
  * @property {string} name
  * @property {string} baseUrl
+ * @property {'none'|'bearer'} auth
  * @property {string} apiKey
  * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
  * @property {TtsModelConfig[]} ttsModels
@@ -153,9 +154,8 @@ export function normalizeBaseUrl(input) {
   } catch {
     throw validationError('Base URL is not a valid URL.');
   }
-  const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
-  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isLocalhost)) {
-    throw validationError('Base URL must use HTTPS.');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw validationError('Base URL must use HTTP or HTTPS.');
   }
   const path = url.pathname.replace(/\/+$/, '');
   if (!path.endsWith('/v1')) {
@@ -171,8 +171,12 @@ export function normalizeBaseUrl(input) {
 export function validateProviderInput(input) {
   const name = String(input.name ?? '').trim();
   if (!name) throw validationError('Name is required.');
+  const auth = input.auth === undefined
+    ? (String(input.apiKey ?? '').trim() ? 'bearer' : 'none')
+    : input.auth;
+  if (auth !== 'none' && auth !== 'bearer') throw validationError('Select a supported authentication mode.');
   const apiKey = String(input.apiKey ?? '').trim();
-  if (!apiKey) throw validationError('API key is required.');
+  if (auth === 'bearer' && !apiKey) throw validationError('API key is required for bearer authentication.');
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
   if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
@@ -181,7 +185,7 @@ export function validateProviderInput(input) {
   if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
     throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
   }
-  return { name, baseUrl, apiKey, textGeneration: { api, models: textModels }, ttsModels };
+  return { name, baseUrl, auth, apiKey: auth === 'bearer' ? apiKey : '', textGeneration: { api, models: textModels }, ttsModels };
 }
 
 /** @param {unknown} value @returns {value is ProviderConfig} */

@@ -45,6 +45,53 @@ describe('createChatCompletion', () => {
     expect(JSON.parse(init.body).store).toBe(false);
   });
 
+  it('falls back to prompt-constrained JSON when a provider rejects json_object', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ error: "'response_format.type' must be 'json_schema' or 'text'" }, 400))
+      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await createChatCompletion({
+      provider,
+      model: 'google/gemma-4-e4b',
+      messages: [{ role: 'user', content: 'Return JSON.' }],
+      jsonMode: true,
+    });
+
+    expect(result.content).toBe('{"ok":true}');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toEqual({ type: 'json_object' });
+    expect('response_format' in JSON.parse(fetchMock.mock.calls[1][1].body)).toBe(false);
+  });
+
+  it('does not retry unrelated bad requests in json mode', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'temperature is invalid' }, 400));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(createChatCompletion({
+      provider,
+      model: 'm',
+      messages: [{ role: 'user', content: 'Return JSON.' }],
+      jsonMode: true,
+    })).rejects.toMatchObject({ status: 400 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the authorization header for an unauthenticated provider', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: 'ok' } }], model: 'local-model' }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createChatCompletion({
+      provider: { baseUrl: 'http://192.168.1.20:1234/v1', auth: 'none', apiKey: '' },
+      model: 'local-model',
+      messages: [{ role: 'user', content: 'hi' }],
+    });
+
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({ 'content-type': 'application/json' });
+  });
+
   it('normalizes 401 to auth error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, 401)));
     await expect(

@@ -17,6 +17,7 @@ import { notify } from '../components/error-message.js';
 import { saveMode } from '../features/providers/provider-store.js';
 import { createOnlineState } from './online-state.js';
 import { AppError, toAppError } from '../services/errors.js';
+import { createToolButton } from '../components/tool-button.js';
 
 const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
 
@@ -200,11 +201,8 @@ function buildShell() {
   brand.append(logo, brandText);
   const headerActions = document.createElement('div');
   headerActions.className = 'header-actions';
-  const settingsButton = document.createElement('button');
+  const settingsButton = createToolButton({ label: 'Open settings', glyph: '⚙' });
   settingsButton.id = 'settings-button';
-  settingsButton.type = 'button';
-  settingsButton.className = 'button button-secondary button-small';
-  settingsButton.textContent = 'Settings';
   headerActions.append(settingsButton);
   branding.append(brand, headerActions);
   header.append(topbar, branding);

@@ -2,6 +2,7 @@
 
 import { confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
+import { createToolButton } from '../../components/tool-button.js';
 import { AppError, toAppError } from '../../services/errors.js';
 import { loadSettings, saveSettings } from '../../storage/local-settings.js';
 import { buildPlanPrompt, buildWriterPrompt } from './podcast-script.js';
@@ -295,16 +296,8 @@ export function renderPromptTemplateSettings(body, options) {
     help.textContent = 'Current Podcast inputs and unsaved template edits.';
     const actions = document.createElement('div');
     actions.className = 'prompt-preview-actions';
-    const refresh = document.createElement('button');
-    refresh.type = 'button';
-    refresh.className = 'button button-ghost button-small';
-    refresh.textContent = 'Refresh inputs';
-    refresh.addEventListener('click', renderPreview);
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.className = 'button button-secondary button-small';
-    edit.textContent = 'Edit templates';
-    edit.addEventListener('click', togglePreview);
+    const refresh = createToolButton({ label: 'Refresh inputs', glyph: '↻', onClick: renderPreview });
+    const edit = createToolButton({ label: 'Edit templates', glyph: '✎', onClick: togglePreview });
     actions.append(refresh, edit);
     header.append(title, help, actions);
     preview.append(header);

@@ -168,7 +168,8 @@ R1 uses one shared configuration record:
  * @property {string} id
  * @property {string} name
  * @property {string} baseUrl // normalized API root ending in /v1
- * @property {string} apiKey
+ * @property {'none'|'bearer'} auth
+ * @property {string} apiKey // empty when auth is 'none'
  * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
  * @property {{ model: string, voices: string[], responseFormat: 'mp3'|'pcm', pcm?: { sampleRate: number, channels: number, encoding: 's16le' } }[]} ttsModels
  */
@@ -178,7 +179,7 @@ Preset roots:
 
 - OpenAI: `https://api.openai.com/v1`
 - OpenRouter: `https://openrouter.ai/api/v1`
-- Manual: user-provided HTTPS URL, normalized without a trailing slash
+- Manual: user-provided HTTP or HTTPS URL, normalized without a trailing slash
 
 Routes:
 
@@ -188,7 +189,7 @@ POST {baseUrl}/responses
 POST {baseUrl}/audio/speech
 ```
 
-Each configuration binds one text-generation API; users create a second configuration to use both routes with the same endpoint. A configuration is usable for TTS when its endpoint implements the OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
+Each configuration binds one text-generation API; users create a second configuration to use both routes with the same endpoint. Authentication is either bearer API key or none; legacy records infer bearer authentication when a key is present. HTTP endpoints are allowed for trusted local, VPN, and custom network services, and the settings UI warns that HTTP is unencrypted. A configuration is usable for TTS when its endpoint implements the OpenAI-compatible speech route. UI reports endpoint capability errors through normalized application error.
 
 Speech requests always set `response_format` from the selected TTS model object. MP3 responses use browser decoding. Raw PCM models also declare sample rate, channel count, and `s16le` encoding because the provider byte stream has no container header; the audio boundary parses and resamples those bytes before the shared assembly/export pipeline.
 
@@ -466,7 +467,8 @@ Provider API keys use plaintext `localStorage`. Controls:
 
 - Runtime scripts, styles, and fonts ship as first-party static assets.
 - Content Security Policy restricts code and content sources while permitting HTTPS connections to configured endpoints.
-- API keys flow from local configuration to request authorization header.
+- Bearer API keys flow from local configuration to request authorization headers; unauthenticated providers omit the authorization header.
+- CSP permits direct HTTP and HTTPS provider requests. Browser mixed-content and CORS policies still apply when the hosted HTTPS application calls an HTTP endpoint.
 - User/model strings enter DOM through text nodes or safe form values.
 - File imports decode `.txt` and `.md` as data.
 - Export filenames pass sanitization.

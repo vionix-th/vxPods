@@ -6,6 +6,7 @@
 import { AppError } from '../services/errors.js';
 import { createErrorScope } from './error-message.js';
 import { cardHeader } from './fields.js';
+import { createToolButton } from './tool-button.js';
 
 const ACCEPTED_EXTENSIONS = ['.txt', '.md'];
 
@@ -97,12 +98,11 @@ export function createSourceInput({ title, help }) {
     fileMeta.hidden = false;
     const text = document.createElement('span');
     text.textContent = `Imported from file: ${name}`;
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'button button-ghost button-small';
-    remove.textContent = 'Remove file label';
-    remove.setAttribute('aria-label', 'Remove imported file label');
-    remove.addEventListener('click', hideFileMeta);
+    const remove = createToolButton({
+      label: 'Remove imported file label',
+      glyph: '×',
+      onClick: hideFileMeta,
+    });
     fileMeta.append(text, remove);
   }
 

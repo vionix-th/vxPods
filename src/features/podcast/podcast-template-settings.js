@@ -2,6 +2,7 @@
 
 import { confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
+import { createToolButton } from '../../components/tool-button.js';
 import { textAreaField, textField } from '../../components/fields.js';
 import { toAppError } from '../../services/errors.js';
 import {
@@ -411,18 +412,8 @@ function templateRow(nameText, summaryText, onEdit, onDelete) {
   info.append(name, summary);
   const actions = document.createElement('div');
   actions.className = 'provider-actions';
-  const edit = document.createElement('button');
-  edit.type = 'button';
-  edit.className = 'button button-secondary button-small';
-  edit.textContent = 'Edit';
-  edit.setAttribute('aria-label', `Edit ${nameText}`);
-  edit.addEventListener('click', onEdit);
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'button button-danger button-small';
-  remove.textContent = 'Delete';
-  remove.setAttribute('aria-label', `Delete ${nameText}`);
-  remove.addEventListener('click', onDelete);
+  const edit = createToolButton({ label: `Edit ${nameText}`, glyph: '✎', onClick: onEdit });
+  const remove = createToolButton({ label: `Delete ${nameText}`, glyph: '×', className: 'tool-button-danger', onClick: onDelete });
   actions.append(edit, remove);
   item.append(info, actions);
   return item;

@@ -5,6 +5,7 @@
 
 import { openDialog, confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
+import { createToolButton } from '../../components/tool-button.js';
 import { textField } from '../../components/fields.js';
 import { createIdentifierListEditor, createTtsModelEditor } from './provider-capability-editors.js';
 import { testTextGenerationConnection } from '../../services/text-generation-client.js';
@@ -210,32 +211,33 @@ function renderProviderRow(provider, body, options) {
   url.title = provider.baseUrl;
   const keyState = document.createElement('span');
   keyState.className = 'provider-key-state';
-  keyState.textContent = `Key saved · ${TEXT_GENERATION_API_LABELS[provider.textGeneration.api]}`;
+  keyState.textContent = `${provider.auth === 'none' ? 'No key' : 'Key saved'} · ${TEXT_GENERATION_API_LABELS[provider.textGeneration.api]}`;
   info.append(name, url, keyState);
 
   const actions = document.createElement('div');
   actions.className = 'provider-actions';
 
-  const edit = document.createElement('button');
-  edit.type = 'button';
-  edit.className = 'button button-secondary button-small';
-  edit.textContent = 'Edit';
-  edit.addEventListener('click', () => options.openProviderForm(provider));
+  const edit = createToolButton({
+    label: `Edit ${provider.name}`,
+    glyph: '✎',
+    onClick: () => options.openProviderForm(provider),
+  });
 
-  const remove = document.createElement('button');
-  remove.type = 'button';
-  remove.className = 'button button-danger button-small';
-  remove.textContent = 'Delete';
-  remove.addEventListener('click', async () => {
-    const confirmed = await confirmDialog({
-      title: 'Delete configuration',
-      message: `Delete “${provider.name}”? Selections using it will be cleared.`,
-      confirmLabel: 'Delete configuration',
-    });
-    if (!confirmed) return;
-    deleteProvider(provider.id);
-    options.onChange?.();
-    renderProviderManager(body, options);
+  const remove = createToolButton({
+    label: `Delete ${provider.name}`,
+    glyph: '×',
+    className: 'tool-button-danger',
+    onClick: async () => {
+      const confirmed = await confirmDialog({
+        title: 'Delete configuration',
+        message: `Delete “${provider.name}”? Selections using it will be cleared.`,
+        confirmLabel: 'Delete configuration',
+      });
+      if (!confirmed) return;
+      deleteProvider(provider.id);
+      options.onChange?.();
+      renderProviderManager(body, options);
+    },
   });
 
   actions.append(edit, remove);
@@ -309,8 +311,34 @@ function renderForm(body, options, existing) {
     value: existing?.baseUrl ?? PROVIDER_PRESETS.openai.baseUrl,
     required: true,
     inputmode: 'url',
-    help: 'OpenAI-compatible API root ending in /v1.',
+    help: 'OpenAI-compatible API root ending in /v1. HTTP endpoints are allowed for trusted networks.',
   });
+
+  const transportWarning = document.createElement('p');
+  transportWarning.className = 'help-text';
+  transportWarning.setAttribute('role', 'status');
+
+  const authField = fieldset('Authentication');
+  const authName = `auth-${Math.random().toString(36).slice(2, 8)}`;
+  let selectedAuth = existing
+    ? (existing.auth ?? (existing.apiKey ? 'bearer' : 'none'))
+    : 'bearer';
+  /** @type {HTMLInputElement[]} */
+  const authRadios = [];
+  for (const [value, labelText] of [['bearer', 'Bearer API key'], ['none', 'None']]) {
+    const label = document.createElement('label');
+    label.className = 'radio-option';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = authName;
+    radio.value = value;
+    radio.checked = value === selectedAuth;
+    authRadios.push(radio);
+    const text = document.createElement('span');
+    text.textContent = labelText;
+    label.append(radio, text);
+    authField.append(label);
+  }
 
   // API key is intentionally visible: provider settings are browser-local,
   // plaintext configuration explicitly controlled by the user.
@@ -326,6 +354,7 @@ function renderForm(body, options, existing) {
   keyInput.autocomplete = 'off';
   keyInput.value = existing?.apiKey ?? '';
   keyWrapper.append(keyLabel, keyInput);
+  authField.append(keyWrapper);
 
   const textApiField = fieldset('Text generation API');
   const textApiName = `text-api-${Math.random().toString(36).slice(2, 8)}`;
@@ -417,7 +446,7 @@ function renderForm(body, options, existing) {
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, keyWrapper, textApiField, capabilityEditor, notice.element, status, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, transportWarning, authField, textApiField, capabilityEditor, notice.element, status, actions);
   body.append(pageHeader, form);
 
   function currentPreset() {
@@ -444,6 +473,28 @@ function renderForm(body, options, existing) {
     });
   }
   urlField.input.disabled = currentPreset() !== 'manual';
+
+  function updateTransportWarning() {
+    transportWarning.textContent = urlField.input.value.trim().toLowerCase().startsWith('http://')
+      ? 'Warning: HTTP is unencrypted. Requests can be observed or modified on the network; use only an endpoint you trust.'
+      : '';
+  }
+  urlField.input.addEventListener('input', updateTransportWarning);
+  updateTransportWarning();
+
+  function updateAuthControls() {
+    keyInput.disabled = selectedAuth === 'none';
+    keyInput.required = selectedAuth === 'bearer';
+    if (selectedAuth === 'none') keyInput.value = '';
+  }
+  for (const radio of authRadios) {
+    radio.addEventListener('change', () => {
+      if (!radio.checked) return;
+      selectedAuth = radio.value;
+      updateAuthControls();
+    });
+  }
+  updateAuthControls();
 
   function applySuggestionDefaults() {
     const defaults = providerSuggestionsForPreset(selectedPreset);
@@ -477,6 +528,7 @@ function renderForm(body, options, existing) {
       name: nameField.input.value,
       baseUrl: urlField.input.value,
       apiKey: keyInput.value,
+      auth: selectedAuth,
       textGeneration: {
         api: selectedTextApi,
         models: textModelsEditor.values(),
@@ -502,7 +554,8 @@ function renderForm(body, options, existing) {
     }
     const provider = {
       baseUrl: values.baseUrl.trim(),
-      apiKey: values.apiKey.trim() || existing?.apiKey || '',
+      auth: values.auth,
+      apiKey: values.auth === 'none' ? '' : (values.apiKey.trim() || existing?.apiKey || ''),
     };
     try {
       if (kind === 'text') {

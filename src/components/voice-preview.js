@@ -2,16 +2,15 @@
  * Temporary inline audio preview. Feature owner supplies generation callback.
  */
 
+import { createToolButton } from './tool-button.js';
+
 /**
  * @param {Object} args
  * @param {() => Promise<Blob | null>} args.loadAudio
  * @param {(error: unknown) => void} args.onError
  */
 export function createVoicePreview({ loadAudio, onError }) {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = 'button button-secondary button-small';
-  button.textContent = 'Preview';
+  const button = createToolButton({ label: 'Preview voice', glyph: '▶' });
   const player = document.createElement('audio');
   player.controls = true;
   player.hidden = true;
@@ -20,7 +19,8 @@ export function createVoicePreview({ loadAudio, onError }) {
 
   button.addEventListener('click', async () => {
     button.disabled = true;
-    button.textContent = 'Preparing…';
+    button.setAttribute('aria-label', 'Preparing voice preview');
+    button.title = 'Preparing voice preview';
     try {
       const blob = await loadAudio();
       if (!blob) return;
@@ -33,7 +33,8 @@ export function createVoicePreview({ loadAudio, onError }) {
       onError(err);
     } finally {
       button.disabled = false;
-      button.textContent = 'Preview';
+      button.setAttribute('aria-label', 'Preview voice');
+      button.title = 'Preview voice';
     }
   });
 

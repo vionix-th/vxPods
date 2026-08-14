@@ -69,7 +69,7 @@ Changing source or voice after generation retains output and labels it with gene
 
 ## 4. Podcast workflow
 
-R1 presents a compact stepper. Completed steps remain editable until rendering begins.
+R1 presents a compact sticky stepper that remains visible at the top of the viewport while scrolling. Completed steps remain editable until rendering begins.
 
 ### Step 1: Add source
 
@@ -160,15 +160,16 @@ Saved configuration list:
 
 - Name.
 - Normalized base URL.
-- Credential state: “Key saved”.
+- Credential state: “Key saved” or “No key”.
 - Edit and delete actions.
 
 Configuration form:
 
 - Preset: OpenAI, OpenRouter, Manual.
 - Name.
-- Base URL.
-- Visible API key field, prefilled when editing a saved configuration.
+- Base URL. HTTP and HTTPS are accepted.
+- Authentication choice: Bearer API key or None. The visible API key field is prefilled when editing a saved configuration and is disabled for None.
+- HTTP endpoints show a persistent warning that requests can be observed or modified on the network and should only be used with a trusted endpoint.
 - Text generation API: Chat Completions or Responses; each configuration binds exactly one.
 - New configurations start with OpenAI selected and its local defaults. Selecting a preset replaces URL, text-generation models, TTS models, and voices after confirmation. OpenRouter and Manual start with empty model and voice lists in R1; users add identifiers accepted by their configuration. Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Known TTS models prefill their locally maintained voice list; unknown identifiers start with no voices. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s known voices. Model and voice lists may be empty. Copy states that these are local hints, not API-discovered capabilities.
 - “Test generation” and “Test Speech” actions when useful.
@@ -256,6 +257,9 @@ Application adaptation:
 ### Buttons
 
 - One primary action per active step.
+- Regular actions use compact rectangular controls with the shared control radius; full pills are reserved for the workflow mode switch and true model/voice chips.
+- Repeated, unambiguous utility actions use compact icon-only tool buttons with accessible names and native tooltips.
+- Keep action rows visually quiet by limiting heavy shadows and excess horizontal padding.
 - Destructive actions use explicit labels such as “Discard render”.
 - Disabled generation includes nearby reason.
 - Loading buttons retain width and visible action label.

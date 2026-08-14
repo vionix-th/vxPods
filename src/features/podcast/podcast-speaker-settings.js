@@ -7,6 +7,7 @@ import { createVoicePreviewAudio } from '../tts/voice-preview-controller.js';
 import { STARTER_SPEAKER_PROFILES } from '../../domain/podcast-templates.js';
 import { MAX_SPEAKERS, MIN_SPEAKERS } from '../../domain/podcast-script-schema.js';
 import { listSpeakerProfiles, subscribePodcastTemplates } from './podcast-template-store.js';
+import { createToolButton } from '../../components/tool-button.js';
 
 const HOST = STARTER_SPEAKER_PROFILES.find((profile) => profile.id === 'profile-host');
 const EXPERT = STARTER_SPEAKER_PROFILES.find((profile) => profile.id === 'profile-expert');
@@ -99,11 +100,10 @@ export function createPodcastSpeakerSettings({
           ? profiles.find((record) => record.id === option.value)?.label ?? option.value
           : 'Choose profile…';
       }
-      const applyProfile = document.createElement('button');
-      applyProfile.type = 'button';
-      applyProfile.className = 'button button-secondary button-small';
-      applyProfile.textContent = 'Apply profile';
-      applyProfile.setAttribute('aria-label', `Apply profile to ${speaker.name || `Speaker ${index + 1}`}`);
+      const applyProfile = createToolButton({
+        label: `Apply profile to ${speaker.name || `Speaker ${index + 1}`}`,
+        glyph: '✓',
+      });
       applyProfile.disabled = profiles.length === 0;
       const profileRow = document.createElement('div');
       profileRow.className = 'profile-control-row';
@@ -306,12 +306,13 @@ function initialSpeakers() {
 }
 
 function actionButton(label, ariaLabel, disabled, onClick, extraClass = '') {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.className = `button button-secondary button-small ${extraClass}`.trim();
-  button.textContent = label;
-  button.setAttribute('aria-label', ariaLabel);
+  const glyphs = { 'Move up': '↑', 'Move down': '↓', Remove: '×' };
+  const button = createToolButton({
+    label: ariaLabel,
+    glyph: glyphs[label] ?? label.slice(0, 1),
+    className: extraClass === 'button-danger' ? 'tool-button-danger' : '',
+    onClick,
+  });
   button.disabled = disabled;
-  button.addEventListener('click', onClick);
   return button;
 }

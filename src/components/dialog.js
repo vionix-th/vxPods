@@ -48,8 +48,9 @@ export function openDialog({ title, render, className, hideCloseButton }) {
   if (!hideCloseButton) {
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
-    closeButton.className = 'dialog-close';
+    closeButton.className = 'dialog-close tool-button';
     closeButton.setAttribute('aria-label', 'Close dialog');
+    closeButton.title = 'Close dialog';
     closeButton.textContent = '×';
     closeButton.addEventListener('click', () => close('dismiss'));
     header.append(closeButton);
