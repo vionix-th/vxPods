@@ -114,7 +114,7 @@ async function addProvider(page, name = 'Mock', api = 'chat-completions') {
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill(name);
-  await dialog.getByLabel(/API key/).fill('sk-synthetic');
+  await dialog.getByRole('textbox', { name: 'API key' }).fill('sk-synthetic');
   if (api === 'responses') {
     await dialog.getByLabel('Responses').check();
     await page
@@ -139,8 +139,9 @@ test('model and voice selectors stay unavailable without a provider configuratio
   const ttsPanel = page.locator('#panel-tts');
   await expect(ttsPanel.getByLabel('Model')).toBeDisabled();
   await expect(ttsPanel.getByLabel('Model').locator('option')).toHaveCount(0);
-  await expect(ttsPanel.getByLabel('Voice')).toBeDisabled();
-  await expect(ttsPanel.getByLabel('Voice').locator('option')).toHaveCount(0);
+  const ttsVoice = ttsPanel.getByRole('combobox', { name: 'Voice', exact: true });
+  await expect(ttsVoice).toBeDisabled();
+  await expect(ttsVoice.locator('option')).toHaveCount(0);
 
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const podcastPanel = page.locator('#panel-podcast');
@@ -148,8 +149,9 @@ test('model and voice selectors stay unavailable without a provider configuratio
   await expect(podcastPanel.getByLabel('Script model').locator('option')).toHaveCount(0);
   await expect(podcastPanel.getByLabel('TTS model')).toBeDisabled();
   await expect(podcastPanel.getByLabel('TTS model').locator('option')).toHaveCount(0);
-  await expect(podcastPanel.getByLabel('Voice')).toHaveCount(2);
-  for (const voice of await podcastPanel.getByLabel('Voice').all()) {
+  const podcastVoices = podcastPanel.getByRole('combobox', { name: 'Voice', exact: true });
+  await expect(podcastVoices).toHaveCount(2);
+  for (const voice of await podcastVoices.all()) {
     await expect(voice).toBeDisabled();
     await expect(voice.locator('option')).toHaveCount(0);
   }
@@ -230,7 +232,7 @@ test('provider-managed voices follow TTS provider and model changes', async ({ p
   await page.getByRole('dialog', { name: 'Apply preset defaults' }).getByRole('button', { name: 'Apply defaults' }).click();
   await dialog.getByLabel(/Name/).fill('Custom provider');
   await dialog.getByLabel('Base URL').fill('https://api.openai.com/v1');
-  await dialog.getByLabel(/API key/).fill('sk-synthetic');
+  await dialog.getByRole('textbox', { name: 'API key' }).fill('sk-synthetic');
   await dialog.getByRole('button', { name: 'Add text generation model' }).click();
   await dialog.getByLabel('Text generation model identifier').fill('custom-chat');
   await dialog.getByRole('button', { name: 'Add TTS model' }).click();
@@ -246,7 +248,7 @@ test('provider-managed voices follow TTS provider and model changes', async ({ p
 
   const panel = page.locator('#panel-tts');
   const model = panel.getByLabel('Model');
-  const voice = panel.getByLabel('Voice');
+  const voice = panel.getByRole('combobox', { name: 'Voice', exact: true });
   await expect(model.locator('option')).toHaveText(['custom-tts-a', 'custom-tts-b']);
   await expect(voice.locator('option')).toContainText(['voice-a']);
   await model.selectOption('custom-tts-b');
@@ -255,21 +257,22 @@ test('provider-managed voices follow TTS provider and model changes', async ({ p
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const podcastPanel = page.locator('#panel-podcast');
   const podcastModel = podcastPanel.getByLabel('TTS model');
-  await expect(podcastPanel.getByLabel('Voice').first().locator('option')).toHaveText(['voice-a']);
+  const podcastVoices = podcastPanel.getByRole('combobox', { name: 'Voice', exact: true });
+  await expect(podcastVoices.first().locator('option')).toHaveText(['voice-a']);
   await podcastModel.selectOption('custom-tts-b');
-  for (const speakerVoice of await podcastPanel.getByLabel('Voice').all()) {
+  for (const speakerVoice of await podcastVoices.all()) {
     await expect(speakerVoice.locator('option')).toHaveText(['voice-b']);
   }
 
   await page.getByRole('button', { name: 'Settings' }).click();
   await dialog.getByRole('button', { name: 'Add provider' }).click();
   await dialog.getByLabel(/Name/).fill('Second provider');
-  await dialog.getByLabel(/API key/).fill('sk-synthetic-2');
+  await dialog.getByRole('textbox', { name: 'API key' }).fill('sk-synthetic-2');
   await dialog.getByRole('button', { name: 'Save configuration' }).click();
   await dialog.getByRole('button', { name: 'Close dialog' }).click();
 
   await podcastPanel.getByLabel('TTS provider').selectOption({ label: 'Second provider (api.openai.com)' });
-  for (const speakerVoice of await podcastPanel.getByLabel('Voice').all()) {
+  for (const speakerVoice of await podcastVoices.all()) {
     await expect(speakerVoice.locator('option')).toContainText(['alloy']);
     await expect(speakerVoice.locator('option', { hasText: 'voice-b' })).toHaveCount(0);
   }
@@ -514,7 +517,7 @@ test('reviewed podcast planning supports approval, structured edits, revision, a
   await panel.getByRole('button', { name: 'Generate script from plan' }).click();
   await expect(panel.getByText('E2E Show')).toBeVisible();
   expect(counters.chat).toBe(3);
-  await panel.locator('.speaker-card').first().getByLabel('Voice').selectOption('verse');
+  await panel.locator('.speaker-card').first().getByRole('combobox', { name: 'Voice', exact: true }).selectOption('verse');
   await expect(panel.getByText(/current plan and script reflect earlier/i)).toBeHidden();
   await panel.getByLabel(/Text to speak/).fill('Changed source material.');
   await expect(panel.getByText(/current plan and script reflect earlier/i)).toBeVisible();
@@ -628,24 +631,24 @@ test('offline shell disables generation with explanation', async ({ page, contex
 });
 
 test('keyboard-only: settings dialog opens, traps focus, closes with Escape', async ({ page }) => {
-  // Tab to the Settings button (past topbar/branding links).
-  for (let i = 0; i < 10; i += 1) {
-    const focused = await page.evaluate(
-      () => `${document.activeElement?.tagName}|${document.activeElement?.textContent}`,
-    );
-    if (focused.startsWith('BUTTON') && focused.includes('Settings')) break;
+  const settingsButton = page.locator('#settings-button');
+  const focusableCount = await page
+    .locator('a, button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    .count();
+  // Reach Settings through keyboard navigation without assuming a fixed number
+  // of controls before it.
+  for (let i = 0; i <= focusableCount; i += 1) {
+    if (await settingsButton.evaluate((button) => document.activeElement === button)) break;
     await page.keyboard.press('Tab');
   }
-  const focusedNow = await page.evaluate(() => document.activeElement?.textContent);
-  expect(focusedNow).toContain('Settings');
+  await expect(settingsButton).toBeFocused();
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(dialog).not.toBeVisible();
   // focus restored to the invoking button
-  const restored = await page.evaluate(() => document.activeElement?.textContent);
-  expect(restored).toContain('Settings');
+  await expect(settingsButton).toBeFocused();
 });
 
 test('podcast: structured editor and raw JSON view', async ({ page }) => {
