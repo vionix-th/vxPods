@@ -18,7 +18,8 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  * @param {ChatMessage[]} args.messages
  * @param {AbortSignal} [args.signal]
  * @param {number} [args.temperature]
- * @param {boolean} [args.jsonMode] request response_format json_object
+ * @param {boolean} [args.jsonMode] request structured JSON output
+ * @param {{ name?: string, schema: object }} [args.jsonSchema] JSON Schema for structured output fallback
  * @param {number} [args.timeoutMs]
  * @returns {Promise<{ content: string, model: string | undefined }>}
  */
@@ -37,12 +38,18 @@ export async function createChatCompletion(args) {
   try {
     response = await sendChatRequest(args, body);
   } catch (error) {
-    // Some OpenAI-compatible servers only accept `text` or `json_schema` and
-    // reject OpenAI's `json_object`. The prompts and local schema validation
-    // still enforce JSON when the provider has no compatible response format.
+    // Some OpenAI-compatible servers only accept `json_schema` and reject
+    // OpenAI's `json_object`. Retry with the provider's structured-output form.
     if (!shouldRetryWithoutResponseFormat(error, args, body)) throw error;
     const fallbackBody = { ...body };
-    delete fallbackBody.response_format;
+    fallbackBody.response_format = {
+      type: 'json_schema',
+      json_schema: {
+        name: args.jsonSchema?.name || 'vxpods_response',
+        strict: true,
+        schema: args.jsonSchema?.schema || { type: 'object' },
+      },
+    };
     response = await sendChatRequest(args, fallbackBody);
   }
   const json = await parseProviderJson(response);

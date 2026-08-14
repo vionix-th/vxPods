@@ -5,6 +5,48 @@ export const MAX_PAUSE_MS = 5000;
 export const MIN_SPEAKERS = 1;
 export const MAX_SPEAKERS = 8;
 
+export const PODCAST_SCRIPT_JSON_SCHEMA = {
+  name: 'podcast_script',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      schemaVersion: { type: 'integer', const: SCRIPT_SCHEMA_VERSION },
+      title: { type: 'string' },
+      language: { type: 'string' },
+      speakers: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            role: { type: 'string' },
+            voice: { type: 'string' },
+          },
+          required: ['id', 'name', 'role', 'voice'],
+        },
+      },
+      segments: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            id: { type: 'string' },
+            speakerId: { type: 'string' },
+            text: { type: 'string' },
+            pauseAfterMs: { type: 'integer', minimum: 0, maximum: MAX_PAUSE_MS },
+          },
+          required: ['id', 'speakerId', 'text', 'pauseAfterMs'],
+        },
+      },
+    },
+    required: ['schemaVersion', 'title', 'language', 'speakers', 'segments'],
+  },
+};
+
 /**
  * @typedef {Object} PodcastScript
  * @property {number} schemaVersion

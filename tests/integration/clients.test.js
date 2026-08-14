@@ -56,12 +56,20 @@ describe('createChatCompletion', () => {
       model: 'google/gemma-4-e4b',
       messages: [{ role: 'user', content: 'Return JSON.' }],
       jsonMode: true,
+      jsonSchema: { name: 'test_response', schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false } },
     });
 
     expect(result.content).toBe('{"ok":true}');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toEqual({ type: 'json_object' });
-    expect('response_format' in JSON.parse(fetchMock.mock.calls[1][1].body)).toBe(false);
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body).response_format).toEqual({
+      type: 'json_schema',
+      json_schema: {
+        name: 'test_response',
+        strict: true,
+        schema: { type: 'object', properties: { ok: { type: 'boolean' } }, required: ['ok'], additionalProperties: false },
+      },
+    });
   });
 
   it('does not retry unrelated bad requests in json mode', async () => {

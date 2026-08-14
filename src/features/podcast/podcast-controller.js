@@ -27,7 +27,8 @@ import {
   validateScript,
   exportableScript,
 } from './podcast-script.js';
-import { validateEpisodePlan } from '../../domain/episode-plan-schema.js';
+import { EPISODE_PLAN_JSON_SCHEMA, validateEpisodePlan } from '../../domain/episode-plan-schema.js';
+import { PODCAST_SCRIPT_JSON_SCHEMA } from '../../domain/podcast-script-schema.js';
 import * as jobStore from '../../storage/render-job-store.js';
 import { RENDER_JOB_SCHEMA_VERSION } from '../../storage/render-job-store.js';
 import { loadSettings } from '../../storage/local-settings.js';
@@ -186,6 +187,7 @@ export function createPodcastController(deps = {}) {
         model: prefs.textModel,
         messages,
         jsonMode: true,
+        jsonSchema: EPISODE_PLAN_JSON_SCHEMA,
         signal,
       });
       throwIfAborted(signal);
@@ -255,6 +257,7 @@ export function createPodcastController(deps = {}) {
         model: prefs.textModel,
         messages: buildWriterPrompt(trimmed, prefs, planResult.plan, getPromptTemplates()),
         jsonMode: true,
+        jsonSchema: PODCAST_SCRIPT_JSON_SCHEMA,
         signal,
       });
       throwIfAborted(signal);
@@ -380,6 +383,7 @@ export function createPodcastController(deps = {}) {
         model: lastPrefs.textModel,
         messages: buildPlanRepairMessages(lastPlanRawOutput, validationErrors, getPromptTemplates()),
         jsonMode: true,
+        jsonSchema: EPISODE_PLAN_JSON_SCHEMA,
         signal,
       });
       throwIfAborted(signal);
@@ -414,6 +418,7 @@ export function createPodcastController(deps = {}) {
         model: lastPrefs.textModel,
         messages: buildRepairMessages(lastRawOutput, validationErrors, getPromptTemplates()),
         jsonMode: true,
+        jsonSchema: PODCAST_SCRIPT_JSON_SCHEMA,
         signal,
       });
       throwIfAborted(signal);

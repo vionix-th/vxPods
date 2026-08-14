@@ -5,6 +5,53 @@ export const MAX_PLAN_ITEMS = 12;
 export const PLAN_TITLE_MAX_LENGTH = 200;
 export const PLAN_TEXT_MAX_LENGTH = 4000;
 
+export const EPISODE_PLAN_JSON_SCHEMA = {
+  name: 'episode_plan',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      schemaVersion: { type: 'integer', const: EPISODE_PLAN_SCHEMA_VERSION },
+      workingTitle: { type: 'string' },
+      editorialGoal: { type: 'string' },
+      listenerPromise: { type: 'string' },
+      formatApproach: { type: 'string' },
+      priorities: { type: 'array', items: { type: 'string' } },
+      exclusions: { type: 'array', items: { type: 'string' } },
+      speakerContributions: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            speakerId: { type: 'string' },
+            contribution: { type: 'string' },
+          },
+          required: ['speakerId', 'contribution'],
+        },
+      },
+      beats: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            id: { type: 'string' },
+            title: { type: 'string' },
+            purpose: { type: 'string' },
+          },
+          required: ['id', 'title', 'purpose'],
+        },
+      },
+      ending: { type: 'string' },
+    },
+    required: [
+      'schemaVersion', 'workingTitle', 'editorialGoal', 'listenerPromise',
+      'formatApproach', 'priorities', 'exclusions', 'speakerContributions', 'beats', 'ending',
+    ],
+  },
+};
+
 /**
  * @typedef {Object} EpisodePlan
  * @property {number} schemaVersion
