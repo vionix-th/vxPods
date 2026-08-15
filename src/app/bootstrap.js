@@ -5,6 +5,7 @@
  */
 
 import { inspectSettings, clearSettings } from '../storage/local-settings.js';
+import { clearPodcastDraft } from '../storage/podcast-draft-store.js';
 import { pruneExpired, deleteJob } from '../storage/render-job-store.js';
 import { createTtsController } from '../features/tts/tts-controller.js';
 import { createTtsView } from '../features/tts/tts-view.js';
@@ -67,6 +68,11 @@ export async function bootstrap(root) {
     const failures = [];
     try {
       clearSettings();
+    } catch (error) {
+      failures.push(toAppError(error));
+    }
+    try {
+      clearPodcastDraft();
     } catch (error) {
       failures.push(toAppError(error));
     }

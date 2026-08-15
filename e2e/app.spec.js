@@ -157,6 +157,32 @@ test('model and voice selectors stay unavailable without a provider configuratio
   }
 });
 
+test('podcast episode draft survives reload and New episode clears it', async ({ page }) => {
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  const panel = page.locator('#panel-podcast');
+  await panel.getByLabel(/Text to speak/).fill('Persist this source.');
+  await panel.getByLabel('Audience').fill('Busy readers');
+  await panel.getByLabel('Review plan before writing').check();
+  await panel.getByRole('button', { name: 'Add speaker' }).click();
+  await panel.locator('.speaker-card').nth(2).getByLabel('Name (required)').fill('Third speaker');
+  await page.waitForTimeout(300);
+
+  await page.reload();
+  await page.getByRole('button', { name: 'Podcast', exact: true }).click();
+  await expect(panel.getByLabel(/Text to speak/)).toHaveValue('Persist this source.');
+  await expect(panel.getByLabel('Audience')).toHaveValue('Busy readers');
+  await expect(panel.getByLabel('Review plan before writing')).toBeChecked();
+  await expect(panel.locator('.speaker-card')).toHaveCount(3);
+  await expect(panel.locator('.speaker-card').nth(2).getByLabel('Name (required)')).toHaveValue('Third speaker');
+
+  await panel.getByRole('button', { name: 'New episode' }).click();
+  const dialog = page.getByRole('dialog', { name: 'New episode' });
+  await dialog.getByRole('button', { name: 'Discard and start new' }).click();
+  await expect(panel.getByLabel(/Text to speak/)).toHaveValue('');
+  await expect(panel.locator('.speaker-card')).toHaveCount(2);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('vxpods.podcast-draft'))).toBeNull();
+});
+
 test('provider setup persists across reload', async ({ page }) => {
   await addProvider(page);
   await page.reload();

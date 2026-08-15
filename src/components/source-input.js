@@ -73,6 +73,7 @@ export function createSourceInput({ title, help }) {
     textarea.value = '';
     hideFileMeta();
     updateCount();
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.focus();
   });
 
@@ -132,6 +133,7 @@ export function createSourceInput({ title, help }) {
       textarea.value = text;
       showFileMeta(file.name);
       updateCount();
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
       clearImportError();
     } catch (err) {
       showImportError(

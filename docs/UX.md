@@ -86,7 +86,7 @@ Essential controls:
 
 All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. Without a selected saved configuration, the affected model and voice selects are empty and disabled. The lists are never presented as discovered provider capabilities.
 
-Episode Direction and Format selection each copy saved instructions into a session-only draft. Editing marks temporary changes; Reset restores current saved content. Switching while dirty confirms before discarding. Deleting the selected saved template leaves the draft intact as Custom.
+Episode Direction and Format selection each copy saved instructions into a browser-local current episode draft. Editing marks temporary changes; Reset restores current saved content. Switching while dirty confirms before discarding. Deleting the selected saved template leaves the draft intact as Custom.
 
 Episode direction defines purpose, angle, priorities, depth, and intentional omissions. Essential Overview is the default. Format continues to define discourse and participation structure; Speaker Roles remain tendencies within that structure.
 
@@ -97,7 +97,7 @@ Step 3, “Plan”, is the single source of truth for one through eight ordered 
 ### Step 3: Plan
 
 - Summary names the selected script configuration, text-generation API, and model. The ordered speaker editor remains the single source of truth for the cast.
-- “Review plan before writing” is unchecked and session-only. The default “Generate script” action shows “Planning episode…” followed by “Writing and validating script…”. When checked, the action becomes “Create plan” and stops after planning.
+- “Review plan before writing” is unchecked by default and saved with the current browser-local episode draft. The default “Generate script” action shows “Planning episode…” followed by “Writing and validating script…”. When checked, the action becomes “Create plan” and stops after planning.
 - A valid plan stays visible in Quick and reviewed flows. Its read view shows working title, goal, listener promise, Format approach, priorities, exclusions, speaker contributions, progression, and ending.
 - “Edit plan” follows the same explicit edit lifecycle as structured script editing: it becomes “Save edits”, exposes “Cancel edits”, preserves an in-progress draft across workflow and connectivity updates, and retains invalid edits for correction. Writing, replacement-plan generation, and model revision are unavailable until edits are saved or cancelled. List and beat actions use compact, accessible move and delete controls; save and cancel restore focus to the edit action and announce the outcome. “Ask for changes to this plan” requests a complete replacement plan. “Generate script from plan” is disabled while the plan is stale.
 - Invalid plan output offers one “Repair plan” action. Network/provider failure offers retry. Cancel retains the last valid plan and script.
@@ -140,7 +140,7 @@ Screen-reader announcements cover phase changes, failures, cancellation, and com
 - “Download WAV”.
 - “Download MP3”.
 - “Download script JSON”.
-- “Start over” with confirmation when recoverable data would be removed.
+- Persistent “New episode” action. It confirms before clearing a non-empty draft. When recoverable audio exists, it offers Keep render and start new or Discard render and start new. Saved provider settings remain.
 
 ## 5. Recovery experience
 
@@ -155,7 +155,7 @@ On startup with one recoverable render:
 
 ## 6. Settings
 
-Settings use one responsive dialog or full-height mobile sheet. The dialog has three persistent sections: Providers, Podcast, and Data & privacy, arranged in a compact horizontal navigation bar. Podcast contains Episode directions, Formats, Speaker profiles, and Advanced prompts pages. Every Settings page uses shared outer insets, title/supporting-text spacing, content-group gaps, and action alignment. Add/edit workflows open focused subpages with a Back action. Data backup, restore, and Clear local data appear only in Data & privacy. The clear action sits in a distinct Danger zone and confirms the complete removal scope before deleting local settings and unfinished work.
+Settings use one responsive dialog or full-height mobile sheet. The dialog has three persistent sections: Providers, Podcast, and Data & privacy, arranged in a compact horizontal navigation bar. Podcast contains Episode directions, Formats, Speaker profiles, and Advanced prompts pages. Every Settings page uses shared outer insets, title/supporting-text spacing, content-group gaps, and action alignment. Add/edit workflows open focused subpages with a Back action. Data backup, restore, and Clear local data appear only in Data & privacy. Portable backup excludes the current episode draft. The clear action sits in a distinct Danger zone and confirms the complete removal scope before deleting local settings, current draft, and unfinished work.
 
 Saved configuration list:
 

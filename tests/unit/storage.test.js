@@ -9,6 +9,14 @@ import {
   SETTINGS_SCHEMA_VERSION,
   STORAGE_KEY,
 } from '../../src/storage/local-settings.js';
+import {
+  PODCAST_DRAFT_STORAGE_KEY,
+  PODCAST_DRAFT_SCHEMA_VERSION,
+  inspectPodcastDraft,
+  loadPodcastDraft,
+  savePodcastDraft,
+  clearPodcastDraft,
+} from '../../src/storage/podcast-draft-store.js';
 import { PODCAST_TEMPLATE_CATALOG_VERSION } from '../../src/domain/podcast-templates.js';
 import {
   saveJob,
@@ -269,6 +277,57 @@ describe('local-settings', () => {
       },
     };
     expect(() => clearSettings(failing)).toThrowError(/remove saved browser settings/i);
+  });
+});
+
+describe('podcast draft storage', () => {
+  const draft = () => ({
+    schemaVersion: PODCAST_DRAFT_SCHEMA_VERSION,
+    source: 'Source text',
+    directionTemplateId: 'direction-essential-overview',
+    episodeDirection: 'Focus on key facts.',
+    formatTemplateId: 'format-conversation',
+    formatInstructions: 'Two speakers discuss.',
+    audience: 'general',
+    textModel: 'gpt-test',
+    ttsModel: 'tts-test',
+    speakers: [
+      { id: 'speaker-1', name: 'Maya', role: 'Host', voice: 'alloy' },
+      { id: 'speaker-2', name: 'Elias', role: 'Expert', voice: 'echo' },
+    ],
+    reviewPlan: true,
+  });
+
+  it('round-trips an episode draft separately from settings', () => {
+    savePodcastDraft(draft());
+    expect(loadPodcastDraft()).toEqual(draft());
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('returns null for missing, corrupt, and unsupported drafts without replacing raw data', () => {
+    expect(loadPodcastDraft()).toBeNull();
+    localStorage.setItem(PODCAST_DRAFT_STORAGE_KEY, '{bad');
+    expect(inspectPodcastDraft()).toMatchObject({ status: 'corrupt', draft: null });
+    expect(localStorage.getItem(PODCAST_DRAFT_STORAGE_KEY)).toBe('{bad');
+    localStorage.setItem(PODCAST_DRAFT_STORAGE_KEY, JSON.stringify({ ...draft(), schemaVersion: 99 }));
+    expect(inspectPodcastDraft()).toMatchObject({ status: 'unsupported', draft: null });
+  });
+
+  it('rejects invalid speaker records and clears only explicit draft data', () => {
+    expect(() => savePodcastDraft({ ...draft(), speakers: [{ ...draft().speakers[0] }, { ...draft().speakers[0] }] }))
+      .toThrow(/unique/i);
+    savePodcastDraft(draft());
+    clearPodcastDraft();
+    expect(loadPodcastDraft()).toBeNull();
+  });
+
+  it('normalizes draft storage read and quota failures', () => {
+    const unavailable = { getItem() { throw new Error('blocked'); } };
+    expect(inspectPodcastDraft(unavailable)).toMatchObject({ status: 'unavailable', error: { kind: 'storage' } });
+    const full = {
+      setItem() { throw new DOMException('full', 'QuotaExceededError'); },
+    };
+    expect(() => savePodcastDraft(draft(), full)).toThrow(/storage is full/i);
   });
 });
 

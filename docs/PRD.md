@@ -7,7 +7,7 @@ License: MIT
 
 ## 1. Product summary
 
-vxPods is a static, client-side application that turns source text into speech or a configurable one-to-eight-speaker podcast. Users bring an API key for OpenAI or an OpenAI-compatible endpoint. Provider credentials, preferences, reusable Podcast templates, and unfinished render state remain in browser storage.
+vxPods is a static, client-side application that turns source text into speech or a configurable one-to-eight-speaker podcast. Users bring an API key for OpenAI or an OpenAI-compatible endpoint. Provider credentials, preferences, reusable Podcast templates, current Podcast draft, and unfinished render state remain in browser storage.
 
 R1 provides two focused workflows:
 
@@ -127,7 +127,7 @@ Users can configure:
 - TTS model.
 - Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
-Episode Direction templates, Format templates, and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record and reset on reload. Speaker profiles do not store provider-specific voices.
+Episode Direction templates, Format templates, and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record. The current Podcast draft—including source text, temporary settings, cast, voices, selected models, and review-plan choice—survives reload in browser storage until New episode or Clear local data. Speaker profiles do not store provider-specific voices.
 
 Defaults:
 
@@ -173,7 +173,7 @@ Bundled Formats and Speaker Roles are flat, independently editable catalogs with
 Acceptance:
 
 - Quick generation produces a validated plan and script with two ordered model requests; reviewed generation stops after the first request.
-- Plans remain visible after Quick generation and are discarded on reload or Start over.
+- Plans remain visible after Quick generation and are discarded on reload or New episode.
 - TTS rendering becomes available after script validation succeeds.
 - Interactive formats realize their selected linguistic contract through adjacent-turn dependency, specific uptake, and consequential response rather than adjacent independent monologues. Narrative and Lecture use their selected non-interactive cohesion and explanatory-progression contract without simulated dialogue.
 - Imported scripts open in review with the same rendering and export actions as generated scripts.
@@ -249,7 +249,7 @@ Errors appear in a global, dismissible notification stack, preserve completed wo
 
 ## 7. Data and privacy
 
-- Provider records, API keys, and current selections persist in `localStorage`.
+- Provider records, API keys, current selections, and current Podcast draft persist in `localStorage`. The draft is excluded from portable settings backup and restore.
 - Temporary podcast render state uses IndexedDB.
 - Network egress is limited to generation requests sent to provider endpoint selected for that operation.
 - Application reads persisted keys when authorizing selected provider requests.

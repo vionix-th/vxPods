@@ -16,7 +16,7 @@ vxPods must preserve a fast source-to-podcast path while also allowing authors t
 - Quick generation remains the default and makes planner and writer requests consecutively. An optional review control stops after planning.
 - Plans are visible and structurally editable in both paths. Users may also request a complete replacement plan through a model revision request.
 - A current plan also enables complete-script revision. The model receives writer context, current script, and a session-only revision request; replacement remains subject to canonical schema validation.
-- Plans, source text, raw model output, and revision requests remain session-only. They are not stored in render jobs or script exports.
+- Plans, scripts, raw model output, and revision requests remain session-only. They are not stored in render jobs or script exports. Source text and editable Podcast setup are stored only in a separately versioned, browser-local current episode draft; it is excluded from portable settings backup and restore.
 - Planner and writer use the same selected provider and model through the API-neutral text-generation boundary. Every request is independently cancellable.
 - A failed writer retains the valid plan and can retry without rerunning planning. Invalid planner output permits one explicit validation-only repair.
 - Reusable Episode Direction templates extend settings schema 1 additively. Existing v1 records without the field receive bundled starters; an explicit empty collection remains empty.
@@ -34,7 +34,7 @@ vxPods must preserve a fast source-to-podcast path while also allowing authors t
 
 - Continue single-stage prompting. Rejected because repeated prompt changes did not reliably separate editorial selection from spoken realization.
 - Require plan approval for every generation. Rejected because it conflicts with the fast source-to-podcast job.
-- Persist plans for reload recovery. Deferred because it would expand the local privacy and recovery contract for source-derived content.
+- Persist plans for reload recovery. Deferred because it would expand the local privacy and recovery contract beyond the explicit current episode draft.
 - Use a separate planner model. Deferred to avoid another provider/model choice and inconsistent capability requirements.
 
 ## Rollback considerations

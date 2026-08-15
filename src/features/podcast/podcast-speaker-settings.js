@@ -19,6 +19,7 @@ const EXPERT = STARTER_SPEAKER_PROFILES.find((profile) => profile.id === 'profil
  * @param {() => string[]} args.getVoiceOptions
  * @param {ReturnType<import('./podcast-controller.js').createPodcastController>} args.controller
  * @param {() => void} [args.onStructureChange]
+ * @param {() => void} [args.onDraftChange]
  */
 export function createPodcastSpeakerSettings({
   providerSelect,
@@ -26,6 +27,7 @@ export function createPodcastSpeakerSettings({
   getVoiceOptions,
   controller,
   onStructureChange = () => {},
+  onDraftChange = () => {},
 }) {
   const element = document.createElement('section');
   element.className = 'script-speaker-settings';
@@ -184,6 +186,7 @@ export function createPodcastSpeakerSettings({
       });
       name.input.addEventListener('input', onStructureChange);
       role.input.addEventListener('input', onStructureChange);
+      voice.input.addEventListener('change', onDraftChange);
 
       card.append(legend, profile.wrapper, name.wrapper, role.wrapper, voice.wrapper, tools);
       cards.append(card);
@@ -299,6 +302,22 @@ export function createPodcastSpeakerSettings({
         nextSpeakerNumber,
         ...values.map((speaker) => Number(speaker.id.match(/^speaker-(\d+)$/)?.[1] ?? 0) + 1),
       );
+      render();
+    },
+    /** @param {{id: string, name: string, role: string, voice: string}[]} speakers */
+    hydrateDraft(speakers) {
+      values = speakers.map((speaker) => ({ ...speaker }));
+      selectedProfileIds.clear();
+      nextSpeakerNumber = Math.max(
+        3,
+        ...values.map((speaker) => Number(speaker.id.match(/^speaker-(\d+)$/)?.[1] ?? 0) + 1),
+      );
+      render();
+    },
+    resetDraft() {
+      values = initialSpeakers();
+      selectedProfileIds.clear();
+      nextSpeakerNumber = 3;
       render();
     },
   };

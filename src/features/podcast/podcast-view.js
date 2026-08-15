@@ -8,7 +8,7 @@ import { createProviderSelect } from '../../components/provider-select.js';
 import { selectField, textAreaField, textField, cardHeader } from '../../components/fields.js';
 import { createProgress } from '../../components/progress.js';
 import { createErrorScope, notify } from '../../components/error-message.js';
-import { confirmDialog } from '../../components/dialog.js';
+import { confirmDialog, openDialog } from '../../components/dialog.js';
 import { requireProvider } from '../providers/provider-requirement.js';
 import { openProviderSettings } from '../providers/provider-form.js';
 import {
@@ -34,6 +34,12 @@ import {
   listFormatTemplates,
   subscribePodcastTemplates,
 } from './podcast-template-store.js';
+import {
+  PODCAST_DRAFT_SCHEMA_VERSION,
+  inspectPodcastDraft,
+  savePodcastDraft,
+  clearPodcastDraft,
+} from '../../storage/podcast-draft-store.js';
 
 const SECTIONS = [
   { id: 'source', label: 'Source' },
@@ -92,6 +98,14 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const recoveryCard = document.createElement('section');
   recoveryCard.className = 'card recovery-card';
   recoveryCard.hidden = true;
+
+  const episodeActions = document.createElement('div');
+  episodeActions.className = 'workflow-actions';
+  const newEpisodeButton = document.createElement('button');
+  newEpisodeButton.type = 'button';
+  newEpisodeButton.className = 'button button-danger';
+  newEpisodeButton.textContent = 'New episode';
+  episodeActions.append(newEpisodeButton);
 
   // ---------- Step 1: source
   const source = createSourceInput({
@@ -246,10 +260,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     directionInstructionsField.input.value = next.instructions;
     updateDirectionDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
   });
   directionInstructionsField.input.addEventListener('input', () => {
     updateDirectionDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
   });
   directionResetButton.addEventListener('click', () => {
     const selected = listEpisodeDirectionTemplates().find((record) => record.id === selectedDirectionTemplateId);
@@ -257,6 +273,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     directionInstructionsField.input.value = selected.instructions;
     updateDirectionDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
     directionInstructionsField.input.focus();
   });
 
@@ -307,10 +324,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     formatInstructionsField.input.value = next.instructions;
     updateFormatDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
   });
   formatInstructionsField.input.addEventListener('input', () => {
     updateFormatDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
   });
   formatResetButton.addEventListener('click', () => {
     const selected = listFormatTemplates().find((record) => record.id === selectedFormatTemplateId);
@@ -318,6 +337,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     formatInstructionsField.input.value = selected.instructions;
     updateFormatDraftState();
     markScriptDraftStale();
+    saveDraftSoon();
     formatInstructionsField.input.focus();
   });
   subscribePodcastTemplates(() => {
@@ -348,7 +368,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   }
   textProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
   ttsProviderSelect.element.addEventListener('change', refreshProviderSuggestions);
-  ttsModelField.input.addEventListener('change', () => speakerSettings.refresh());
+  textModelField.input.addEventListener('change', saveDraftSoon);
+  ttsModelField.input.addEventListener('change', () => {
+    speakerSettings.refresh();
+    saveDraftSoon();
+  });
   subscribeProviders(refreshProviderSuggestions);
 
   // ---------- Step 3: editorial planning and script generation
@@ -362,7 +386,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     getTtsModel: selectedTtsModel,
     getVoiceOptions: voiceOptions,
     controller,
-    onStructureChange: markScriptDraftStale,
+    onStructureChange: () => {
+      markScriptDraftStale();
+      saveDraftSoon();
+    },
+    onDraftChange: saveDraftSoon,
   });
   refreshProviderSuggestions();
   const reviewPlanLabel = document.createElement('label');
@@ -428,6 +456,74 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     scriptStatus,
     planReview.element,
   );
+
+  let draftSaveTimer = null;
+  let hydratingDraft = false;
+  let baselineDraft = null;
+
+  function currentDraft() {
+    return {
+      schemaVersion: PODCAST_DRAFT_SCHEMA_VERSION,
+      source: source.getText(),
+      directionTemplateId: selectedDirectionTemplateId,
+      episodeDirection: directionInstructionsField.input.value,
+      formatTemplateId: selectedFormatTemplateId,
+      formatInstructions: formatInstructionsField.input.value,
+      audience: audienceField.input.value,
+      textModel: textModelField.input.value,
+      ttsModel: ttsModelField.input.value,
+      speakers: speakerSettings.read(),
+      reviewPlan: reviewPlanInput.checked,
+    };
+  }
+
+  function saveDraftSoon() {
+    if (hydratingDraft) return;
+    if (draftSaveTimer !== null) globalThis.clearTimeout(draftSaveTimer);
+    draftSaveTimer = globalThis.setTimeout(() => {
+      draftSaveTimer = null;
+      try {
+        savePodcastDraft(currentDraft());
+      } catch (error) {
+        notify({ type: 'error', title: 'Episode draft was not saved', message: error.message, error });
+      }
+    }, 250);
+  }
+
+  function restoreDraft() {
+    const result = inspectPodcastDraft();
+    if (result.error) {
+      notify({ type: 'warning', title: 'Episode draft unavailable', message: result.error.message, error: result.error });
+      return;
+    }
+    if (!result.draft) return;
+    const draft = result.draft;
+    hydratingDraft = true;
+    source.setText(draft.source);
+    selectedDirectionTemplateId = draft.directionTemplateId ?? selectedDirectionTemplateId;
+    directionInstructionsField.input.value = draft.episodeDirection;
+    selectedFormatTemplateId = draft.formatTemplateId ?? selectedFormatTemplateId;
+    formatInstructionsField.input.value = draft.formatInstructions;
+    audienceField.input.value = draft.audience;
+    textModelField.input.value = draft.textModel;
+    ttsModelField.input.value = draft.ttsModel;
+    speakerSettings.hydrateDraft(draft.speakers);
+    reviewPlanInput.checked = draft.reviewPlan;
+    generateScriptButton.textContent = draft.reviewPlan ? 'Create plan' : 'Generate script';
+    refreshDirectionTemplates();
+    refreshFormatTemplates();
+    updateScriptSummary();
+    hydratingDraft = false;
+    notify({ type: 'success', title: 'Episode draft restored', message: 'Saved in this browser.' });
+  }
+
+  function isNonEmptyDraft() {
+    const draft = currentDraft();
+    const defaults = baselineDraft;
+    if (!defaults) return true;
+    return Object.entries(draft).some(([key, value]) => key !== 'schemaVersion' &&
+      JSON.stringify(value) !== JSON.stringify(defaults[key]));
+  }
 
   // ---------- Step 4: review & edit
   const review = createPodcastScriptReview({
@@ -499,15 +595,11 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   downloadScriptButton.type = 'button';
   downloadScriptButton.className = 'button button-secondary';
   downloadScriptButton.textContent = 'Download script JSON';
-  const startOverButton = document.createElement('button');
-  startOverButton.type = 'button';
-  startOverButton.className = 'button button-danger';
-  startOverButton.textContent = 'Start over';
-  exportActions.append(downloadWavButton, downloadMp3Button, downloadScriptButton, startOverButton);
+  exportActions.append(downloadWavButton, downloadMp3Button, downloadScriptButton);
   const exportErrors = createErrorScope();
   exportCard.append(audio, exportActions);
 
-  root.append(recoveryCard, stepper, source.element, prefsCard, scriptCard, review.element, renderCard, exportCard);
+  root.append(episodeActions, recoveryCard, stepper, source.element, prefsCard, scriptCard, review.element, renderCard, exportCard);
 
   stepCards.set('source', source.element);
   stepCards.set('settings', prefsCard);
@@ -627,10 +719,15 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   source.element.addEventListener('input', () => {
     syncSectionNavigation();
     markScriptDraftStale();
+    saveDraftSoon();
   });
-  audienceField.input.addEventListener('input', markScriptDraftStale);
+  audienceField.input.addEventListener('input', () => {
+    markScriptDraftStale();
+    saveDraftSoon();
+  });
   reviewPlanInput.addEventListener('change', () => {
     generateScriptButton.textContent = reviewPlanInput.checked ? 'Create plan' : 'Generate script';
+    saveDraftSoon();
   });
 
   // ---------- Script generation
@@ -710,6 +807,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       }
       controller.importScript(importedScript);
       speakerSettings.hydrate(importedScript);
+      saveDraftSoon();
       clearScriptDraftStale();
       review.exitEditMode();
       review.setJsonMode(false);
@@ -773,7 +871,6 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     const button = format === 'wav' ? downloadWavButton : downloadMp3Button;
     downloadWavButton.disabled = true;
     downloadMp3Button.disabled = true;
-    startOverButton.disabled = true;
     const original = button.textContent;
     button.textContent = format === 'mp3' ? 'Encoding MP3…' : 'Preparing…';
     try {
@@ -793,7 +890,6 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     } finally {
       downloadWavButton.disabled = false;
       downloadMp3Button.disabled = false;
-      startOverButton.disabled = false;
       button.textContent = original;
     }
   }
@@ -807,14 +903,94 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     }
   });
 
-  startOverButton.addEventListener('click', async () => {
-    const confirmed = await confirmDialog({
-      title: 'Start over',
-      message: 'This removes the current script and any recoverable render data.',
-      confirmLabel: 'Discard and start over',
+  newEpisodeButton.addEventListener('click', startNewEpisode);
+
+  async function startNewEpisode() {
+    let job;
+    try {
+      job = await controller.getRecoverableJob();
+    } catch (error) {
+      notify({ type: 'error', title: 'Could not start a new episode', message: error.message, error });
+      return;
+    }
+    if (job) {
+      const choice = await chooseRecoverableRender();
+      if (!choice) return;
+      if (choice === 'discard') {
+        try {
+          await controller.discardRender();
+        } catch (error) {
+          notify({ type: 'error', title: 'Could not discard render', message: error.message, error });
+          return;
+        }
+      }
+    } else if (isNonEmptyDraft()) {
+      const confirmed = await confirmDialog({
+        title: 'New episode',
+        message: 'Discard current source and temporary podcast setup? Saved provider settings remain.',
+        confirmLabel: 'Discard and start new',
+      });
+      if (!confirmed) return;
+    }
+    try {
+      resetEpisodeDraft();
+    } catch (error) {
+      notify({ type: 'error', title: 'Could not start a new episode', message: error.message, error });
+    }
+  }
+
+  function chooseRecoverableRender() {
+    return new Promise((resolve) => {
+      const handle = openDialog({
+        title: 'New episode',
+        render(body, h) {
+          const message = document.createElement('p');
+          message.className = 'dialog-message';
+          message.textContent = 'Saved render work exists. Keep it for later, or discard its completed audio before starting a new episode.';
+          const actions = document.createElement('div');
+          actions.className = 'dialog-actions';
+          const cancel = document.createElement('button');
+          cancel.type = 'button';
+          cancel.className = 'button button-secondary';
+          cancel.textContent = 'Cancel';
+          cancel.addEventListener('click', () => h.close('cancel'));
+          const keep = document.createElement('button');
+          keep.type = 'button';
+          keep.className = 'button button-secondary';
+          keep.textContent = 'Keep render and start new';
+          keep.addEventListener('click', () => h.close('keep'));
+          const discard = document.createElement('button');
+          discard.type = 'button';
+          discard.className = 'button button-danger';
+          discard.textContent = 'Discard render and start new';
+          discard.addEventListener('click', () => h.close('discard'));
+          actions.append(cancel, keep, discard);
+          body.append(message, actions);
+        },
+      });
+      handle.onClose((result) => resolve(result === 'keep' || result === 'discard' ? result : null));
     });
-    if (!confirmed) return;
-    await controller.discardRender();
+  }
+
+  function resetEpisodeDraft() {
+    if (draftSaveTimer !== null) {
+      globalThis.clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+    clearPodcastDraft();
+    selectedDirectionTemplateId = directionStarter.id;
+    directionInstructionsField.input.value = directionStarter.instructions;
+    selectedFormatTemplateId = conversationStarter.id;
+    formatInstructionsField.input.value = conversationStarter.instructions;
+    audienceField.input.value = 'general';
+    textModelField.input.value = textModelField.input.options[0]?.value ?? '';
+    ttsModelField.input.value = ttsModelField.input.options[0]?.value ?? '';
+    speakerSettings.resetDraft();
+    reviewPlanInput.checked = false;
+    generateScriptButton.textContent = 'Generate script';
+    refreshDirectionTemplates();
+    refreshFormatTemplates();
+    updateScriptSummary();
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
       audioUrl = null;
@@ -825,7 +1001,9 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     renderCard.hidden = true;
     exportCard.hidden = true;
     source.setText('');
-  });
+    syncSectionNavigation();
+    source.element.focus();
+  }
 
   // ---------- Controller state rendering
 
@@ -1144,6 +1322,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     generateScriptButton.disabled = planEditing || scriptGenerating || !online;
     importScriptButton.disabled = planEditing || scriptGenerating;
     reviewPlanInput.disabled = planEditing || scriptGenerating;
+    newEpisodeButton.disabled = scriptGenerating || renderStatus === 'rendering' || renderStatus === 'exporting';
     review.renderButton.disabled = review.isEditing() || !online || renderStatus === 'rendering' || renderStatus === 'exporting';
     review.setUiState({
       revising: scriptGenerating && currentState.generationPhase === 'revising-script',
@@ -1160,6 +1339,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   }
   subscribeOnline(syncOnline);
 
+  baselineDraft = structuredClone(currentDraft());
+  restoreDraft();
   syncSectionNavigation();
   updateCurrentSectionFromScroll();
 
