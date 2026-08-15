@@ -986,6 +986,17 @@
   margin-top: 0;
 }
 
+/* Plans can run for several viewports. Keep their decisions available while
+   reading or editing, rather than stranding save, cancel, and generate below
+   the content they control. */
+.episode-plan-actions {
+  background: var(--color-surface);
+  box-shadow: 0 4px 0 var(--color-surface);
+  position: sticky;
+  top: var(--space-2);
+  z-index: 1;
+}
+
 .episode-plan dl,
 .episode-plan-form {
   display: grid;

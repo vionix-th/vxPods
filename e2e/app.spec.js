@@ -421,10 +421,17 @@ test('podcast cast supports stable add, remove, reorder, and stale-script state'
   await expect(cards).toHaveCount(2);
   await expect(cards.nth(0)).toHaveAttribute('data-speaker-id', 'speaker-1');
   await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-2');
+  await expect(cards.nth(0).getByRole('combobox', { name: 'Voice', exact: true })).toHaveValue('alloy');
+  await expect(cards.nth(1).getByRole('combobox', { name: 'Voice', exact: true })).toHaveValue('ash');
 
+  await cards.nth(0).getByLabel('Speaker profile').selectOption({ label: 'Expert — Analyst' });
+  await cards.nth(1).getByLabel('Speaker profile').selectOption({ label: 'Host — Synthesizer' });
   await panel.getByRole('button', { name: 'Add speaker' }).click();
   await expect(cards).toHaveCount(3);
   await expect(cards.nth(2)).toHaveAttribute('data-speaker-id', 'speaker-3');
+  await expect(cards.nth(2).getByRole('combobox', { name: 'Voice', exact: true })).toHaveValue('ballad');
+  await expect(cards.nth(0).getByLabel('Speaker profile')).toHaveValue('profile-expert-analyst');
+  await expect(cards.nth(1).getByLabel('Speaker profile')).toHaveValue('profile-host-synthesizer');
   await cards.nth(2).getByRole('button', { name: 'Move Speaker 3 up' }).click();
   await expect(cards.nth(1)).toHaveAttribute('data-speaker-id', 'speaker-3');
   await cards.nth(1).getByRole('button', { name: 'Remove Speaker 3' }).click();
@@ -435,6 +442,8 @@ test('podcast cast supports stable add, remove, reorder, and stale-script state'
   await cards.nth(1).getByRole('button', { name: 'Remove Speaker 3' }).click();
   await removeDialog.getByRole('button', { name: 'Remove speaker', exact: true }).click();
   await expect(cards).toHaveCount(2);
+  await expect(cards.nth(0).getByLabel('Speaker profile')).toHaveValue('profile-expert-analyst');
+  await expect(cards.nth(1).getByLabel('Speaker profile')).toHaveValue('profile-host-synthesizer');
 
   for (let index = 0; index < 6; index += 1) {
     await panel.getByRole('button', { name: 'Add speaker' }).click();

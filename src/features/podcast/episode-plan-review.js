@@ -9,6 +9,7 @@ import { createErrorScope } from '../../components/error-message.js';
  * @param {() => void | Promise<void>} args.onGenerate
  * @param {(request: string) => void | Promise<void>} args.onRevise
  * @param {() => void | Promise<void>} args.onCreateNew
+ * @param {() => void} [args.onCancelGeneration]
  * @param {(message: string) => void} [args.announce]
  * @param {(editing: boolean) => void} [args.onEditingChange]
  */
@@ -17,6 +18,7 @@ export function createEpisodePlanReview({
   onGenerate,
   onRevise,
   onCreateNew,
+  onCancelGeneration = () => {},
   announce = () => {},
   onEditingChange = () => {},
 }) {
@@ -33,13 +35,15 @@ export function createEpisodePlanReview({
   const content = document.createElement('div');
   const errors = createErrorScope();
   const actions = document.createElement('div');
-  actions.className = 'action-row';
+  actions.className = 'action-row episode-plan-actions';
   const generate = button('Generate script from plan', 'button-primary');
   const edit = button('Edit plan', 'button-secondary');
   const cancelEdit = button('Cancel edits', 'button-ghost');
   cancelEdit.hidden = true;
+  const cancelGeneration = button('Cancel generation', 'button-secondary');
+  cancelGeneration.hidden = true;
   const createNew = button('Create new plan', 'button-secondary');
-  actions.append(generate, edit, cancelEdit, createNew);
+  actions.append(generate, edit, cancelEdit, cancelGeneration, createNew);
   const revisionGroup = document.createElement('div');
   revisionGroup.className = 'episode-plan-revision';
   const revision = textAreaField({
@@ -49,7 +53,9 @@ export function createEpisodePlanReview({
   });
   const revise = button('Revise plan', 'button-secondary');
   revisionGroup.append(revision.wrapper, revise);
-  element.append(heading, stale, content, actions, revisionGroup);
+  // Keep controls ahead of the long-form plan they operate on. Actions at the
+  // end of the plan require needless scrolling and lose their context.
+  element.append(heading, stale, actions, revisionGroup, content);
 
   /** @type {import('../../domain/episode-plan-schema.js').EpisodePlan | null} */
   let current = null;
@@ -57,7 +63,7 @@ export function createEpisodePlanReview({
   let prefs = null;
   /** @type {import('../../domain/episode-plan-schema.js').EpisodePlan | null} */
   let editDraft = null;
-  let uiState = { stale: false, busy: false, offline: false };
+  let uiState = { stale: false, busy: false, cancelling: false, offline: false };
 
   const isEditing = () => editDraft !== null;
 
@@ -66,6 +72,8 @@ export function createEpisodePlanReview({
     edit.textContent = editing ? 'Save edits' : 'Edit plan';
     edit.disabled = Boolean(uiState.busy);
     cancelEdit.hidden = !editing;
+    cancelGeneration.hidden = !uiState.busy;
+    cancelGeneration.disabled = Boolean(uiState.cancelling);
     generate.disabled = Boolean(editing || uiState.stale || uiState.busy || uiState.offline);
     createNew.disabled = Boolean(editing || uiState.busy || uiState.offline);
     revisionGroup.hidden = editing;
@@ -188,6 +196,7 @@ export function createEpisodePlanReview({
     exitEditMode({ restoreFocus: true });
     announce('Editorial plan edits cancelled.');
   });
+  cancelGeneration.addEventListener('click', () => onCancelGeneration());
   createNew.addEventListener('click', () => onCreateNew());
   generate.addEventListener('click', () => onGenerate());
   revise.addEventListener('click', async () => {
@@ -210,6 +219,7 @@ export function createEpisodePlanReview({
       uiState = {
         stale: Boolean(state.stale),
         busy: Boolean(state.busy),
+        cancelling: Boolean(state.cancelling),
         offline: Boolean(state.offline),
       };
       if (!plan) {
@@ -229,7 +239,7 @@ export function createEpisodePlanReview({
       current = null;
       prefs = null;
       editDraft = null;
-      uiState = { stale: false, busy: false, offline: false };
+      uiState = { stale: false, busy: false, cancelling: false, offline: false };
       revision.input.value = '';
       errors.clear();
       element.hidden = true;

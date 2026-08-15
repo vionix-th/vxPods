@@ -54,6 +54,8 @@ export function createPodcastSpeakerSettings({
   let inputs = [];
   /** @type {{ id: string, name: string, role: string, voice: string }[]} */
   let values = initialSpeakers();
+  /** @type {Map<string, string>} */
+  const selectedProfileIds = new Map();
   let nextSpeakerNumber = 3;
   let preserveDraftOnNextHydrate = false;
   /** @type {Set<() => void>} */
@@ -80,6 +82,7 @@ export function createPodcastSpeakerSettings({
   function render(focusId = null) {
     clearPreviews();
     const voiceOptions = getVoiceOptions();
+    assignAvailableVoices(voiceOptions);
     const profiles = listSpeakerProfiles();
     cards.replaceChildren();
     inputs = [];
@@ -93,7 +96,7 @@ export function createPodcastSpeakerSettings({
       const profile = selectField({
         label: 'Speaker profile',
         options: ['', ...profiles.map((record) => record.id)],
-        value: '',
+        value: selectedProfileIds.get(speaker.id) ?? '',
       });
       for (const option of profile.input.options) {
         option.textContent = option.value
@@ -176,6 +179,9 @@ export function createPodcastSpeakerSettings({
         announcement.textContent = `${selected.label} profile applied to Speaker ${index + 1}.`;
         onStructureChange();
       });
+      profile.input.addEventListener('change', () => {
+        selectedProfileIds.set(speaker.id, profile.input.value);
+      });
       name.input.addEventListener('input', onStructureChange);
       role.input.addEventListener('input', onStructureChange);
 
@@ -210,6 +216,7 @@ export function createPodcastSpeakerSettings({
     });
     if (!confirmed) return;
     const [removed] = values.splice(index, 1);
+    selectedProfileIds.delete(removed.id);
     const focusId = values[Math.min(index, values.length - 1)]?.id ?? null;
     render(focusId);
     announcement.textContent = `${removed.name} removed. ${values.length} speakers remain.`;
@@ -221,7 +228,7 @@ export function createPodcastSpeakerSettings({
     if (values.length >= MAX_SPEAKERS) return;
     const id = `speaker-${nextSpeakerNumber}`;
     nextSpeakerNumber += 1;
-    const voice = getVoiceOptions()[0] ?? '';
+    const voice = nextAvailableVoice(getVoiceOptions(), values);
     values.push({ id, name: `Speaker ${values.length + 1}`, role: '', voice });
     render(id);
     announcement.textContent = `Speaker ${values.length} added. ${values.length} speakers total.`;
@@ -287,6 +294,7 @@ export function createPodcastSpeakerSettings({
         return;
       }
       values = script.speakers.map(({ id, name, role, voice }) => ({ id, name, role, voice }));
+      selectedProfileIds.clear();
       nextSpeakerNumber = Math.max(
         nextSpeakerNumber,
         ...values.map((speaker) => Number(speaker.id.match(/^speaker-(\d+)$/)?.[1] ?? 0) + 1),
@@ -294,6 +302,26 @@ export function createPodcastSpeakerSettings({
       render();
     },
   };
+
+  /** Assign distinct defaults only where a speaker has no usable voice selection. */
+  function assignAvailableVoices(voiceOptions) {
+    const assigned = new Set(
+      values
+        .map((speaker) => speaker.voice)
+        .filter((voice) => voiceOptions.includes(voice)),
+    );
+    for (const speaker of values) {
+      if (voiceOptions.includes(speaker.voice)) continue;
+      const voice = voiceOptions.find((option) => !assigned.has(option)) ?? voiceOptions[0] ?? '';
+      speaker.voice = voice;
+      if (voice) assigned.add(voice);
+    }
+  }
+
+  function nextAvailableVoice(voiceOptions, speakers) {
+    const assigned = new Set(speakers.map((speaker) => speaker.voice));
+    return voiceOptions.find((voice) => !assigned.has(voice)) ?? voiceOptions[0] ?? '';
+  }
 }
 
 function initialSpeakers() {

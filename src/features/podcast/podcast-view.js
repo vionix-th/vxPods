@@ -417,6 +417,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     onApply: (plan) => controller.applyEditedPlan(plan, source.getText(), readPrefs()),
     onGenerate: () => runScriptFromPlan(),
     onCreateNew: () => runPlanOnly(),
+    onCancelGeneration: () => controller.cancelGeneration(),
     onRevise: async (request) => {
       const provider = await selectedTextProvider();
       if (!provider) return;
@@ -819,7 +820,10 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     scriptStatus.textContent = generating
       ? state.status === 'cancelling' ? 'Cancelling generation…' : phaseLabels[state.generationPhase] ?? 'Generating…'
       : '';
-    cancelGenerationButton.hidden = !generating;
+    // A saved plan has its own action bar directly above the plan. Keeping the
+    // cancellation control there avoids sending the user back past the plan
+    // just to stop the operation they started from it.
+    cancelGenerationButton.hidden = !generating || Boolean(state.plan);
     cancelGenerationButton.disabled = state.status === 'cancelling';
     scriptStale.hidden = !state.scriptStale;
     scriptStale.textContent = state.planStale
@@ -828,6 +832,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     planReview.update(state.plan, readPrefs(), {
       stale: state.planStale,
       busy: generating,
+      cancelling: state.status === 'cancelling',
       offline: !isOnline(),
     });
 
