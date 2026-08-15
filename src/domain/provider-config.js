@@ -24,7 +24,7 @@ import { AppError } from '../services/errors.js';
  * @property {string} baseUrl
  * @property {'none'|'bearer'} auth
  * @property {string} apiKey
- * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
+ * @property {{ api: 'chat-completions'|'responses', jsonResponseFormat: 'json_object'|'json_schema', models: string[] }} textGeneration
  * @property {TtsModelConfig[]} ttsModels
  */
 
@@ -36,6 +36,23 @@ export const TEXT_GENERATION_APIS = {
 export const TEXT_GENERATION_API_LABELS = {
   [TEXT_GENERATION_APIS.chatCompletions]: 'Chat Completions',
   [TEXT_GENERATION_APIS.responses]: 'Responses',
+};
+
+export const JSON_RESPONSE_FORMATS = {
+  jsonObject: 'json_object',
+  jsonSchema: 'json_schema',
+};
+
+export const JSON_SCHEMA_WIRE_FORMATS = {
+  openai: 'openai',
+  jsonObjectSchema: 'json_object_schema',
+};
+
+export const STORE_MODES = { omit: 'omit', false: 'false' };
+
+export const JSON_RESPONSE_FORMAT_LABELS = {
+  [JSON_RESPONSE_FORMATS.jsonObject]: 'JSON object',
+  [JSON_RESPONSE_FORMATS.jsonSchema]: 'JSON Schema',
 };
 
 export const DEFAULT_TEXT_MODELS_BY_API = {
@@ -58,8 +75,11 @@ export function defaultProviderSuggestions() {
   return {
     textGeneration: {
       api: TEXT_GENERATION_APIS.chatCompletions,
+      jsonResponseFormat: JSON_RESPONSE_FORMATS.jsonObject,
+      jsonSchemaWireFormat: JSON_SCHEMA_WIRE_FORMATS.openai,
       models: defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
     },
+    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
     ttsModels: cloneTtsModels(DEFAULT_TTS_MODELS),
   };
 }
@@ -68,13 +88,45 @@ export function defaultProviderSuggestions() {
 export function providerSuggestionsForPreset(preset) {
   if (preset === 'openai') return defaultProviderSuggestions();
   return {
-    textGeneration: { api: TEXT_GENERATION_APIS.chatCompletions, models: [] },
+    textGeneration: {
+      api: TEXT_GENERATION_APIS.chatCompletions,
+      jsonResponseFormat: JSON_RESPONSE_FORMATS.jsonObject,
+      jsonSchemaWireFormat: JSON_SCHEMA_WIRE_FORMATS.openai,
+      models: [],
+    },
+    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
     ttsModels: [],
   };
 }
 
 export function isTextGenerationApi(api) {
   return api === TEXT_GENERATION_APIS.chatCompletions || api === TEXT_GENERATION_APIS.responses;
+}
+
+export function isJsonResponseFormat(format) {
+  return format === JSON_RESPONSE_FORMATS.jsonObject || format === JSON_RESPONSE_FORMATS.jsonSchema;
+}
+
+function normalizeRequestOptions(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const storeMode = source.storeMode === STORE_MODES.omit ? STORE_MODES.omit : STORE_MODES.false;
+  const timeoutMs = Number(source.timeoutMs ?? 120000);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 30000 || timeoutMs > 600000) throw validationError('Request timeout must be between 30 and 600 seconds.');
+  const temperature = Number(source.temperature ?? 0.7);
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw validationError('Temperature must be between 0 and 2.');
+  const rawTokens = source.maxOutputTokens;
+  const maxOutputTokens = rawTokens === null || rawTokens === undefined || rawTokens === '' ? null : Number(rawTokens);
+  if (maxOutputTokens !== null && (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 100000)) throw validationError('Maximum output tokens must be between 1 and 100000.');
+  const headers = [];
+  const seen = new Set();
+  if (source.headers !== undefined && !Array.isArray(source.headers)) throw validationError('Additional headers must be a list.');
+  for (const entry of source.headers || []) {
+    const name = typeof entry?.name === 'string' ? entry.name.trim() : '';
+    const headerValue = typeof entry?.value === 'string' ? entry.value.trim() : '';
+    if (!name || !headerValue || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name) || seen.has(name.toLowerCase()) || name.toLowerCase() === 'authorization') throw validationError('Additional headers require unique valid names and values; Authorization is managed separately.');
+    seen.add(name.toLowerCase()); headers.push({ name, value: headerValue });
+  }
+  return { storeMode, timeoutMs, temperature, maxOutputTokens, headers };
 }
 
 export function defaultTextModels(api) {
@@ -180,12 +232,27 @@ export function validateProviderInput(input) {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
   const api = input.textGeneration?.api ?? TEXT_GENERATION_APIS.chatCompletions;
   if (!isTextGenerationApi(api)) throw validationError('Select a supported text generation API.');
+  const jsonResponseFormat = input.textGeneration?.jsonResponseFormat ?? JSON_RESPONSE_FORMATS.jsonObject;
+  if (!isJsonResponseFormat(jsonResponseFormat)) {
+    throw validationError('Select a supported JSON response format.');
+  }
+  const jsonSchemaWireFormat = input.textGeneration?.jsonSchemaWireFormat ?? JSON_SCHEMA_WIRE_FORMATS.openai;
+  if (!Object.values(JSON_SCHEMA_WIRE_FORMATS).includes(jsonSchemaWireFormat)) throw validationError('Select a supported JSON Schema wire format.');
   const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
   const ttsModels = normalizeTtsModels(input.ttsModels, DEFAULT_TTS_MODELS);
+  const requestOptions = normalizeRequestOptions(input.requestOptions);
   if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
     throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
   }
-  return { name, baseUrl, auth, apiKey: auth === 'bearer' ? apiKey : '', textGeneration: { api, models: textModels }, ttsModels };
+  return {
+    name,
+    baseUrl,
+    auth,
+    apiKey: auth === 'bearer' ? apiKey : '',
+    textGeneration: { api, jsonResponseFormat, jsonSchemaWireFormat, models: textModels },
+    requestOptions,
+    ttsModels,
+  };
 }
 
 /** @param {unknown} value @returns {value is ProviderConfig} */

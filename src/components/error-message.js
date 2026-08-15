@@ -226,6 +226,7 @@ export function formatErrorDiagnostics(error) {
     ['HTTP status', diagnostics.status],
     ['Endpoint', diagnostics.endpoint],
     ['Model', diagnostics.model],
+    ['Requested JSON format', diagnostics.jsonResponseFormat],
     ['Response type', diagnostics.contentType],
     ['Provider request ID', diagnostics.requestId],
   ];

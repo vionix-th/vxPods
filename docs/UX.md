@@ -82,7 +82,7 @@ Essential controls:
 - Saved Episode direction and editable temporary direction instructions.
 - Saved Format template and editable temporary Format instructions.
 - Audience.
-- Script and TTS configurations, plus their model selects. Options come from the selected provider configurations.
+- Script and TTS configurations, plus their model selects. Script configuration identifies the saved API and JSON response protocol. Options come from the selected provider configurations.
 
 All Podcast settings remain visible on one page. Model and voice controls are native selects populated from lists managed locally in the provider settings dialog. Without a selected saved configuration, the affected model and voice selects are empty and disabled. The lists are never presented as discovered provider capabilities.
 
@@ -172,6 +172,7 @@ Configuration form:
 - HTTP endpoints show a persistent warning that requests can be observed or modified on the network and should only be used with a trusted endpoint.
 - Text generation API: Chat Completions or Responses; each configuration binds exactly one.
 - New configurations start with OpenAI selected and its local defaults. Selecting a preset replaces URL, text-generation models, TTS models, and voices after confirmation. OpenRouter and Manual start with empty model and voice lists in R1; users add identifiers accepted by their configuration. Compact text-generation-model and TTS-model chip strips. Selecting a chip opens one focused editor; the selected TTS model exposes its voice chips with add/remove controls. Known TTS models prefill their locally maintained voice list; unknown identifiers start with no voices. Changing the text-generation API confirms before replacing its model list with API-specific defaults. Removing a model or voice requires confirmation. Restore actions confirm before resetting all model/voice options or only the selected model’s known voices. Model and voice lists may be empty. Copy states that these are local hints, not API-discovered capabilities.
+- Visible custom-provider compatibility controls: Podcast JSON response format, JSON Schema wire format, omit or send `store: false`, request timeout, temperature, optional output token limit, and validated additional headers. Provider documentation controls these choices and testing exercises the selected protocol.
 - “Test generation” and “Test Speech” actions when useful.
 - Save.
 
@@ -284,7 +285,7 @@ Application adaptation:
 - Errors and dialog-local notices remain visible until dismissed. Global warnings and informational notifications auto-close after six seconds and pause while hovered or focused.
 - Error copy includes what failed and next useful action.
 - User-facing UI presents normalized error category and action.
-- Provider errors with reportable context offer a collapsed “Technical details” disclosure. It contains labeled operation, endpoint, model, status, response type, and request ID values when available; it never shows credentials, submitted text, or a raw response body.
+- Provider errors with reportable context offer a collapsed “Technical details” disclosure. It contains labeled operation, endpoint, model, requested JSON format, status, response type, and request ID values when available; it never shows credentials, submitted text, or a raw response body.
 
 ### Progress
 

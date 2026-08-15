@@ -37,6 +37,7 @@ export async function sendProviderRequest(args) {
   let response;
   try {
     const headers = { 'content-type': 'application/json' };
+    for (const extra of args.provider.requestOptions?.headers || []) headers[extra.name] = extra.value;
     if (args.provider.auth !== 'none' && args.provider.apiKey) {
       headers.authorization = `Bearer ${args.provider.apiKey}`;
     }
@@ -107,6 +108,7 @@ export function providerRequestDiagnostics(args, response) {
       || response.headers.get('cf-ray')
       || undefined
     : undefined;
+  const jsonResponseFormat = requestedJsonResponseFormat(args.body);
   return {
     operation,
     endpoint,
@@ -114,7 +116,16 @@ export function providerRequestDiagnostics(args, response) {
     status: response?.status,
     requestId,
     contentType: response?.headers.get('content-type') || undefined,
+    jsonResponseFormat,
   };
+}
+
+function requestedJsonResponseFormat(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined;
+  const chatFormat = body.response_format?.type;
+  const responsesFormat = body.text?.format?.type;
+  const format = typeof chatFormat === 'string' ? chatFormat : responsesFormat;
+  return typeof format === 'string' ? format : undefined;
 }
 
 function safeEndpoint(value) {

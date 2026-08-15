@@ -66,7 +66,7 @@ describe('validateProviderInput', () => {
       auth: 'bearer',
       apiKey: 'sk-test',
     });
-    expect(out.textGeneration).toMatchObject({ api: 'chat-completions' });
+    expect(out.textGeneration).toMatchObject({ api: 'chat-completions', jsonResponseFormat: 'json_object' });
     expect(out.textGeneration.models).toContain('gpt-4o-mini');
     expect(out.ttsModels).toEqual(expect.arrayContaining([
       expect.objectContaining({ model: 'gpt-4o-mini-tts', voices: expect.arrayContaining(['alloy']), responseFormat: 'mp3' }),
@@ -97,11 +97,11 @@ describe('validateProviderInput', () => {
   it('preserves empty model lists', () => {
     const out = validateProviderInput({
       name: 'x', baseUrl: 'https://manual.example/v1', apiKey: 'k',
-      textGeneration: { api: 'responses', models: [] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_object', models: [] },
       ttsModels: [],
     });
     expect(out).toMatchObject({
-      textGeneration: { api: 'responses', models: [] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_object', models: [] },
       ttsModels: [],
     });
   });
@@ -133,11 +133,15 @@ describe('validateProviderInput', () => {
     expect(validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
       textGeneration: { api: 'responses', models: [' gpt-5.6-luna ', 'gpt-5.6-luna'] },
-    }).textGeneration).toEqual({ api: 'responses', models: ['gpt-5.6-luna'] });
+    }).textGeneration).toEqual({ api: 'responses', jsonResponseFormat: 'json_object', jsonSchemaWireFormat: 'openai', models: ['gpt-5.6-luna'] });
     expect(() => validateProviderInput({
       name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
       textGeneration: { api: 'unsupported-api', models: ['m'] },
     })).toThrowError(/supported text generation API/);
+    expect(() => validateProviderInput({
+      name: 'x', baseUrl: 'https://api.openai.com/v1', apiKey: 'k',
+      textGeneration: { api: 'chat-completions', jsonResponseFormat: 'invalid', models: ['m'] },
+    })).toThrowError(/JSON response format/);
   });
 });
 
@@ -145,7 +149,8 @@ describe('provider preset suggestions', () => {
   it('starts OpenRouter and Manual without model or voice suggestions', () => {
     for (const preset of ['openrouter', 'manual']) {
       expect(providerSuggestionsForPreset(preset)).toEqual({
-        textGeneration: { api: 'chat-completions', models: [] },
+        textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_object', jsonSchemaWireFormat: 'openai', models: [] },
+        requestOptions: { storeMode: 'false', timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
         ttsModels: [],
       });
     }
@@ -173,7 +178,7 @@ describe('provider CRUD', () => {
   it('exports every local setting and restores as a full replacement', () => {
     const original = addProvider({
       ...input,
-      textGeneration: { api: 'responses', models: ['custom-response'] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_schema', models: ['custom-response'] },
       ttsModels: [{ model: 'custom-tts', voices: ['custom-voice'], responseFormat: 'pcm', pcm: { sampleRate: 24000, channels: 1, encoding: 's16le' } }],
     });
     selectProvider('text', original.id);
@@ -189,7 +194,7 @@ describe('provider CRUD', () => {
     expect(listProviders()).toHaveLength(1);
     expect(listProviders()[0].apiKey).toBe('sk-1');
     expect(listProviders()[0]).toMatchObject({
-      textGeneration: { api: 'responses', models: ['custom-response'] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_schema', models: ['custom-response'] },
       ttsModels: [{ model: 'custom-tts', voices: ['custom-voice'], responseFormat: 'pcm', pcm: { sampleRate: 24000, channels: 1, encoding: 's16le' } }],
     });
     expect(getSelectedProviderId('text')).toBe(original.id);
@@ -228,11 +233,11 @@ describe('provider CRUD', () => {
   it('stores normalized, provider-specific model and voice suggestions', () => {
     const record = addProvider({
       ...input,
-      textGeneration: { api: 'responses', models: [' custom-response ', 'custom-response', ''] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_schema', models: [' custom-response ', 'custom-response', ''] },
       ttsModels: [{ model: 'custom-tts', voices: [' voice-a ', 'voice-a'], responseFormat: 'mp3' }],
     });
     expect(record).toMatchObject({
-      textGeneration: { api: 'responses', models: ['custom-response'] },
+      textGeneration: { api: 'responses', jsonResponseFormat: 'json_schema', models: ['custom-response'] },
       ttsModels: [{ model: 'custom-tts', voices: ['voice-a'], responseFormat: 'mp3' }],
     });
   });

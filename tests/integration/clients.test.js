@@ -45,14 +45,17 @@ describe('createChatCompletion', () => {
     expect(JSON.parse(init.body).store).toBe(false);
   });
 
-  it('falls back to prompt-constrained JSON when a provider rejects json_object', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ error: "'response_format.type' must be 'json_schema' or 'text'" }, 400))
-      .mockResolvedValueOnce(jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }));
+  it('uses the provider-configured JSON Schema response format without retrying', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const result = await createChatCompletion({
-      provider,
+      provider: {
+        ...provider,
+        textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_schema', models: ['google/gemma-4-e4b'] },
+      },
       model: 'google/gemma-4-e4b',
       messages: [{ role: 'user', content: 'Return JSON.' }],
       jsonMode: true,
@@ -60,9 +63,8 @@ describe('createChatCompletion', () => {
     });
 
     expect(result.content).toBe('{"ok":true}');
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toEqual({ type: 'json_object' });
-    expect(JSON.parse(fetchMock.mock.calls[1][1].body).response_format).toEqual({
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).response_format).toEqual({
       type: 'json_schema',
       json_schema: {
         name: 'test_response',
@@ -72,8 +74,26 @@ describe('createChatCompletion', () => {
     });
   });
 
-  it('does not retry unrelated bad requests in json mode', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: 'temperature is invalid' }, 400));
+  it('uses explicit compatibility options without adding omitted fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ choices: [{ message: { content: '{"ok":true}' } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await createChatCompletion({
+      provider: {
+        ...provider,
+        textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_schema', jsonSchemaWireFormat: 'json_object_schema', models: ['m'] },
+        requestOptions: { storeMode: 'omit', timeoutMs: 45000, temperature: 0.2, maxOutputTokens: 321, headers: [{ name: 'X-Provider-Route', value: 'podcast' }] },
+      },
+      model: 'm', messages: [{ role: 'user', content: 'hi' }], jsonMode: true,
+      jsonSchema: { schema: { type: 'object' } },
+    });
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.headers['X-Provider-Route']).toBe('podcast');
+    expect(JSON.parse(init.body)).toMatchObject({ temperature: 0.2, max_tokens: 321, response_format: { type: 'json_object', schema: { type: 'object' } } });
+    expect('store' in JSON.parse(init.body)).toBe(false);
+  });
+
+  it('preserves the provider error without guessing an alternate JSON protocol', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: "'response_format.type' must be 'json_schema' or 'text'" }, 400));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(createChatCompletion({
@@ -81,7 +101,11 @@ describe('createChatCompletion', () => {
       model: 'm',
       messages: [{ role: 'user', content: 'Return JSON.' }],
       jsonMode: true,
-    })).rejects.toMatchObject({ status: 400 });
+    })).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/json_schema/),
+      diagnostics: { jsonResponseFormat: 'json_object' },
+    });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -186,6 +210,28 @@ describe('createResponse', () => {
     });
   });
 
+  it('uses the provider-configured JSON Schema format for Responses', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      output: [{ type: 'message', content: [{ type: 'output_text', text: '{"ok":true}' }] }],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await createResponse({
+      provider: {
+        ...provider,
+        textGeneration: { api: 'responses', jsonResponseFormat: 'json_schema', models: ['m'] },
+      },
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      jsonMode: true,
+      jsonSchema: { name: 'test_response', schema: { type: 'object' } },
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toEqual({
+      format: { type: 'json_schema', name: 'test_response', strict: true, schema: { type: 'object' } },
+    });
+  });
+
   it.each([
     [{ status: 'incomplete', output: [] }, /incomplete/],
     [{ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }] }, /refused/],
@@ -230,7 +276,7 @@ describe('generateText', () => {
       output: [{ type: 'message', content: [{ type: 'output_text', text: 'ok' }] }],
     })));
     await generateText({
-      provider: { ...provider, textGeneration: { api: 'responses', models: ['m'] } },
+      provider: { ...provider, textGeneration: { api: 'responses', jsonResponseFormat: 'json_object', models: ['m'] } },
       model: 'm',
       messages: [],
     });

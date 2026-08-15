@@ -80,7 +80,7 @@ subscribeSettingsRestore(notifyProviders);
 
 /**
  * Create a provider. Returns the stored record.
- * @param {{ name: string, baseUrl: string, auth?: 'none'|'bearer', apiKey?: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
+ * @param {{ name: string, baseUrl: string, auth?: 'none'|'bearer', apiKey?: string, textGeneration?: { api?: unknown, jsonResponseFormat?: unknown, models?: unknown }, ttsModels?: unknown }} input
  */
 export function addProvider(input) {
   const valid = validateProviderInput(input);
@@ -96,7 +96,7 @@ export function addProvider(input) {
  * Update an existing provider. API key is replaced only when a new
  * non-empty key is supplied (masked-field behavior).
  * @param {string} id
- * @param {{ name: string, baseUrl: string, auth?: 'none'|'bearer', apiKey?: string, textGeneration?: { api?: unknown, models?: unknown }, ttsModels?: unknown }} input
+ * @param {{ name: string, baseUrl: string, auth?: 'none'|'bearer', apiKey?: string, textGeneration?: { api?: unknown, jsonResponseFormat?: unknown, models?: unknown }, ttsModels?: unknown }} input
  */
 export function updateProvider(id, input) {
   const settings = loadSettings();

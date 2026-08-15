@@ -65,11 +65,11 @@ Primary jobs:
 - Each configuration contains a user-visible name, base URL, and API key.
 - Base URLs target an OpenAI-compatible `/v1` API root.
 - R1 includes presets for OpenAI and OpenRouter plus a manual URL option.
-- Each saved configuration selects one text-generation API (`chat-completions` or `responses`) and includes locally editable text-generation models plus canonical TTS model objects. Each TTS model owns its voices, requested MP3 or raw-PCM response format, and raw-PCM decoding metadata when applicable. Capabilities are not inferred from provider APIs; absent configurations and empty lists leave the affected model and voice selectors empty and disabled until configured.
+- Each saved configuration selects one text-generation API (`chat-completions` or `responses`), one explicit podcast JSON response protocol (`json_object` or `json_schema`), and locally editable text-generation models plus canonical TTS model objects. Each TTS model owns its voices, requested MP3 or raw-PCM response format, and raw-PCM decoding metadata when applicable. Capabilities are not inferred from provider APIs; absent configurations and empty lists leave the affected model and voice selectors empty and disabled until configured.
 - Configurations persist in `localStorage` until deleted by the user or browser.
 - Text-generation and TTS selectors are independent and may reference different saved configurations.
 - API keys remain visible and editable in provider settings after entry.
-- A connection test reports success, authentication failure, CORS/network failure, unsupported endpoint, or invalid response.
+- A connection test exercises the selected text-generation API and JSON response protocol, and reports success, authentication failure, CORS/network failure, unsupported endpoint, invalid response, or the provider's bounded error detail.
 - Credential handling keeps API keys inside selected request authorization and persisted configuration.
 
 Acceptance:

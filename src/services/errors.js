@@ -20,6 +20,7 @@
  * @property {number | undefined} [status]
  * @property {string | undefined} [requestId]
  * @property {string | undefined} [contentType]
+ * @property {string | undefined} [jsonResponseFormat]
  */
 
 export class AppError extends Error {
@@ -160,7 +161,7 @@ export function httpStatusToAppError(status, bodyText = '', opts = {}) {
 function normalizeDiagnostics(value) {
   if (!value || typeof value !== 'object') return undefined;
   const diagnostics = {};
-  for (const key of ['operation', 'endpoint', 'model', 'requestId', 'contentType']) {
+  for (const key of ['operation', 'endpoint', 'model', 'requestId', 'contentType', 'jsonResponseFormat']) {
     const candidate = value[key];
     if (typeof candidate === 'string' && candidate.trim()) {
       diagnostics[key] = truncate(candidate.trim(), 300);

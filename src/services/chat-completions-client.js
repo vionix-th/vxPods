@@ -1,5 +1,6 @@
 import { appError } from './errors.js';
 import { parseProviderJson, sendProviderRequest } from './provider-http.js';
+import { JSON_RESPONSE_FORMATS } from '../domain/provider-config.js';
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
@@ -19,7 +20,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  * @param {AbortSignal} [args.signal]
  * @param {number} [args.temperature]
  * @param {boolean} [args.jsonMode] request structured JSON output
- * @param {{ name?: string, schema: object }} [args.jsonSchema] JSON Schema for structured output fallback
+ * @param {{ name?: string, schema: object }} [args.jsonSchema] JSON Schema used when configured
  * @param {number} [args.timeoutMs]
  * @returns {Promise<{ content: string, model: string | undefined }>}
  */
@@ -28,30 +29,15 @@ export async function createChatCompletion(args) {
   const body = {
     model,
     messages,
-    temperature: args.temperature ?? 0.7,
-    store: false,
+    temperature: args.temperature ?? args.provider.requestOptions?.temperature ?? 0.7,
   };
+  if (args.provider.requestOptions?.storeMode !== 'omit') body.store = false;
+  const maxOutputTokens = args.provider.requestOptions?.maxOutputTokens;
+  if (Number.isInteger(maxOutputTokens)) body.max_tokens = maxOutputTokens;
   if (args.jsonMode) {
-    body.response_format = { type: 'json_object' };
+    body.response_format = structuredResponseFormat(args);
   }
-  let response;
-  try {
-    response = await sendChatRequest(args, body);
-  } catch (error) {
-    // Some OpenAI-compatible servers only accept `json_schema` and reject
-    // OpenAI's `json_object`. Retry with the provider's structured-output form.
-    if (!shouldRetryWithoutResponseFormat(error, args, body)) throw error;
-    const fallbackBody = { ...body };
-    fallbackBody.response_format = {
-      type: 'json_schema',
-      json_schema: {
-        name: args.jsonSchema?.name || 'vxpods_response',
-        strict: true,
-        schema: args.jsonSchema?.schema || { type: 'object' },
-      },
-    };
-    response = await sendChatRequest(args, fallbackBody);
-  }
+  const response = await sendChatRequest(args, body);
   const json = await parseProviderJson(response);
   const content = json?.choices?.[0]?.message?.content;
   if (typeof content !== 'string' || content.trim() === '') {
@@ -65,24 +51,32 @@ export async function createChatCompletion(args) {
   return { content, model: json?.model };
 }
 
+function structuredResponseFormat(args) {
+  if (args.provider.textGeneration?.jsonResponseFormat !== JSON_RESPONSE_FORMATS.jsonSchema) {
+    return { type: JSON_RESPONSE_FORMATS.jsonObject };
+  }
+  if (args.provider.textGeneration?.jsonSchemaWireFormat === 'json_object_schema') {
+    return { type: JSON_RESPONSE_FORMATS.jsonObject, schema: args.jsonSchema?.schema || { type: 'object' } };
+  }
+  return {
+    type: JSON_RESPONSE_FORMATS.jsonSchema,
+    json_schema: {
+      name: args.jsonSchema?.name || 'vxpods_response',
+      strict: true,
+      schema: args.jsonSchema?.schema || { type: 'object' },
+    },
+  };
+}
+
 function sendChatRequest(args, body) {
   return sendProviderRequest({
     url: `${args.provider.baseUrl}/chat/completions`,
     provider: args.provider,
     body,
     signal: args.signal,
-    timeoutMs: args.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    timeoutMs: args.timeoutMs ?? args.provider.requestOptions?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     timeoutMessage: 'Request timed out. Check the provider URL and network.',
   });
-}
-
-function shouldRetryWithoutResponseFormat(error, args, body) {
-  return Boolean(
-    args.jsonMode
-      && body.response_format
-      && error?.status === 400
-      && /response[_ ]format/i.test(error.message || ''),
-  );
 }
 
 /**
@@ -96,11 +90,23 @@ export async function testChatConnection(provider, model, signal) {
     provider,
     model,
     messages: [
-      { role: 'system', content: 'Reply with the word ok.' },
-      { role: 'user', content: 'ok' },
+      { role: 'system', content: 'Return exactly one JSON object with a status field.' },
+      { role: 'user', content: 'Return a status of ok.' },
     ],
     temperature: 0,
+    jsonMode: true,
+    jsonSchema: CONNECTION_TEST_JSON_SCHEMA,
     timeoutMs: 30_000,
     signal,
   });
 }
+
+const CONNECTION_TEST_JSON_SCHEMA = {
+  name: 'connection_test',
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: { status: { type: 'string' } },
+    required: ['status'],
+  },
+};

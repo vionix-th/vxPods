@@ -40,7 +40,7 @@ describe('local-settings', () => {
       name: 'OpenAI',
       baseUrl: 'https://api.openai.com/v1',
       apiKey: 'sk-x',
-      textGeneration: { api: 'chat-completions', models: ['gpt-4o-mini'] },
+      textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_object', models: ['gpt-4o-mini'] },
       ttsModels: [{ model: 'tts-1', voices: ['alloy'], responseFormat: 'mp3' }],
     });
     doc.selectedTtsProviderId = 'p1';
@@ -218,7 +218,7 @@ describe('local-settings', () => {
       JSON.stringify({
         schemaVersion: SETTINGS_SCHEMA_VERSION,
         providers: [
-          { id: 'ok', name: 'A', baseUrl: 'https://a.example/v1', apiKey: 'k', textGeneration: { api: 'chat-completions', models: ['m'] }, ttsModels: [] },
+          { id: 'ok', name: 'A', baseUrl: 'https://a.example/v1', apiKey: 'k', textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_object', models: ['m'] }, ttsModels: [] },
           { id: 'bad', name: '', baseUrl: 'https://b.example/v1' }, // missing key, empty name
         ],
         selectedTextProviderId: 'bad',
@@ -237,7 +237,7 @@ describe('local-settings', () => {
       ...defaultSettings(),
       providers: [{
         id: 'bad', name: 'Bad', baseUrl: 'https://api.example/v1', apiKey: 'key',
-        textGeneration: { api: 'unsupported-api', models: ['m'] },
+        textGeneration: { api: 'unsupported-api', jsonResponseFormat: 'json_object', models: ['m'] },
         ttsModels: [],
       }],
     }));

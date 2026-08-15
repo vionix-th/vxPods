@@ -170,7 +170,8 @@ R1 uses one shared configuration record:
  * @property {string} baseUrl // normalized API root ending in /v1
  * @property {'none'|'bearer'} auth
  * @property {string} apiKey // empty when auth is 'none'
- * @property {{ api: 'chat-completions'|'responses', models: string[] }} textGeneration
+ * @property {{ api: 'chat-completions'|'responses', jsonResponseFormat: 'json_object'|'json_schema', jsonSchemaWireFormat: 'openai'|'json_object_schema', models: string[] }} textGeneration
+ * @property {{ storeMode: 'omit'|'false', timeoutMs: number, temperature: number, maxOutputTokens: number|null, headers: { name: string, value: string }[] }} requestOptions
  * @property {{ model: string, voices: string[], responseFormat: 'mp3'|'pcm', pcm?: { sampleRate: number, channels: number, encoding: 's16le' } }[]} ttsModels
  */
 ```
@@ -203,11 +204,11 @@ Request clients return application results or throw a normalized `AppError`:
  * @property {boolean} retryable
  * @property {number | undefined} status
  * @property {unknown | undefined} cause
- * @property {{ operation?: string, endpoint?: string, model?: string, status?: number, requestId?: string, contentType?: string } | undefined} diagnostics
+ * @property {{ operation?: string, endpoint?: string, model?: string, status?: number, requestId?: string, contentType?: string, jsonResponseFormat?: string } | undefined} diagnostics
  */
 ```
 
-Raw provider response bodies remain request-scoped. Normalized provider failures carry a bounded diagnostic record for the collapsed error disclosure and developer reports. It may contain operation, credential-free endpoint, model, HTTP status, response content type, and provider request ID. It never contains an API key, authorization header, request input, query string, or raw response body.
+Raw provider response bodies remain request-scoped. Normalized provider failures carry a bounded diagnostic record for the collapsed error disclosure and developer reports. It may contain operation, credential-free endpoint, model, requested JSON response format, HTTP status, response content type, and provider request ID. It never contains an API key, authorization header, request input, query string, or raw response body.
 
 ## 7. Application state
 
@@ -409,7 +410,7 @@ One versioned document stores:
 }
 ```
 
-Each `ProviderConfig` includes a `textGeneration` object with one API identifier and a possibly empty model list, plus a possibly empty array of canonical TTS model objects. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities. Presets seed new records only: OpenAI uses local MP3 defaults; OpenRouter and Manual begin empty. Unknown models begin with MP3 and no voices. Empty lists persist and generation requires a model and voice.
+Each `ProviderConfig` includes a `textGeneration` object with one API identifier, one user-selected structured JSON protocol (`json_object` or `json_schema`), a JSON Schema wire format (`openai` or legacy `json_object_schema`), and a possibly empty model list. It also owns bounded request options: omit or send `store: false`, 30–600 second timeout, temperature 0–2, optional maximum output tokens, and validated additional non-Authorization headers. These selections control the request shape for plan, script, and repair generation; the application does not retry a rejected request with another protocol. Provider records saved before these fields existed normalize to the previous request behavior. A TTS object owns its model identifier, voices, requested response format, and required raw-PCM metadata. These are user-managed options rather than inferred capabilities.
 Settings schema 1 stores ordered reusable Episode directions, Formats, and speaker profiles with the current prompt suite. Episode directions are an additive v1 field: records and backups that omit it receive bundled starters, while an explicit empty collection remains empty. Unreadable, corrupt, or unsupported documents render safe defaults but remain untouched until explicit restore or clear-local-data replacement.
 `podcastTemplateCatalogVersion` versions bundled Format and Speaker Profile content independently of the settings schema. A valid document or backup without the current catalog version receives a one-time replacement: records using bundled IDs are reset, all current starters are added, and custom records remain after starters unless their case-insensitive name owns a starter name. The migrated view is not written during a read; the current catalog version persists on the next settings save or explicit backup restore. Once current, deletions and edits persist until explicit starter restoration.
 Episode Direction and Format templates contain stable ID, unique name, and instructions. Speaker profiles contain stable ID, unique label, optional default speaker name, and role; voices remain request-scoped. The Format and Speaker Profile catalogs each contain fifteen flat starters—three independently editable variants for each established type—with no family metadata or runtime inheritance.

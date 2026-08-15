@@ -6,7 +6,7 @@
 import { openDialog, confirmDialog } from '../../components/dialog.js';
 import { createLocalNotice } from '../../components/error-message.js';
 import { createToolButton } from '../../components/tool-button.js';
-import { textField } from '../../components/fields.js';
+import { textAreaField, textField } from '../../components/fields.js';
 import { createIdentifierListEditor, createTtsModelEditor } from './provider-capability-editors.js';
 import { testTextGenerationConnection } from '../../services/text-generation-client.js';
 import { testSpeechConnection } from '../../services/speech-client.js';
@@ -23,6 +23,8 @@ import {
 import {
   TEXT_GENERATION_APIS,
   TEXT_GENERATION_API_LABELS,
+  JSON_RESPONSE_FORMATS,
+  JSON_RESPONSE_FORMAT_LABELS,
   defaultTextModels,
   providerSuggestionsForPreset,
 } from '../../domain/provider-config.js';
@@ -376,6 +378,58 @@ function renderForm(body, options, existing) {
     textApiField.append(label);
   }
 
+  const jsonFormatField = fieldset('Podcast JSON response format');
+  const jsonFormatHelp = document.createElement('p');
+  jsonFormatHelp.className = 'help-text';
+  jsonFormatHelp.textContent =
+    'Select the structured-output protocol documented by this provider. vxPods sends its canonical EpisodePlan and PodcastScript schema when JSON Schema is selected.';
+  jsonFormatField.append(jsonFormatHelp);
+  const jsonFormatName = `json-format-${Math.random().toString(36).slice(2, 8)}`;
+  let selectedJsonFormat = existing?.textGeneration.jsonResponseFormat ?? JSON_RESPONSE_FORMATS.jsonObject;
+  /** @type {HTMLInputElement[]} */
+  const jsonFormatRadios = [];
+  for (const format of Object.values(JSON_RESPONSE_FORMATS)) {
+    const label = document.createElement('label');
+    label.className = 'radio-option';
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = jsonFormatName;
+    radio.value = format;
+    radio.checked = format === selectedJsonFormat;
+    jsonFormatRadios.push(radio);
+    const text = document.createElement('span');
+    text.textContent = JSON_RESPONSE_FORMAT_LABELS[format];
+    label.append(radio, text);
+    jsonFormatField.append(label);
+  }
+
+  const compatibilityField = fieldset('Request compatibility');
+  const wireField = document.createElement('div');
+  wireField.className = 'field';
+  const wireId = `schema-wire-${Math.random().toString(36).slice(2, 8)}`;
+  const wireLabel = document.createElement('label');
+  wireLabel.htmlFor = wireId;
+  wireLabel.textContent = 'JSON Schema wire format';
+  const wireSelect = document.createElement('select');
+  wireSelect.id = wireId;
+  for (const [value, label] of [['openai', 'OpenAI json_schema envelope'], ['json_object_schema', 'json_object with schema (legacy compatible)']]) {
+    const option = document.createElement('option'); option.value = value; option.textContent = label; wireSelect.append(option);
+  }
+  wireSelect.value = existing?.textGeneration.jsonSchemaWireFormat ?? 'openai';
+  wireField.append(wireLabel, wireSelect);
+  const storeField = document.createElement('div');
+  storeField.className = 'field';
+  const storeId = `store-mode-${Math.random().toString(36).slice(2, 8)}`;
+  const storeLabel = document.createElement('label'); storeLabel.htmlFor = storeId; storeLabel.textContent = 'OpenAI store field';
+  const storeSelect = document.createElement('select'); storeSelect.id = storeId;
+  for (const [value, label] of [['false', 'Send store: false'], ['omit', 'Omit store field']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; storeSelect.append(option); }
+  storeSelect.value = existing?.requestOptions?.storeMode ?? 'false'; storeField.append(storeLabel, storeSelect);
+  const timeoutField = textField({ label: 'Request timeout (seconds)', value: String((existing?.requestOptions?.timeoutMs ?? 120000) / 1000), inputmode: 'numeric' });
+  const temperatureField = textField({ label: 'Temperature', value: String(existing?.requestOptions?.temperature ?? 0.7), inputmode: 'decimal' });
+  const maxTokensField = textField({ label: 'Maximum output tokens (optional)', value: existing?.requestOptions?.maxOutputTokens ? String(existing.requestOptions.maxOutputTokens) : '', inputmode: 'numeric' });
+  const headersField = textAreaField({ label: 'Additional request headers (JSON object, optional)', value: JSON.stringify(Object.fromEntries((existing?.requestOptions?.headers ?? []).map((entry) => [entry.name, entry.value])), null, 2), rows: 3, help: 'Use for non-secret routing or attribution headers. Authorization is configured above and cannot be supplied here.' });
+  compatibilityField.append(wireField, storeField, timeoutField.wrapper, temperatureField.wrapper, maxTokensField.wrapper, headersField.wrapper);
+
   const capabilityEditor = document.createElement('section');
   capabilityEditor.className = 'capability-editor';
   const editorTitle = document.createElement('h3');
@@ -446,7 +500,7 @@ function renderForm(body, options, existing) {
   status.className = 'help-text';
   status.setAttribute('aria-live', 'polite');
 
-  form.append(presetField, nameField.wrapper, urlField.wrapper, transportWarning, authField, textApiField, capabilityEditor, notice.element, status, actions);
+  form.append(presetField, nameField.wrapper, urlField.wrapper, transportWarning, authField, textApiField, jsonFormatField, compatibilityField, capabilityEditor, notice.element, status, actions);
   body.append(pageHeader, form);
 
   function currentPreset() {
@@ -499,9 +553,17 @@ function renderForm(body, options, existing) {
   function applySuggestionDefaults() {
     const defaults = providerSuggestionsForPreset(selectedPreset);
     selectedTextApi = defaults.textGeneration.api;
+    selectedJsonFormat = defaults.textGeneration.jsonResponseFormat;
     for (const option of textApiRadios) option.checked = option.value === selectedTextApi;
+    for (const option of jsonFormatRadios) option.checked = option.value === selectedJsonFormat;
     textModelsEditor.reset(defaults.textGeneration.models);
     ttsModelsEditor.reset(defaults.ttsModels);
+  }
+
+  for (const radio of jsonFormatRadios) {
+    radio.addEventListener('change', () => {
+      if (radio.checked) selectedJsonFormat = radio.value;
+    });
   }
 
   for (const radio of textApiRadios) {
@@ -531,7 +593,16 @@ function renderForm(body, options, existing) {
       auth: selectedAuth,
       textGeneration: {
         api: selectedTextApi,
+        jsonResponseFormat: selectedJsonFormat,
+        jsonSchemaWireFormat: wireSelect.value,
         models: textModelsEditor.values(),
+      },
+      requestOptions: {
+        storeMode: storeSelect.value,
+        timeoutMs: Number(timeoutField.input.value) * 1000,
+        temperature: Number(temperatureField.input.value),
+        maxOutputTokens: maxTokensField.input.value.trim() || null,
+        headers: Object.entries(JSON.parse(headersField.input.value || '{}')).map(([name, value]) => ({ name, value: String(value) })),
       },
       ttsModels,
     };

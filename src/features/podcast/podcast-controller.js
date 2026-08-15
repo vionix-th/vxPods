@@ -225,7 +225,7 @@ export function createPodcastController(deps = {}) {
    * Generate a script from source + preferences.
    * @param {string} source
    * @param {import('./podcast-script.js').PodcastPreferences} prefs
-   * @param {{ baseUrl: string, apiKey: string, textGeneration: { api: 'chat-completions'|'responses', models: string[] } }} textProvider
+   * @param {{ baseUrl: string, apiKey: string, textGeneration: { api: 'chat-completions'|'responses', jsonResponseFormat: 'json_object'|'json_schema', models: string[] } }} textProvider
    */
   async function generateScript(source, prefs, textProvider) {
     const trimmed = validateGenerationInput(source, prefs);
