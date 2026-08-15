@@ -103,9 +103,10 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   episodeActions.className = 'workflow-actions';
   const newEpisodeButton = document.createElement('button');
   newEpisodeButton.type = 'button';
-  newEpisodeButton.className = 'button button-danger';
+  newEpisodeButton.className = 'button button-danger button-small';
   newEpisodeButton.textContent = 'New episode';
   episodeActions.append(newEpisodeButton);
+  stepper.append(episodeActions);
 
   // ---------- Step 1: source
   const source = createSourceInput({
@@ -599,7 +600,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const exportErrors = createErrorScope();
   exportCard.append(audio, exportActions);
 
-  root.append(episodeActions, recoveryCard, stepper, source.element, prefsCard, scriptCard, review.element, renderCard, exportCard);
+  root.append(recoveryCard, stepper, source.element, prefsCard, scriptCard, review.element, renderCard, exportCard);
 
   stepCards.set('source', source.element);
   stepCards.set('settings', prefsCard);

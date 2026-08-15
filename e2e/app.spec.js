@@ -160,6 +160,7 @@ test('model and voice selectors stay unavailable without a provider configuratio
 test('podcast episode draft survives reload and New episode clears it', async ({ page }) => {
   await page.getByRole('button', { name: 'Podcast', exact: true }).click();
   const panel = page.locator('#panel-podcast');
+  await expect(panel.locator('.stepper .workflow-actions')).toContainText('New episode');
   await panel.getByLabel(/Text to speak/).fill('Persist this source.');
   await panel.getByLabel('Audience').fill('Busy readers');
   await panel.getByLabel('Review plan before writing').check();

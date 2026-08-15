@@ -1201,6 +1201,10 @@
   position: sticky;
   top: 0;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
   margin-top: calc(-1 * var(--space-2));
   margin-bottom: var(--space-5);
   padding: var(--space-2) 0;
@@ -1210,6 +1214,7 @@
 }
 
 .stepper-list {
+  flex: 1;
   list-style: none;
   display: flex;
   flex-wrap: wrap;
@@ -1217,6 +1222,25 @@
   padding: 0;
   margin: 0;
   counter-reset: step;
+}
+
+.workflow-actions {
+  flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .stepper {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .stepper-list {
+    flex-basis: 100%;
+  }
+
+  .workflow-actions {
+    margin-left: auto;
+  }
 }
 
 .stepper-button {
