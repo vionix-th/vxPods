@@ -167,6 +167,16 @@ test('provider setup persists across reload', async ({ page }) => {
   await expect(dialog.getByText('https://api.openai.com/v1')).toBeVisible();
 });
 
+test('provider Temperature is blank for new configurations', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Add provider' }).click();
+  const temperature = dialog.getByLabel('Temperature', { exact: true });
+
+  await expect(temperature).toBeEnabled();
+  await expect(temperature).toHaveValue('');
+});
+
 test('settings validation feedback stays visible inside the dialog', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');

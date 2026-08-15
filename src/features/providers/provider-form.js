@@ -425,7 +425,17 @@ function renderForm(body, options, existing) {
   for (const [value, label] of [['false', 'Send store: false'], ['omit', 'Omit store field']]) { const option = document.createElement('option'); option.value = value; option.textContent = label; storeSelect.append(option); }
   storeSelect.value = existing?.requestOptions?.storeMode ?? 'false'; storeField.append(storeLabel, storeSelect);
   const timeoutField = textField({ label: 'Request timeout (seconds)', value: String((existing?.requestOptions?.timeoutMs ?? 120000) / 1000), inputmode: 'numeric' });
-  const temperatureField = textField({ label: 'Temperature', value: String(existing?.requestOptions?.temperature ?? 0.7), inputmode: 'decimal' });
+  const configuredTemperature = existing?.requestOptions?.temperature ?? null;
+  const temperatureField = textField({
+    label: 'Temperature',
+    value: configuredTemperature === null ? '' : String(configuredTemperature),
+    inputmode: 'decimal',
+    type: 'number',
+    min: 0,
+    max: 2,
+    step: 0.01,
+    help: 'Optional. Leave blank to omit this parameter; set 0–2 only when selected provider supports Temperature.',
+  });
   const maxTokensField = textField({ label: 'Maximum output tokens (optional)', value: existing?.requestOptions?.maxOutputTokens ? String(existing.requestOptions.maxOutputTokens) : '', inputmode: 'numeric' });
   const headersField = textAreaField({ label: 'Additional request headers (JSON object, optional)', value: JSON.stringify(Object.fromEntries((existing?.requestOptions?.headers ?? []).map((entry) => [entry.name, entry.value])), null, 2), rows: 3, help: 'Use for non-secret routing or attribution headers. Authorization is configured above and cannot be supplied here.' });
   compatibilityField.append(wireField, storeField, timeoutField.wrapper, temperatureField.wrapper, maxTokensField.wrapper, headersField.wrapper);
@@ -600,7 +610,7 @@ function renderForm(body, options, existing) {
       requestOptions: {
         storeMode: storeSelect.value,
         timeoutMs: Number(timeoutField.input.value) * 1000,
-        temperature: Number(temperatureField.input.value),
+        temperature: temperatureField.input.value.trim() || null,
         maxOutputTokens: maxTokensField.input.value.trim() || null,
         headers: Object.entries(JSON.parse(headersField.input.value || '{}')).map(([name, value]) => ({ name, value: String(value) })),
       },

@@ -92,6 +92,16 @@ describe('createChatCompletion', () => {
     expect('store' in JSON.parse(init.body)).toBe(false);
   });
 
+  it('omits Temperature when provider configuration disables it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ choices: [{ message: { content: 'ok' } }] }));
+    vi.stubGlobal('fetch', fetchMock);
+    await createChatCompletion({
+      provider: { ...provider, requestOptions: { temperature: null } },
+      model: 'm', messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('temperature');
+  });
+
   it('preserves the provider error without guessing an alternate JSON protocol', async () => {
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ error: "'response_format.type' must be 'json_schema' or 'text'" }, 400));
     vi.stubGlobal('fetch', fetchMock);
@@ -230,6 +240,18 @@ describe('createResponse', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).text).toEqual({
       format: { type: 'json_schema', name: 'test_response', strict: true, schema: { type: 'object' } },
     });
+  });
+
+  it('omits Temperature when provider configuration disables it', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({
+      output: [{ type: 'message', content: [{ type: 'output_text', text: 'ok' }] }],
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    await createResponse({
+      provider: { ...provider, requestOptions: { temperature: null } },
+      model: 'm', messages: [{ role: 'user', content: 'hi' }],
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).not.toHaveProperty('temperature');
   });
 
   it.each([

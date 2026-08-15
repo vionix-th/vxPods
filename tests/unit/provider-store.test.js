@@ -12,6 +12,7 @@ import {
   restoreSettingsBackup,
 } from '../../src/features/providers/provider-store.js';
 import { providerSuggestionsForPreset } from '../../src/domain/provider-config.js';
+import { normalizeProviderRecord } from '../../src/domain/provider-config.js';
 
 beforeEach(() => {
   localStorage.clear();
@@ -67,6 +68,7 @@ describe('validateProviderInput', () => {
       apiKey: 'sk-test',
     });
     expect(out.textGeneration).toMatchObject({ api: 'chat-completions', jsonResponseFormat: 'json_object' });
+    expect(out.requestOptions.temperature).toBeNull();
     expect(out.textGeneration.models).toContain('gpt-4o-mini');
     expect(out.ttsModels).toEqual(expect.arrayContaining([
       expect.objectContaining({ model: 'gpt-4o-mini-tts', voices: expect.arrayContaining(['alloy']), responseFormat: 'mp3' }),
@@ -150,10 +152,31 @@ describe('provider preset suggestions', () => {
     for (const preset of ['openrouter', 'manual']) {
       expect(providerSuggestionsForPreset(preset)).toEqual({
         textGeneration: { api: 'chat-completions', jsonResponseFormat: 'json_object', jsonSchemaWireFormat: 'openai', models: [] },
-        requestOptions: { storeMode: 'false', timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
+        requestOptions: { storeMode: 'false', timeoutMs: 120000, temperature: null, maxOutputTokens: null, headers: [] },
         ttsModels: [],
       });
     }
+  });
+
+  it('omits Temperature from every new preset', () => {
+    for (const preset of ['openai', 'openrouter', 'manual']) {
+      expect(providerSuggestionsForPreset(preset).requestOptions.temperature).toBeNull();
+    }
+  });
+});
+
+describe('optional Temperature', () => {
+  it('preserves legacy Temperature behavior when field is absent', () => {
+    const provider = normalizeProviderRecord({ id: 'legacy', name: 'Legacy', baseUrl: 'https://api.example/v1', apiKey: 'key', textGeneration: { models: [] }, ttsModels: [] });
+    expect(provider.requestOptions.temperature).toBe(0.7);
+  });
+
+  it('accepts null to omit Temperature', () => {
+    const provider = validateProviderInput({
+      name: 'No temperature', baseUrl: 'https://api.example/v1', apiKey: 'key',
+      requestOptions: { temperature: null },
+    });
+    expect(provider.requestOptions.temperature).toBeNull();
   });
 });
 
@@ -166,6 +189,7 @@ describe('provider CRUD', () => {
 
   it('adds and lists providers', () => {
     const record = addProvider(input);
+    expect(record.requestOptions.temperature).toBeNull();
     expect(listProviders()).toHaveLength(1);
     expect(listProviders()[0].id).toBe(record.id);
   });
@@ -228,6 +252,16 @@ describe('provider CRUD', () => {
       apiKey: '',
     });
     expect(updated).toMatchObject({ auth: 'none', apiKey: '' });
+  });
+
+  it('updates request options from provider form input', () => {
+    const record = addProvider(input);
+    const updated = updateProvider(record.id, {
+      name: record.name,
+      baseUrl: record.baseUrl,
+      requestOptions: { ...record.requestOptions, temperature: 0.2 },
+    });
+    expect(updated.requestOptions.temperature).toBe(0.2);
   });
 
   it('stores normalized, provider-specific model and voice suggestions', () => {

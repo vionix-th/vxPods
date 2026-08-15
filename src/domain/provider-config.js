@@ -79,7 +79,7 @@ export function defaultProviderSuggestions() {
       jsonSchemaWireFormat: JSON_SCHEMA_WIRE_FORMATS.openai,
       models: defaultTextModels(TEXT_GENERATION_APIS.chatCompletions),
     },
-    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
+    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: null, maxOutputTokens: null, headers: [] },
     ttsModels: cloneTtsModels(DEFAULT_TTS_MODELS),
   };
 }
@@ -94,7 +94,7 @@ export function providerSuggestionsForPreset(preset) {
       jsonSchemaWireFormat: JSON_SCHEMA_WIRE_FORMATS.openai,
       models: [],
     },
-    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: 0.7, maxOutputTokens: null, headers: [] },
+    requestOptions: { storeMode: STORE_MODES.false, timeoutMs: 120000, temperature: null, maxOutputTokens: null, headers: [] },
     ttsModels: [],
   };
 }
@@ -107,13 +107,13 @@ export function isJsonResponseFormat(format) {
   return format === JSON_RESPONSE_FORMATS.jsonObject || format === JSON_RESPONSE_FORMATS.jsonSchema;
 }
 
-function normalizeRequestOptions(value) {
+function normalizeRequestOptions(value, absentTemperature = null) {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
   const storeMode = source.storeMode === STORE_MODES.omit ? STORE_MODES.omit : STORE_MODES.false;
   const timeoutMs = Number(source.timeoutMs ?? 120000);
   if (!Number.isInteger(timeoutMs) || timeoutMs < 30000 || timeoutMs > 600000) throw validationError('Request timeout must be between 30 and 600 seconds.');
-  const temperature = Number(source.temperature ?? 0.7);
-  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw validationError('Temperature must be between 0 and 2.');
+  const temperature = source.temperature === undefined ? absentTemperature : source.temperature === null || source.temperature === '' ? null : Number(source.temperature);
+  if (temperature !== null && (!Number.isFinite(temperature) || temperature < 0 || temperature > 2)) throw validationError('Temperature must be between 0 and 2.');
   const rawTokens = source.maxOutputTokens;
   const maxOutputTokens = rawTokens === null || rawTokens === undefined || rawTokens === '' ? null : Number(rawTokens);
   if (maxOutputTokens !== null && (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 1 || maxOutputTokens > 100000)) throw validationError('Maximum output tokens must be between 1 and 100000.');
@@ -220,7 +220,7 @@ export function normalizeBaseUrl(input) {
 }
 
 /** Validate and normalize editable provider fields. */
-export function validateProviderInput(input) {
+export function validateProviderInput(input, options = {}) {
   const name = String(input.name ?? '').trim();
   if (!name) throw validationError('Name is required.');
   const auth = input.auth === undefined
@@ -240,7 +240,7 @@ export function validateProviderInput(input) {
   if (!Object.values(JSON_SCHEMA_WIRE_FORMATS).includes(jsonSchemaWireFormat)) throw validationError('Select a supported JSON Schema wire format.');
   const textModels = normalizeSuggestions(input.textGeneration?.models, defaultTextModels(api));
   const ttsModels = normalizeTtsModels(input.ttsModels, DEFAULT_TTS_MODELS);
-  const requestOptions = normalizeRequestOptions(input.requestOptions);
+  const requestOptions = normalizeRequestOptions(input.requestOptions, options.absentTemperature);
   if (Array.isArray(input.ttsModels) && ttsModels.length !== input.ttsModels.length) {
     throw validationError('Each TTS model needs a unique identifier, a response format, and valid PCM metadata when PCM is selected.');
   }
@@ -270,7 +270,8 @@ export function isValidProviderRecord(value) {
 
 /** @param {ProviderConfig} provider @returns {ProviderConfig} */
 export function normalizeProviderRecord(provider) {
-  return { id: provider.id, ...validateProviderInput(provider) };
+  // Existing records predate optional temperature and always sent 0.7.
+  return { id: provider.id, ...validateProviderInput(provider, { absentTemperature: 0.7 }) };
 }
 
 function mp3Model(model, voices) {

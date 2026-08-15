@@ -29,8 +29,9 @@ export async function createChatCompletion(args) {
   const body = {
     model,
     messages,
-    temperature: args.temperature ?? args.provider.requestOptions?.temperature ?? 0.7,
   };
+  const temperature = args.temperature ?? args.provider.requestOptions?.temperature;
+  if (Number.isFinite(temperature)) body.temperature = temperature;
   if (args.provider.requestOptions?.storeMode !== 'omit') body.store = false;
   const maxOutputTokens = args.provider.requestOptions?.maxOutputTokens;
   if (Number.isInteger(maxOutputTokens)) body.max_tokens = maxOutputTokens;
@@ -93,7 +94,6 @@ export async function testChatConnection(provider, model, signal) {
       { role: 'system', content: 'Return exactly one JSON object with a status field.' },
       { role: 'user', content: 'Return a status of ok.' },
     ],
-    temperature: 0,
     jsonMode: true,
     jsonSchema: CONNECTION_TEST_JSON_SCHEMA,
     timeoutMs: 30_000,
