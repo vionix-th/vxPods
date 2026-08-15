@@ -338,7 +338,7 @@ test('prompt templates use dedicated pages and validate edits', async ({ page })
   await expect(scriptUser).toHaveAttribute('readonly', '');
 });
 
-test('podcast template CRUD persists while generation edits remain session-only', async ({ page }) => {
+test('podcast template CRUD keeps current episode draft across reload', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
   const dialog = page.getByRole('dialog');
   await dialog.getByRole('button', { name: 'Podcast', exact: true }).click();
@@ -440,11 +440,13 @@ test('podcast template CRUD persists while generation edits remain session-only'
   await expect(panel.getByLabel('Format template')).toHaveValue('__custom__');
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue('Temporary briefing change.');
 
+  await page.waitForTimeout(300);
   await page.reload();
-  await expect(panel.getByLabel('Episode direction template')).toHaveValue('direction-essential-overview');
-  await expect(panel.getByLabel('Format template')).toHaveValue('format-conversation');
-  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue(/turn contingency/);
-  await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Maya');
+  await expect(panel.getByLabel('Episode direction template').locator('option:checked')).toHaveText('Author focus');
+  await expect(panel.getByLabel('Episode direction (required)')).toHaveValue('Temporary author focus.');
+  await expect(panel.getByLabel('Format template')).toHaveValue('__custom__');
+  await expect(panel.getByLabel('Format instructions (required)')).toHaveValue('Temporary briefing change.');
+  await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Coach');
   await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Leah');
 });
 
