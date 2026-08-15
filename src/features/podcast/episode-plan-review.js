@@ -53,9 +53,9 @@ export function createEpisodePlanReview({
   });
   const revise = button('Revise plan', 'button-secondary');
   revisionGroup.append(revision.wrapper, revise);
-  // A plan is reviewable content. Its actions come immediately after it, so
-  // starting a script generation and cancelling it happen in the same place.
-  element.append(heading, stale, content, actions, revisionGroup);
+  // Keep revision in the reading flow: review the plan, request changes, then
+  // choose a transition such as generating the script or creating a new plan.
+  element.append(heading, stale, content, revisionGroup, actions);
 
   /** @type {import('../../domain/episode-plan-schema.js').EpisodePlan | null} */
   let current = null;
