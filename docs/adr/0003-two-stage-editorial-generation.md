@@ -15,6 +15,7 @@ vxPods must preserve a fast source-to-podcast path while also allowing authors t
 - Episode direction owns purpose, angle, priorities, depth, and omissions. Format owns discourse and participation structure. Speaker Roles own contribution and delivery tendencies within that Format.
 - Quick generation remains the default and makes planner and writer requests consecutively. An optional review control stops after planning.
 - Plans are visible and structurally editable in both paths. Users may also request a complete replacement plan through a model revision request.
+- A current plan also enables complete-script revision. The model receives writer context, current script, and a session-only revision request; replacement remains subject to canonical schema validation.
 - Plans, source text, raw model output, and revision requests remain session-only. They are not stored in render jobs or script exports.
 - Planner and writer use the same selected provider and model through the API-neutral text-generation boundary. Every request is independently cancellable.
 - A failed writer retains the valid plan and can retry without rerunning planning. Invalid planner output permits one explicit validation-only repair.
@@ -27,6 +28,7 @@ vxPods must preserve a fast source-to-podcast path while also allowing authors t
 - Source or editorial-input changes can stale a plan and script without destroying either artifact. Stale scripts remain renderable with a warning.
 - The workflow controller owns an additional session-only state machine and cancellation boundary.
 - Advanced prompt Settings expose planning, writing, and validation-repair layers separately.
+- Revision does not modify a recoverable render job. Completed audio stays available and is marked stale when its script is replaced.
 
 ## Alternatives considered
 

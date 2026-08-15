@@ -20,6 +20,7 @@ import {
   buildPlanRevisionMessages,
   buildPlanRepairMessages,
   buildWriterPrompt,
+  buildScriptRevisionMessages,
   buildRepairMessages,
   extractJson,
   parseEpisodePlan,
@@ -54,8 +55,8 @@ const RENDER_TRANSITIONS = {
  * @property {boolean} planRepairAvailable
  * @property {boolean} planStale
  * @property {boolean} scriptStale
- * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'repairing-script'|null} generationPhase
- * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'repairing-script'|null} failedGenerationPhase
+ * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'revising-script'|'repairing-script'|null} generationPhase
+ * @property {'planning'|'revising-plan'|'repairing-plan'|'writing-script'|'revising-script'|'repairing-script'|null} failedGenerationPhase
  * @property {'idle'|'rendering'|'cancelled'|'failed'|'ready'|'exporting'} renderStatus
  * @property {Record<string, 'pending'|'active'|'completed'|'failed'>} segmentStates
  * @property {string | null} activeSegmentId
@@ -117,6 +118,8 @@ export function createPodcastController(deps = {}) {
   let lastSource = '';
   let lastPlanRequestMessages = null;
   let lastPlanRequestPhase = 'planning';
+  let lastScriptRevisionRequest = null;
+  let lastScriptWasRevision = false;
   let planInputFingerprint = null;
 
   function validateGenerationInput(source, prefs) {
@@ -250,6 +253,8 @@ export function createPodcastController(deps = {}) {
       store.set({ generationPhase: 'writing-script' });
     }
     rememberGeneration(trimmed, prefs, textProvider);
+    lastScriptRevisionRequest = null;
+    lastScriptWasRevision = false;
     const signal = generationController?.signal;
     try {
       const { content } = await textGeneration({
@@ -290,7 +295,55 @@ export function createPodcastController(deps = {}) {
 
   async function retryScriptGeneration() {
     if (!store.get().plan || !lastPrefs || !lastTextProvider || !lastSource) return;
+    if (lastScriptRevisionRequest !== null) {
+      return reviseScript(lastSource, lastPrefs, lastTextProvider, lastScriptRevisionRequest);
+    }
     return writeScript(lastSource, lastPrefs, lastTextProvider, store.get().plan);
+  }
+
+  /** Request a complete replacement for the current validated script. */
+  async function reviseScript(source, prefs, textProvider, request) {
+    const plan = store.get().plan;
+    const currentScript = store.get().script;
+    if (!plan || store.get().planStale) throw validationError('Update the current episode plan before revising its script.');
+    if (!currentScript) throw validationError('Generate a valid script before requesting changes.');
+    const revisionRequest = String(request ?? '').trim();
+    if (!revisionRequest) throw validationError('Describe the requested script changes.');
+    const trimmed = validateGenerationInput(source, prefs);
+    const planResult = validateEpisodePlan(plan, prefs.speakers.map((speaker) => speaker.id));
+    if (!planResult.valid) throw schemaError('Episode plan', planResult.errors);
+    const signal = beginGeneration('revising-script');
+    rememberGeneration(trimmed, prefs, textProvider);
+    lastScriptRevisionRequest = revisionRequest;
+    lastScriptWasRevision = true;
+    try {
+      const { content } = await textGeneration({
+        provider: textProvider,
+        model: prefs.textModel,
+        messages: buildScriptRevisionMessages(
+          trimmed, prefs, planResult.plan, currentScript, revisionRequest, getPromptTemplates(),
+        ),
+        jsonMode: true,
+        jsonSchema: PODCAST_SCRIPT_JSON_SCHEMA,
+        signal,
+      });
+      throwIfAborted(signal);
+      lastRawOutput = content;
+      const script = parseAndValidate(content);
+      setFeatureStatus(store, 'ready', {
+        plan: planResult.plan,
+        script,
+        planStale: false,
+        scriptStale: store.get().renderStatus !== 'idle',
+        generationPhase: null,
+      });
+      return script;
+    } catch (err) {
+      handleGenerationFailure(err, 'script');
+      return null;
+    } finally {
+      generationController = null;
+    }
   }
 
   async function retryPlanGeneration() {
@@ -359,6 +412,8 @@ export function createPodcastController(deps = {}) {
     generationController?.abort('reset');
     generationController = null;
     planInputFingerprint = null;
+    lastScriptRevisionRequest = null;
+    lastScriptWasRevision = false;
     setFeatureStatus(store, 'idle', {
       plan: null,
       script: null,
@@ -426,7 +481,7 @@ export function createPodcastController(deps = {}) {
       const script = parseAndValidate(content);
       setFeatureStatus(store, 'ready', {
         script,
-        scriptStale: false,
+        scriptStale: store.get().planStale || (lastScriptWasRevision && store.get().renderStatus !== 'idle'),
         validationErrors: [],
         generationPhase: null,
       });
@@ -560,6 +615,8 @@ export function createPodcastController(deps = {}) {
   function importScript(raw) {
     const script = validateImportedScript(raw);
     planInputFingerprint = null;
+    lastScriptRevisionRequest = null;
+    lastScriptWasRevision = false;
     setFeatureStatus(store, 'ready', {
       plan: null,
       script,
@@ -957,6 +1014,7 @@ export function createPodcastController(deps = {}) {
     retryScriptGeneration,
     retryPlanGeneration,
     revisePlan,
+    reviseScript,
     repairPlan,
     repairScript,
     applyEditedPlan,

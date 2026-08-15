@@ -21,6 +21,7 @@ const TEMPLATE_PAGES = {
   scriptSystem: { tab: 'Script rules', messageType: 'System message', group: 'Writing' },
   scriptUser: { tab: 'Script brief', messageType: 'User message', group: 'Writing' },
   episodePlanHandoff: { tab: 'Plan handoff', messageType: 'User message', group: 'Writing' },
+  scriptRevisionUser: { tab: 'Script revision', messageType: 'User message', group: 'Writing' },
   planRepairSystem: { tab: 'Plan repair rules', messageType: 'System message', group: 'Validation repair' },
   planRepairUser: { tab: 'Plan repair brief', messageType: 'User message', group: 'Validation repair' },
   repairSystem: { tab: 'Repair rules', messageType: 'System message', group: 'Validation repair' },

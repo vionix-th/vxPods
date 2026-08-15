@@ -8,6 +8,7 @@ import {
   buildPlanRevisionMessages,
   buildPlanRepairMessages,
   buildWriterPrompt,
+  buildScriptRevisionMessages,
   buildRepairMessages,
   exportableScript,
   validatePodcastPreferences,
@@ -179,6 +180,14 @@ describe('two-stage prompt construction', () => {
     expect(repair[1].content).toContain('"bad"');
     expect(repair[2].content).toContain('workingTitle');
   });
+
+  it('builds complete-script revision from writing context, prior script, and request', () => {
+    const revision = buildScriptRevisionMessages('SOURCE', prefs, validPlan, validScript, 'Make it more critical.');
+    expect(revision).toHaveLength(5);
+    expect(revision.at(-2).content).toContain('segment-0001');
+    expect(revision.at(-1).content).toContain('Make it more critical.');
+    expect(revision.at(-1).content).toContain('complete replacement PodcastScript');
+  });
 });
 
 describe('prompt templates', () => {
@@ -203,6 +212,12 @@ describe('prompt templates', () => {
     const result = validatePromptTemplate('repairUser', 'No errors here');
     expect(result.valid).toBe(false);
     if (!result.valid) expect(result.errors.join(' ')).toContain('{{validationErrors}}');
+  });
+
+  it('requires revision request placeholder for script revision', () => {
+    const result = validatePromptTemplate('scriptRevisionUser', 'Rewrite script.');
+    expect(result.valid).toBe(false);
+    if (!result.valid) expect(result.errors.join(' ')).toContain('{{revisionRequest}}');
   });
 });
 

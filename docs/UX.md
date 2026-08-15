@@ -111,6 +111,7 @@ After validation:
 - Default view presents ordered editable speaker turns.
 - Structured turn editing includes a validated “Pause after (ms)” control from 0 through 5000.
 - “Edit script” enables segment text editing.
+- “Ask for changes to this script” requests a complete model-generated replacement using the current source, plan, and podcast settings. It is available only while the plan is current; it preserves the request on failure, disables conflicting script actions while running, and exposes cancellation.
 - A “Structured” / “JSON” view switch exposes the canonical script JSON for advanced review.
 - “Edit JSON” enables raw JSON editing. Applying changes parses and validates the complete canonical script before replacing the current script; invalid JSON or schema errors retain the current valid script and remain editable for correction or discard.
 - “Download JSON” exports canonical script; the same file can be imported from Step 3.
@@ -118,7 +119,7 @@ After validation:
 
 Review is optional: users may render immediately. Structured editing remains the default; raw JSON editing is an explicit advanced path guarded by the same schema validation used for imports and pre-render validation. JSON remains the script download format.
 
-Source or planning-input changes mark the plan and current script stale. A stale script remains reviewable and renderable with a warning. Voice-only changes do not stale the plan.
+Source or planning-input changes mark the plan and current script stale. A stale script remains reviewable and renderable with a warning. A revision after audio rendering keeps the completed audio available and marks it stale against the replacement script. Voice-only changes do not stale the plan.
 
 ### Step 5: Render
 

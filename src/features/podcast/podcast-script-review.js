@@ -1,4 +1,4 @@
-import { cardHeader } from '../../components/fields.js';
+import { cardHeader, textAreaField } from '../../components/fields.js';
 import { createErrorScope } from '../../components/error-message.js';
 import { AppError } from '../../services/errors.js';
 import { downloadJson } from '../../utils/download.js';
@@ -11,8 +11,10 @@ import { downloadJson } from '../../utils/download.js';
  * @param {ReturnType<import('./podcast-controller.js').createPodcastController>} args.controller
  * @param {(message: string) => void} args.announce
  * @param {() => void | Promise<void>} args.onRender
+ * @param {(request: string) => Promise<import('./podcast-script.js').PodcastScript | null>} args.onRevise
+ * @param {() => void} [args.onCancelGeneration]
  */
-export function createPodcastScriptReview({ controller, announce, onRender }) {
+export function createPodcastScriptReview({ controller, announce, onRender, onRevise, onCancelGeneration = () => {} }) {
   const element = document.createElement('section');
   element.className = 'card';
   element.hidden = true;
@@ -68,12 +70,24 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
   const downloadButton = actionButton('Download JSON', 'button button-secondary');
   actions.append(renderButton, editButton, cancelEditButton, addTurnButton, downloadButton);
   const errors = createErrorScope();
-  element.append(meta, viewToggle, structuredPane, jsonPane, actions);
+  const revisionGroup = document.createElement('div');
+  revisionGroup.className = 'episode-plan-revision';
+  const revision = textAreaField({
+    label: 'Ask for changes to this script',
+    rows: 3,
+    help: 'The model returns a complete replacement script using the current source, plan, and podcast settings.',
+  });
+  const reviseButton = actionButton('Revise script', 'button button-secondary');
+  const cancelRevisionButton = actionButton('Cancel revision', 'button button-secondary');
+  cancelRevisionButton.hidden = true;
+  revisionGroup.append(revision.wrapper, reviseButton, cancelRevisionButton);
+  element.append(meta, viewToggle, structuredPane, jsonPane, revisionGroup, actions);
 
   /** @type {{ id: string, speakerId: string, text: string, pauseAfterMs: number }[] | null} */
   let editDraft = null;
   let jsonMode = false;
   let jsonEditing = false;
+  let uiState = { revising: false, offline: false, canRevise: false, renderUnavailable: false };
 
   const isEditing = () => editDraft !== null;
 
@@ -175,8 +189,28 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     editButton.textContent = 'Edit script';
     cancelEditButton.hidden = true;
     addTurnButton.hidden = true;
-    renderButton.disabled = false;
-    jsonToggle.disabled = false;
+    syncActions();
+  }
+
+  function syncActions() {
+    const editing = isEditing();
+    const revising = Boolean(uiState.revising);
+    const revisionAvailable = Boolean(uiState.canRevise && !editing);
+    editButton.disabled = revising;
+    addTurnButton.disabled = revising;
+    cancelEditButton.disabled = revising;
+    editJsonButton.disabled = revising;
+    applyJsonButton.disabled = revising;
+    discardJsonButton.disabled = revising;
+    structuredToggle.disabled = revising;
+    jsonToggle.disabled = editing || revising;
+    renderButton.disabled = editing || revising || Boolean(uiState.offline) || Boolean(uiState.renderUnavailable);
+    revisionGroup.hidden = !uiState.canRevise || editing || jsonEditing;
+    revision.input.disabled = !revisionAvailable || revising || Boolean(uiState.offline);
+    reviseButton.disabled = !revisionAvailable || revising || Boolean(uiState.offline);
+    jsonEditArea.disabled = revising;
+    cancelRevisionButton.hidden = !revising;
+    cancelRevisionButton.disabled = !revising;
   }
 
   function renderJsonView() {
@@ -190,6 +224,7 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     applyJsonButton.hidden = true;
     discardJsonButton.hidden = true;
     jsonErrors.clear();
+    syncActions();
   }
 
   function setJsonMode(on) {
@@ -231,9 +266,8 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     editButton.textContent = 'Save edits';
     cancelEditButton.hidden = false;
     addTurnButton.hidden = false;
-    renderButton.disabled = true;
-    jsonToggle.disabled = true;
     renderEditable(script);
+    syncActions();
     announce('Editing script. Save or cancel edits before rendering.');
   });
 
@@ -242,6 +276,20 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     const script = controller.store.get().script;
     if (script) renderReadOnly(script);
   });
+
+  reviseButton.addEventListener('click', async () => {
+    errors.clear();
+    try {
+      const revised = await onRevise(revision.input.value);
+      if (revised) {
+        revision.input.value = '';
+        announce('Script revision applied.');
+      }
+    } catch (error) {
+      errors.show(error);
+    }
+  });
+  cancelRevisionButton.addEventListener('click', onCancelGeneration);
 
   addTurnButton.addEventListener('click', () => {
     const script = controller.store.get().script;
@@ -273,6 +321,7 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     editJsonButton.hidden = true;
     applyJsonButton.hidden = false;
     discardJsonButton.hidden = false;
+    syncActions();
     jsonEditArea.focus();
   });
   discardJsonButton.addEventListener('click', renderJsonView);
@@ -307,6 +356,7 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
   renderButton.addEventListener('click', onRender);
 
   setJsonMode(false);
+  syncActions();
 
   return {
     element,
@@ -315,6 +365,10 @@ export function createPodcastScriptReview({ controller, announce, onRender }) {
     isEditing,
     exitEditMode,
     setJsonMode,
+    setUiState(next) {
+      uiState = { ...uiState, ...next };
+      syncActions();
+    },
     /** @param {import('./podcast-script.js').PodcastScript} script */
     update(script) {
       meta.textContent = `${script.title} — ${script.speakers.map((speaker) => speaker.name).join(', ')} · ${script.segments.length} turns`;

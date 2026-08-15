@@ -304,7 +304,7 @@ Source + Episode direction + Format + Audience + Cast
   -> API-neutral script-writer messages with approved plan
   -> configured text-generation adapter
   -> PodcastScript validation/normalization
-  -> optional user review/edit
+  -> optional user review, direct edit, or complete-script revision
   -> final validation
   -> create recoverable render job
   -> synthesize pending segments in order
@@ -335,6 +335,8 @@ Writing must:
 - Allow script length to emerge from supplied source and model output; do not send a duration target.
 - Keep source text clearly delimited from instructions.
 
+Script revision reuses the current writer context, then sends the current canonical script as untrusted prior assistant output and a session-only user request. It returns a complete replacement `PodcastScript`; schema validation is required before replacing workflow state. Revision does not alter an existing render job or its completed audio, which is marked stale against the replacement script.
+
 One explicit stateless repair request is available independently for invalid EpisodePlan output and invalid PodcastScript output. Each submits validation errors and prior output through the selected text-generation configuration, treats prior output as untrusted data, requests the minimum validation correction, and prohibits unrelated content changes. A repaired plan stops for review rather than continuing to script writing automatically.
 
 `EpisodePlan` is canonical only within the current browser session:
@@ -354,7 +356,7 @@ One explicit stateless repair request is available independently for invalid Epi
 }
 ```
 
-It is not stored in IndexedDB, embedded in PodcastScript, or exported. Provider requests for planning, revision, writing, and repair receive independent abort signals. Writer retry reuses the last valid plan.
+It is not stored in IndexedDB, embedded in PodcastScript, or exported. Provider requests for planning, plan revision, writing, script revision, and repair receive independent abort signals. Writer retry reuses the last valid plan.
 
 ## 10. Speech and audio pipeline
 

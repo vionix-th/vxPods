@@ -133,6 +133,90 @@ describe('podcast script generation', () => {
     expect(edited.ending).toContain('unresolved implication');
   });
 
+  it('revises a script as a complete validated replacement while retaining its plan', async () => {
+    const revisedScript = {
+      ...structuredClone(validScript),
+      title: 'Revised show',
+      segments: [{ id: 'replacement-1', speakerId: 'speaker-2', text: 'Revised.', pauseAfterMs: 0 }],
+    };
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(revisedScript), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    const plan = controller.store.get().plan;
+    await controller.reviseScript('source', prefs, textProvider, 'Use a sharper conclusion.');
+    expect(controller.store.get()).toMatchObject({ status: 'ready', plan, script: revisedScript, scriptStale: false });
+    const revisionCall = textGeneration.mock.calls[2][0];
+    expect(revisionCall.messages.at(-2).content).toContain('segment-0001');
+    expect(revisionCall.messages.at(-1).content).toContain('Use a sharper conclusion.');
+  });
+
+  it('rejects empty script revision requests and retries a failed revision', async () => {
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockRejectedValueOnce(new AppError({ kind: 'network', message: 'offline', retryable: true }))
+      .mockResolvedValueOnce({ content: JSON.stringify({ ...validScript, title: 'Retried' }), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    await expect(controller.reviseScript('source', prefs, textProvider, '')).rejects.toThrow(/describe the requested script changes/i);
+    await controller.reviseScript('source', prefs, textProvider, 'Improve ending.');
+    expect(controller.store.get()).toMatchObject({ status: 'failed', failedGenerationPhase: 'revising-script' });
+    await controller.retryScriptGeneration();
+    expect(controller.store.get().script.title).toBe('Retried');
+    expect(textGeneration).toHaveBeenCalledTimes(4);
+  });
+
+  it('repairs invalid revised output without replacing the current script first', async () => {
+    const repaired = { ...structuredClone(validScript), title: 'Repaired revision' };
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockResolvedValueOnce({ content: '{"invalid":true}', model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(repaired), model: 'm' });
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.reviseScript('source', prefs, textProvider, 'Change title.');
+    expect(controller.store.get()).toMatchObject({ status: 'failed', repairAvailable: true, script: validScript });
+    await controller.repairScript();
+    expect(controller.store.get().script.title).toBe('Repaired revision');
+    expect(JSON.stringify(textGeneration.mock.calls[3][0].messages)).toContain('invalid');
+  });
+
+  it('cancels script revision while retaining current script', async () => {
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockImplementationOnce(({ signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new AppError({
+          kind: 'cancelled', message: 'Request cancelled.', retryable: false,
+        })), { once: true });
+      }));
+    const controller = createPodcastController({ textGeneration });
+    await controller.generateScript('source', prefs, textProvider);
+    const revision = controller.reviseScript('source', prefs, textProvider, 'Rewrite it.');
+    await vi.waitFor(() => expect(controller.store.get().generationPhase).toBe('revising-script'));
+    controller.cancelGeneration();
+    await revision;
+    expect(controller.store.get()).toMatchObject({ status: 'cancelled', script: validScript });
+  });
+
+  it('marks replacement script stale while retaining completed render work', async () => {
+    const revised = { ...structuredClone(validScript), title: 'Audio stale' };
+    const textGeneration = vi.fn()
+      .mockResolvedValueOnce({ content: JSON.stringify(planFor()), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(validScript), model: 'm' })
+      .mockResolvedValueOnce({ content: JSON.stringify(revised), model: 'm' });
+    const controller = createPodcastController({ textGeneration, speech: speechOk(), decode: fakeDecode });
+    await controller.generateScript('source', prefs, textProvider);
+    await controller.startRender(ttsProvider, ttsModel);
+    expect(controller.store.get().renderStatus).toBe('ready');
+    await controller.reviseScript('source', prefs, textProvider, 'Use a new title.');
+    expect(controller.store.get()).toMatchObject({ script: revised, scriptStale: true, renderStatus: 'ready' });
+  });
+
   it('offers one plan repair and stops with a reviewable plan', async () => {
     const textGeneration = vi.fn()
       .mockResolvedValueOnce({ content: '{"invalid":true}', model: 'm' })

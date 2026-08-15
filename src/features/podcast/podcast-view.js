@@ -434,6 +434,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     controller,
     announce: (message) => progress.announce(message),
     onRender: startRender,
+    onCancelGeneration: () => controller.cancelGeneration(),
+    onRevise: async (request) => {
+      const provider = await selectedTextProvider();
+      if (!provider) return null;
+      return controller.reviseScript(source.getText(), readPrefs(), provider, request);
+    },
   });
 
   // ---------- Step 5: render
@@ -832,6 +838,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       'revising-plan': 'Revising editorial plan…',
       'repairing-plan': 'Repairing and validating editorial plan…',
       'writing-script': 'Writing and validating script…',
+      'revising-script': 'Revising and validating script…',
       'repairing-script': 'Repairing and validating script…',
     };
     scriptStatus.textContent = generating
@@ -845,6 +852,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     scriptStale.hidden = !state.scriptStale;
     scriptStale.textContent = state.planStale
       ? 'The current plan and script reflect earlier source or podcast settings. The existing script remains renderable.'
+      : state.renderStatus !== 'idle'
+        ? 'The current script differs from the completed audio. Existing audio remains available; render again for this script.'
       : 'The current script reflects an earlier editorial plan. It remains renderable until regenerated.';
     planReview.update(state.plan, readPrefs(), {
       stale: state.planStale,
@@ -866,8 +875,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
           ? 'Repair script'
           : failedInPlan
             ? 'Retry plan'
-            : state.failedGenerationPhase === 'writing-script'
-              ? 'Retry script'
+              : ['writing-script', 'revising-script'].includes(state.failedGenerationPhase)
+                ? 'Retry script'
               : 'Generate again';
       scriptErrors.show(state.error, {
         actionLabel,
@@ -876,7 +885,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
           if (state.planRepairAvailable) controller.repairPlan();
           else if (state.repairAvailable) controller.repairScript();
           else if (failedInPlan) controller.retryPlanGeneration();
-          else if (state.failedGenerationPhase === 'writing-script') controller.retryScriptGeneration();
+          else if (['writing-script', 'revising-script'].includes(state.failedGenerationPhase)) controller.retryScriptGeneration();
           else generateScriptButton.click();
         },
       });
@@ -906,6 +915,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
         notify({ type: 'success', title: 'Script ready', message: 'Review it or render audio.' });
       }
     }
+    review.setUiState({
+      revising: generating && state.generationPhase === 'revising-script',
+      offline: !isOnline(),
+      canRevise: Boolean(state.plan && !state.planStale),
+      renderUnavailable: state.renderStatus === 'rendering' || state.renderStatus === 'exporting',
+    });
 
     const renderActive = state.renderStatus !== 'idle';
     if (renderActive && renderCard.hidden) {
@@ -1130,6 +1145,12 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
     importScriptButton.disabled = planEditing || scriptGenerating;
     reviewPlanInput.disabled = planEditing || scriptGenerating;
     review.renderButton.disabled = review.isEditing() || !online || renderStatus === 'rendering' || renderStatus === 'exporting';
+    review.setUiState({
+      revising: scriptGenerating && currentState.generationPhase === 'revising-script',
+      offline: !online,
+      canRevise: Boolean(currentState.plan && !currentState.planStale),
+      renderUnavailable: renderStatus === 'rendering' || renderStatus === 'exporting',
+    });
     planReview.update(currentState.plan, readPrefs(), {
       stale: currentState.planStale,
       busy: scriptGenerating,

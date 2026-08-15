@@ -98,6 +98,19 @@ export function buildWriterPrompt(source, prefs, plan, templateOverrides = {}) {
   ];
 }
 
+/** Build a complete-script revision request using current writing inputs. */
+export function buildScriptRevisionMessages(source, prefs, plan, script, request, templateOverrides = {}) {
+  const templates = resolvePromptTemplates(templateOverrides);
+  return [
+    ...buildWriterPrompt(source, prefs, plan, templateOverrides),
+    { role: 'assistant', content: JSON.stringify(script) },
+    {
+      role: 'user',
+      content: renderPromptTemplate(templates.scriptRevisionUser, { revisionRequest: request }),
+    },
+  ];
+}
+
 /**
  * Build runtime values for script prompt rendering and preview. Values remain
  * request-scoped; callers must not persist source text.
