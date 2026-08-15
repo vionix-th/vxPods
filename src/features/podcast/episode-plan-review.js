@@ -35,7 +35,7 @@ export function createEpisodePlanReview({
   const content = document.createElement('div');
   const errors = createErrorScope();
   const actions = document.createElement('div');
-  actions.className = 'action-row episode-plan-actions';
+  actions.className = 'action-row';
   const generate = button('Generate script from plan', 'button-primary');
   const edit = button('Edit plan', 'button-secondary');
   const cancelEdit = button('Cancel edits', 'button-ghost');
@@ -53,9 +53,9 @@ export function createEpisodePlanReview({
   });
   const revise = button('Revise plan', 'button-secondary');
   revisionGroup.append(revision.wrapper, revise);
-  // Keep controls ahead of the long-form plan they operate on. Actions at the
-  // end of the plan require needless scrolling and lose their context.
-  element.append(heading, stale, actions, revisionGroup, content);
+  // A plan is reviewable content. Its actions come immediately after it, so
+  // starting a script generation and cancelling it happen in the same place.
+  element.append(heading, stale, content, actions, revisionGroup);
 
   /** @type {import('../../domain/episode-plan-schema.js').EpisodePlan | null} */
   let current = null;

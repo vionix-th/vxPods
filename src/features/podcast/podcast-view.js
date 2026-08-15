@@ -1,9 +1,6 @@
 /**
- * Podcast workflow view: guided six-step pipeline.
- * Source → Shape → Plan → Script → Render → Export.
- * A compact stepper shows pipeline position; downstream cards unlock as the
- * workflow advances. Script review offers a structured turn editor plus a
- * raw JSON view with validated advanced editing.
+ * Podcast workflow view. Its navigation follows the actual page sections,
+ * including generated sections as they become available.
  */
 
 import { createSourceInput } from '../../components/source-input.js';
@@ -38,9 +35,10 @@ import {
   subscribePodcastTemplates,
 } from './podcast-template-store.js';
 
-const STEPS = [
+const SECTIONS = [
   { id: 'source', label: 'Source' },
-  { id: 'shape', label: 'Shape' },
+  { id: 'settings', label: 'Configure' },
+  { id: 'generate', label: 'Generate' },
   { id: 'plan', label: 'Plan' },
   { id: 'script', label: 'Script' },
   { id: 'render', label: 'Render' },
@@ -58,10 +56,10 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const root = document.createElement('div');
   root.className = 'workflow podcast-workflow';
 
-  // ---------- Stepper
+  // ---------- Section navigation
   const stepper = document.createElement('nav');
   stepper.className = 'stepper';
-  stepper.setAttribute('aria-label', 'Podcast progress');
+  stepper.setAttribute('aria-label', 'Podcast sections');
   const stepperList = document.createElement('ol');
   stepperList.className = 'stepper-list';
   stepper.append(stepperList);
@@ -69,28 +67,25 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   const stepItems = new Map();
   /** @type {Map<string, HTMLElement>} */
   const stepCards = new Map();
-  for (const [index, step] of STEPS.entries()) {
+  for (const section of SECTIONS) {
     const item = document.createElement('li');
     item.className = 'stepper-item';
-    item.dataset.step = step.id;
+    item.dataset.section = section.id;
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'stepper-button';
-    button.innerHTML = `<span class="stepper-num" aria-hidden="true">${index + 1}</span>`;
-    const label = document.createElement('span');
-    label.className = 'stepper-label';
-    label.textContent = step.label;
-    button.append(label);
+    button.textContent = section.label;
     button.addEventListener('click', () => {
-      const card = stepCards.get(step.id);
+      const card = stepCards.get(section.id);
       if (card && !card.hidden) {
+        setCurrentSection(section.id);
         scrollTo(card);
         card.focus?.();
       }
     });
     item.append(button);
     stepperList.append(item);
-    stepItems.set(step.id, item);
+    stepItems.set(section.id, item);
   }
 
   // ---------- Recovery panel
@@ -509,8 +504,9 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   root.append(recoveryCard, stepper, source.element, prefsCard, scriptCard, review.element, renderCard, exportCard);
 
   stepCards.set('source', source.element);
-  stepCards.set('shape', prefsCard);
-  stepCards.set('plan', scriptCard);
+  stepCards.set('settings', prefsCard);
+  stepCards.set('generate', scriptCard);
+  stepCards.set('plan', planReview.element);
   stepCards.set('script', review.element);
   stepCards.set('render', renderCard);
   stepCards.set('export', exportCard);
@@ -524,35 +520,56 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   /** @type {HTMLButtonElement | null} */
   let resumeButton = null;
 
-  // ---------- Stepper state
+  // ---------- Section navigation state
 
-  /**
-   * Furthest unlocked step becomes 'current'; earlier steps read 'done'.
-   * @param {import('./podcast-controller.js').PodcastState} state
-   */
-  function syncStepper(state) {
-    const sourceFilled = source.getText().trim().length > 0;
-    const hasScript = Boolean(state.script);
-    const renderStarted = state.renderStatus !== 'idle';
-    const renderReady = state.renderStatus === 'ready' && Boolean(state.output);
+  let currentSectionId = 'source';
 
-    let furthestIndex = 0; // source
-    if (sourceFilled) furthestIndex = 2; // script generation available
-    if (hasScript) furthestIndex = 3; // review
-    if (renderStarted) furthestIndex = 4; // render
-    if (renderReady) furthestIndex = 5; // export
-
-    STEPS.forEach((step, index) => {
-      const item = stepItems.get(step.id);
-      const s = index < furthestIndex ? 'done' : index === furthestIndex ? 'current' : 'todo';
-      item.dataset.state = s;
+  function setCurrentSection(id) {
+    currentSectionId = id;
+    for (const section of SECTIONS) {
+      const item = stepItems.get(section.id);
+      const card = stepCards.get(section.id);
+      const available = Boolean(card && !card.hidden);
+      item.hidden = !available;
+      item.dataset.state = section.id === currentSectionId ? 'current' : 'available';
       const button = item.querySelector('button');
-      if (s === 'current') button.setAttribute('aria-current', 'step');
+      button.disabled = !available;
+      if (section.id === currentSectionId) button.setAttribute('aria-current', 'location');
       else button.removeAttribute('aria-current');
-      const card = stepCards.get(step.id);
-      button.disabled = !card || card.hidden;
-    });
+    }
   }
+
+  function syncSectionNavigation() {
+    const available = SECTIONS.filter((section) => {
+      const card = stepCards.get(section.id);
+      return card && !card.hidden;
+    });
+    if (!available.some((section) => section.id === currentSectionId)) {
+      currentSectionId = available[0]?.id ?? 'source';
+    }
+    setCurrentSection(currentSectionId);
+  }
+
+  function updateCurrentSectionFromScroll() {
+    const offset = stepper.getBoundingClientRect().height + 16;
+    const available = SECTIONS.filter((section) => {
+      const card = stepCards.get(section.id);
+      return card && !card.hidden;
+    });
+    const active = [...available].reverse().find((section) =>
+      stepCards.get(section.id).getBoundingClientRect().top <= offset,
+    ) ?? available[0];
+    if (active && active.id !== currentSectionId) setCurrentSection(active.id);
+  }
+
+  let sectionScrollFrame = null;
+  globalThis.addEventListener('scroll', () => {
+    if (sectionScrollFrame !== null) return;
+    sectionScrollFrame = globalThis.requestAnimationFrame(() => {
+      sectionScrollFrame = null;
+      updateCurrentSectionFromScroll();
+    });
+  }, { passive: true });
 
   // ---------- Preferences behavior
 
@@ -602,7 +619,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   updateScriptSummary();
 
   source.element.addEventListener('input', () => {
-    syncStepper(controller.store.get());
+    syncSectionNavigation();
     markScriptDraftStale();
   });
   audienceField.input.addEventListener('input', markScriptDraftStale);
@@ -969,7 +986,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       }
     }
 
-    syncStepper(state);
+    syncSectionNavigation();
+    updateCurrentSectionFromScroll();
     previousScriptStatus = state.status;
     previousRenderStatus = state.renderStatus;
   });
@@ -1121,7 +1139,8 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   }
   subscribeOnline(syncOnline);
 
-  syncStepper(controller.store.get());
+  syncSectionNavigation();
+  updateCurrentSectionFromScroll();
 
   return {
     element: root,

@@ -986,17 +986,6 @@
   margin-top: 0;
 }
 
-/* Plans can run for several viewports. Keep their decisions available while
-   reading or editing, rather than stranding save, cancel, and generate below
-   the content they control. */
-.episode-plan-actions {
-  background: var(--color-surface);
-  box-shadow: 0 4px 0 var(--color-surface);
-  position: sticky;
-  top: var(--space-2);
-  z-index: 1;
-}
-
 .episode-plan dl,
 .episode-plan-form {
   display: grid;
@@ -1207,7 +1196,7 @@
   flex-wrap: wrap;
 }
 
-/* Podcast stepper */
+/* Podcast section navigation */
 .stepper {
   position: sticky;
   top: 0;
@@ -1233,9 +1222,8 @@
 .stepper-button {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
   min-height: var(--control-min);
-  padding: var(--space-1) var(--space-4) var(--space-1) var(--space-2);
+  padding: var(--space-1) var(--space-4);
   border-radius: var(--radius-pill);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
@@ -1252,42 +1240,8 @@
   opacity: 0.65;
 }
 
-.stepper-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-dark);
-  font-size: 0.8rem;
-  font-weight: 700;
-}
-
-.stepper-item[data-state='done'] .stepper-button {
-  color: var(--color-heading);
-  border-color: var(--color-brand);
-}
-
-.stepper-item[data-state='done'] .stepper-num {
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-}
-
-.stepper-item[data-state='done'] .stepper-num::before {
-  content: '✓';
-}
-
-.stepper-item[data-state='done'] .stepper-num {
-  font-size: 0;
-}
-
-.stepper-item[data-state='done'] .stepper-num::before {
-  font-size: 0.85rem;
-}
-
 .stepper-item[data-state='current'] .stepper-button {
+  background: var(--color-brand-soft);
   border-color: var(--color-brand);
   box-shadow: var(--shadow-cta);
   color: var(--color-brand-dark);
