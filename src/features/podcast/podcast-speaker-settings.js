@@ -54,7 +54,7 @@ export function createPodcastSpeakerSettings({
 
   /** @type {{ id: string, name: HTMLInputElement, role: HTMLTextAreaElement, voice: HTMLSelectElement }[]} */
   let inputs = [];
-  /** @type {{ id: string, name: string, role: string, voice: string }[]} */
+  /** @type {{ id: string, name: string, role: string, voice: string, profileId?: string }[]} */
   let values = initialSpeakers();
   /** @type {Map<string, string>} */
   const selectedProfileIds = new Map();
@@ -63,17 +63,20 @@ export function createPodcastSpeakerSettings({
   /** @type {Set<() => void>} */
   const previewCleanups = new Set();
 
-  function read() {
+  function read({ includeProfiles = false } = {}) {
     return inputs.map((entry) => ({
       id: entry.id,
       name: entry.name.value.trim() || 'Speaker',
       role: entry.role.value.trim(),
       voice: entry.voice.value.trim(),
+      ...(includeProfiles && selectedProfileIds.get(entry.id)
+        ? { profileId: selectedProfileIds.get(entry.id) }
+        : {}),
     }));
   }
 
   function capture() {
-    if (inputs.length) values = read();
+    if (inputs.length) values = read({ includeProfiles: true });
   }
 
   function clearPreviews() {
@@ -183,6 +186,7 @@ export function createPodcastSpeakerSettings({
       });
       profile.input.addEventListener('change', () => {
         selectedProfileIds.set(speaker.id, profile.input.value);
+        onDraftChange();
       });
       name.input.addEventListener('input', onStructureChange);
       role.input.addEventListener('input', onStructureChange);
@@ -304,10 +308,13 @@ export function createPodcastSpeakerSettings({
       );
       render();
     },
-    /** @param {{id: string, name: string, role: string, voice: string}[]} speakers */
+    /** @param {{id: string, name: string, role: string, voice: string, profileId?: string}[]} speakers */
     hydrateDraft(speakers) {
       values = speakers.map((speaker) => ({ ...speaker }));
       selectedProfileIds.clear();
+      for (const speaker of speakers) {
+        if (speaker.profileId) selectedProfileIds.set(speaker.id, speaker.profileId);
+      }
       nextSpeakerNumber = Math.max(
         3,
         ...values.map((speaker) => Number(speaker.id.match(/^speaker-(\d+)$/)?.[1] ?? 0) + 1),

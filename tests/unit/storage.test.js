@@ -332,7 +332,7 @@ describe('podcast draft storage', () => {
     textModel: 'gpt-test',
     ttsModel: 'tts-test',
     speakers: [
-      { id: 'speaker-1', name: 'Maya', role: 'Host', voice: 'alloy' },
+      { id: 'speaker-1', name: 'Maya', role: 'Host', voice: 'alloy', profileId: 'profile-host' },
       { id: 'speaker-2', name: 'Elias', role: 'Expert', voice: 'echo' },
     ],
     reviewPlan: true,

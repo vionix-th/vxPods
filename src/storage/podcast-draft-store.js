@@ -16,7 +16,7 @@ export const PODCAST_DRAFT_SCHEMA_VERSION = 1;
  * @property {string} audience
  * @property {string} textModel
  * @property {string} ttsModel
- * @property {{id: string, name: string, role: string, voice: string}[]} speakers
+ * @property {{id: string, name: string, role: string, voice: string, profileId?: string}[]} speakers
  * @property {boolean} reviewPlan
  */
 
@@ -88,8 +88,17 @@ export function validatePodcastDraft(value) {
       throw new TypeError('Draft speaker fields are invalid.');
     }
     if (ids.has(record.id)) throw new TypeError('Draft speaker IDs must be unique.');
+    if (record.profileId !== undefined && (typeof record.profileId !== 'string' || !record.profileId)) {
+      throw new TypeError('Draft speaker profile ID is invalid.');
+    }
     ids.add(record.id);
-    return { id: record.id, name: record.name, role: record.role, voice: record.voice };
+    return {
+      id: record.id,
+      name: record.name,
+      role: record.role,
+      voice: record.voice,
+      ...(record.profileId ? { profileId: record.profileId } : {}),
+    };
   });
   if (typeof draft.reviewPlan !== 'boolean') throw new TypeError('Draft reviewPlan must be boolean.');
   return {

@@ -473,7 +473,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
       audience: audienceField.input.value,
       textModel: textModelField.input.value,
       ttsModel: ttsModelField.input.value,
-      speakers: speakerSettings.read(),
+      speakers: speakerSettings.read({ includeProfiles: true }),
       reviewPlan: reviewPlanInput.checked,
     };
   }

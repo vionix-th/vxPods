@@ -452,6 +452,8 @@ test('podcast template CRUD keeps current episode draft across reload', async ({
   await expect(panel.getByLabel('Format template')).toHaveValue('__custom__');
   await expect(panel.getByLabel('Format instructions (required)')).toHaveValue('Temporary briefing change.');
   await expect(panel.locator('.speaker-card').first().getByLabel('Name (required)')).toHaveValue('Coach');
+  await expect(panel.locator('.speaker-card').first().getByLabel('Speaker profile').locator('option:checked'))
+    .toHaveText('Coach');
   await expect(panel.locator('.speaker-card').nth(1).getByLabel('Name (required)')).toHaveValue('Leah');
 });
 
