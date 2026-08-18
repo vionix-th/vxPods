@@ -19,6 +19,7 @@ import {
   validatePromptTemplate,
 } from '../../src/domain/prompt-templates.js';
 import {
+  STARTER_EPISODE_DIRECTION_TEMPLATES,
   STARTER_FORMAT_TEMPLATES,
   STARTER_SPEAKER_PROFILES,
 } from '../../src/domain/podcast-templates.js';
@@ -78,7 +79,7 @@ describe('buildScriptPrompt', () => {
     expect(messages[0].content).toContain('Do not attribute a claim to the source');
     expect(messages[0].content).toContain('Do not write simultaneous speech');
     expect(messages[0].content).toContain('adjacent turns and speaker handoffs');
-    expect(messages[0].content).toContain('Do not translate');
+    expect(messages[0].content).toContain('Do not add translations');
     expect(messages[0].content).not.toContain('sourceGrounded');
     expect(messages[0].content).not.toContain('Every factual claim');
     expect(messages[0].content).not.toContain('conceptual repair');
@@ -170,6 +171,39 @@ describe('two-stage prompt construction', () => {
       expect(JSON.stringify(messages)).toContain('participation structure allowed by the selected Format');
     }
     expect(writing[0].content).toContain('adjacent turns and speaker handoffs');
+  });
+
+  it('passes bilingual vocabulary sequencing and language-reader boundaries to planning and writing', () => {
+    const direction = STARTER_EPISODE_DIRECTION_TEMPLATES.find((record) =>
+      record.id === 'direction-language-learning-teach');
+    const format = STARTER_FORMAT_TEMPLATES.find((record) => record.id === 'format-vocabulary-teach');
+    const targetReader = STARTER_SPEAKER_PROFILES.find((record) => record.id === 'profile-target-language-reader');
+    const nativeReader = STARTER_SPEAKER_PROFILES.find((record) => record.id === 'profile-native-language-reader');
+    const vocabularyPrefs = {
+      ...prefs,
+      episodeDirection: direction.instructions,
+      formatInstructions: format.instructions,
+      speakers: [
+        { ...prefs.speakers[0], role: targetReader.role },
+        { ...prefs.speakers[1], role: nativeReader.role },
+      ],
+    };
+    const source = 'borrow — ยืม\nCan I borrow your book? — ฉันขอยืมหนังสือของคุณได้ไหม';
+
+    const planning = JSON.stringify(buildPlanPrompt(source, vocabularyPrefs));
+    expect(planning).toContain('source order');
+    expect(planning).toContain('Do not invent translations');
+    expect(planning).toContain('Does not translate');
+    expect(planning).toContain('borrow — ยืม');
+    expect(planning).toContain('Can I borrow your book? — ฉันขอยืมหนังสือของคุณได้ไหม');
+
+    const writing = JSON.stringify(buildWriterPrompt(source, vocabularyPrefs, validPlan));
+    expect(writing).toContain('source order');
+    expect(writing).toContain('Omit unavailable fields rather than inventing them');
+    expect(writing).toContain('Does not translate');
+    expect(writing).toContain('primary target-language BCP 47 tag');
+    expect(writing).toContain('borrow — ยืม');
+    expect(writing).toContain('Can I borrow your book? — ฉันขอยืมหนังสือของคุณได้ไหม');
   });
 
   it('builds complete-plan revision and validation-only repair requests', () => {

@@ -8,7 +8,7 @@ import { AppError } from '../services/errors.js';
 
 export const TEMPLATE_NAME_MAX_LENGTH = 100;
 export const TEMPLATE_TEXT_MAX_LENGTH = 4000;
-export const PODCAST_TEMPLATE_CATALOG_VERSION = 1;
+export const PODCAST_TEMPLATE_CATALOG_VERSION = 2;
 
 export const STARTER_EPISODE_DIRECTION_TEMPLATES = Object.freeze([
   Object.freeze({
@@ -30,6 +30,16 @@ export const STARTER_EPISODE_DIRECTION_TEMPLATES = Object.freeze([
     id: 'direction-practical-interpretation',
     name: 'Practical Interpretation',
     instructions: 'Explain why the source\'s ideas matter and develop implications, applications, or decisions that are supported by the supplied material.',
+  }),
+  Object.freeze({
+    id: 'direction-language-learning-teach',
+    name: 'Language Learning — Teach',
+    instructions: 'Create an ordered bilingual learning sequence from paired vocabulary. For each available entry, say the target-language word or phrase, its target-language example sentence when supplied, the native-language equivalent, and its native-language example sentence when supplied. Preserve source order and supplied wording. Do not invent translations, examples, explanations, introductions, summaries, or filler.',
+  }),
+  Object.freeze({
+    id: 'direction-language-learning-recall',
+    name: 'Language Learning — Recall',
+    instructions: 'Create an ordered bilingual recall exercise from paired vocabulary. For each available entry, prompt with the native-language word or phrase, leave a meaningful pause, then say the target-language answer and its target-language example sentence when supplied. Say the native-language example sentence only when supplied. Preserve source order and supplied wording. Do not invent translations, examples, explanations, introductions, summaries, or filler.',
   }),
 ]);
 
@@ -202,6 +212,16 @@ export const STARTER_FORMAT_TEMPLATES = Object.freeze([
       'With one speaker, create a comparative analytical briefing without simulating a moderator or absent panelists.',
     ].join(' '),
   }),
+  Object.freeze({
+    id: 'format-vocabulary-teach',
+    name: 'Vocabulary — Teach',
+    instructions: 'Create a non-interactive bilingual vocabulary lesson. Process one supplied entry at a time in source order: target-language word or phrase, target-language example sentence when supplied, native-language equivalent, then native-language example sentence when supplied. Assign target-language material to the target-language reader and native-language material to the native-language reader. Omit unavailable fields rather than inventing them. Do not add an introduction, conclusion, summary, dialogue, filler, teaching commentary, reordering, or unsupplied translation.',
+  }),
+  Object.freeze({
+    id: 'format-vocabulary-recall',
+    name: 'Vocabulary — Recall',
+    instructions: 'Create a non-interactive bilingual vocabulary recall exercise. Process one supplied entry at a time in source order: native-language prompt, meaningful silent pause, target-language answer, then target-language example sentence when supplied; include a native-language example sentence only when supplied. Assign native-language prompts and examples to the native-language reader and target-language answers and examples to the target-language reader. Omit unavailable fields rather than inventing them. Do not add an introduction, conclusion, summary, dialogue, filler, teaching commentary, reordering, or unsupplied translation.',
+  }),
 ]);
 
 export const STARTER_SPEAKER_PROFILES = Object.freeze([
@@ -295,6 +315,18 @@ export const STARTER_SPEAKER_PROFILES = Object.freeze([
     defaultSpeakerName: 'Elias',
     role: 'Introduces plausible competing explanations for a specific observation or inference and asks what evidence would discriminate among them. Responds to the treatment of those alternatives by accepting eliminated possibilities, refining the comparison, or stating precisely what remains underdetermined. Avoids possibility dumping, reflexive contrarianism, and alternatives unsupported by the material. Apply these tendencies only through the participation structure allowed by the selected Format; do not introduce moderation, dialogue, or speaker relationships that the Format does not assign.',
   }),
+  Object.freeze({
+    id: 'profile-target-language-reader',
+    label: 'Target-language reader',
+    defaultSpeakerName: 'Target-language reader',
+    role: 'Reads only supplied target-language words, phrases, and example sentences clearly, at a measured learning pace. Does not translate, explain, add teaching commentary, or read native-language material. Apply these tendencies only through the participation structure allowed by the selected Format; do not introduce moderation, dialogue, or speaker relationships that the Format does not assign.',
+  }),
+  Object.freeze({
+    id: 'profile-native-language-reader',
+    label: 'Native-language reader',
+    defaultSpeakerName: 'Native-language reader',
+    role: 'Reads only supplied native-language equivalents, example sentences, and recall prompts clearly, at a measured learning pace. Does not translate, explain, add teaching commentary, or read target-language material. Apply these tendencies only through the participation structure allowed by the selected Format; do not introduce moderation, dialogue, or speaker relationships that the Format does not assign.',
+  }),
 ]);
 
 export function starterFormatTemplates() {
@@ -312,6 +344,11 @@ export function starterSpeakerProfiles() {
 /** Replace bundled Format IDs once while retaining custom records and name ownership. */
 export function replaceFormatStarterCatalog(records) {
   return replaceStarterCatalog(records, STARTER_FORMAT_TEMPLATES, (record) => record.name);
+}
+
+/** Replace bundled Episode Direction IDs once while retaining custom records and name ownership. */
+export function replaceEpisodeDirectionStarterCatalog(records) {
+  return replaceStarterCatalog(records, STARTER_EPISODE_DIRECTION_TEMPLATES, (record) => record.name);
 }
 
 /** Replace bundled Speaker Profile IDs once while retaining custom records and name ownership. */

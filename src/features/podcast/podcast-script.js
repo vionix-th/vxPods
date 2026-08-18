@@ -17,9 +17,9 @@ export {
   exportableScript,
 } from '../../domain/podcast-script-schema.js';
 const SOURCE_LANGUAGE_POLICY = [
-  'Language policy: write the title and every spoken segment in the source language.',
-  'Do not translate unless the source explicitly asks for translation.',
-  'Set language to the source language BCP 47 tag, such as th or en.',
+  'Language policy: write the title and spoken segments in the source language or languages.',
+  'Do not add translations unless the source explicitly supplies them or the selected Episode direction and Format require a bilingual sequence from supplied pairs.',
+  'Set language to the primary target-language BCP 47 tag for a bilingual sequence, otherwise the source language tag, such as th or en.',
 ].join(' ');
 
 /**

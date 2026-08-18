@@ -92,17 +92,26 @@ describe('local-settings', () => {
       { id: 'profile-host', label: 'Host', defaultSpeakerName: 'Old name', role: 'Legacy host.' },
       { id: 'profile-custom', label: 'Custom guide', defaultSpeakerName: 'Kai', role: 'Custom role.' },
     ];
+    legacy.episodeDirectionTemplates = [
+      { id: 'direction-essential-overview', name: 'Old overview', instructions: 'Legacy overview.' },
+      { id: 'direction-custom', name: 'Custom direction', instructions: 'Custom direction.' },
+    ];
     const raw = JSON.stringify(legacy);
     localStorage.setItem(STORAGE_KEY, raw);
 
     const migrated = loadSettings();
     expect(migrated.podcastTemplateCatalogVersion).toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
-    expect(migrated.formatTemplates).toHaveLength(16);
+    expect(migrated.episodeDirectionTemplates).toHaveLength(7);
+    expect(migrated.episodeDirectionTemplates[0]).toMatchObject({
+      id: 'direction-essential-overview', name: 'Essential Overview',
+    });
+    expect(migrated.episodeDirectionTemplates.at(-1)).toMatchObject({ id: 'direction-custom', name: 'Custom direction' });
+    expect(migrated.formatTemplates).toHaveLength(18);
     expect(migrated.formatTemplates[0]).toMatchObject({
       id: 'format-conversation', name: 'Conversation — Exploratory',
     });
     expect(migrated.formatTemplates.at(-1)).toMatchObject({ id: 'format-custom', name: 'Custom briefing' });
-    expect(migrated.speakerProfiles).toHaveLength(16);
+    expect(migrated.speakerProfiles).toHaveLength(18);
     expect(migrated.speakerProfiles[0]).toMatchObject({
       id: 'profile-host', label: 'Host — Facilitator', defaultSpeakerName: 'Maya',
     });
@@ -120,8 +129,9 @@ describe('local-settings', () => {
     emptyLegacy.formatTemplates = [];
     emptyLegacy.speakerProfiles = [];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(emptyLegacy));
-    expect(loadSettings().formatTemplates).toHaveLength(15);
-    expect(loadSettings().speakerProfiles).toHaveLength(15);
+    expect(loadSettings().episodeDirectionTemplates).toHaveLength(6);
+    expect(loadSettings().formatTemplates).toHaveLength(17);
+    expect(loadSettings().speakerProfiles).toHaveLength(17);
 
     const collisionLegacy = defaultSettings();
     delete collisionLegacy.podcastTemplateCatalogVersion;
@@ -138,12 +148,42 @@ describe('local-settings', () => {
     }];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(collisionLegacy));
     const migrated = loadSettings();
-    expect(migrated.formatTemplates).toHaveLength(15);
+    expect(migrated.formatTemplates).toHaveLength(17);
     expect(migrated.formatTemplates.some((record) => record.id === 'format-conversation-critical')).toBe(false);
     expect(migrated.formatTemplates.at(-1)).toMatchObject({ id: 'format-custom-critical' });
-    expect(migrated.speakerProfiles).toHaveLength(15);
+    expect(migrated.speakerProfiles).toHaveLength(17);
     expect(migrated.speakerProfiles.some((record) => record.id === 'profile-expert-analyst')).toBe(false);
     expect(migrated.speakerProfiles.at(-1)).toMatchObject({ id: 'profile-custom-analyst' });
+  });
+
+  it('auto-resets every bundled catalog record from version 1 and then remains idempotent', () => {
+    const legacy = defaultSettings();
+    legacy.podcastTemplateCatalogVersion = 1;
+    legacy.episodeDirectionTemplates[0].instructions = 'Edited bundled direction.';
+    legacy.formatTemplates[0].instructions = 'Edited bundled format.';
+    legacy.speakerProfiles[0].role = 'Edited bundled role.';
+    legacy.episodeDirectionTemplates.push({
+      id: 'direction-custom-v2', name: 'Custom direction', instructions: 'Keep this direction.',
+    });
+    legacy.formatTemplates.push({
+      id: 'format-custom-v2', name: 'Custom format', instructions: 'Keep this format.',
+    });
+    legacy.speakerProfiles.push({
+      id: 'profile-custom-v2', label: 'Custom profile', defaultSpeakerName: 'Kai', role: 'Keep this role.',
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+
+    const migrated = loadSettings();
+    expect(migrated.podcastTemplateCatalogVersion).toBe(PODCAST_TEMPLATE_CATALOG_VERSION);
+    expect(migrated.episodeDirectionTemplates[0].instructions).not.toBe('Edited bundled direction.');
+    expect(migrated.formatTemplates[0].instructions).not.toBe('Edited bundled format.');
+    expect(migrated.speakerProfiles[0].role).not.toBe('Edited bundled role.');
+    expect(migrated.episodeDirectionTemplates.at(-1)).toMatchObject({ id: 'direction-custom-v2' });
+    expect(migrated.formatTemplates.at(-1)).toMatchObject({ id: 'format-custom-v2' });
+    expect(migrated.speakerProfiles.at(-1)).toMatchObject({ id: 'profile-custom-v2' });
+
+    saveSettings(migrated);
+    expect(loadSettings()).toEqual(migrated);
   });
 
   it('persists template deletions after catalog migration and migrates legacy backups', () => {

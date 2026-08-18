@@ -12,6 +12,7 @@ import {
   normalizeEpisodeDirectionTemplates,
   normalizeSpeakerProfiles,
   PODCAST_TEMPLATE_CATALOG_VERSION,
+  replaceEpisodeDirectionStarterCatalog,
   replaceFormatStarterCatalog,
   replaceSpeakerProfileStarterCatalog,
   starterFormatTemplates,
@@ -225,9 +226,15 @@ function validateDocument(doc) {
       : null,
     preferences: { mode: doc.preferences?.mode === 'podcast' ? 'podcast' : 'tts' },
     promptTemplates: validPromptTemplateOverrides(doc.promptTemplates),
-    episodeDirectionTemplates: Object.hasOwn(doc, 'episodeDirectionTemplates')
-      ? normalizeEpisodeDirectionTemplates(doc.episodeDirectionTemplates)
-      : starterEpisodeDirectionTemplates(),
+    episodeDirectionTemplates: replacePodcastStarters
+      ? replaceEpisodeDirectionStarterCatalog(
+        Object.hasOwn(doc, 'episodeDirectionTemplates')
+          ? normalizeEpisodeDirectionTemplates(doc.episodeDirectionTemplates)
+          : [],
+      )
+      : (Object.hasOwn(doc, 'episodeDirectionTemplates')
+        ? normalizeEpisodeDirectionTemplates(doc.episodeDirectionTemplates)
+        : starterEpisodeDirectionTemplates()),
     formatTemplates: replacePodcastStarters
       ? replaceFormatStarterCatalog(formatTemplates)
       : formatTemplates,

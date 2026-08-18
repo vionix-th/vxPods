@@ -127,7 +127,7 @@ Users can configure:
 - TTS model.
 - Browser-local script and repair prompt templates. Bundled defaults apply until a valid local edit is saved.
 
-Episode Direction templates, Format templates, and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record. The current Podcast draft—including source text, temporary settings, cast, voices, selected models, and review-plan choice—survives reload in browser storage until New episode or Clear local data. Speaker profiles do not store provider-specific voices.
+Episode Direction templates, Format templates, and speaker profiles support create, read, update, delete, and explicit starter restoration in Settings. Selecting a saved record copies its values into the current generation draft; subsequent edits do not mutate the saved record. A bundled-catalog upgrade resets records using bundled IDs to their current definitions and retains custom records. The current Podcast draft—including source text, temporary settings, cast, voices, selected models, and review-plan choice—survives reload in browser storage until New episode or Clear local data. Speaker profiles do not store provider-specific voices.
 
 Defaults:
 
@@ -149,7 +149,7 @@ Prompt behavior has explicit ownership:
 - Speaker roles guide each speaker's contribution and delivery within the selected format; the format remains authoritative when instructions conflict.
 - Validation repair changes only what reported schema errors require and otherwise preserves valid script content and order.
 
-Bundled Formats and Speaker Roles are flat, independently editable catalogs with three variants for each of the five established types. Format variants name and define their relevant linguistic behavior—including interactional discourse for Conversation, Interview, and Panel Discussion and non-interactive cohesion for Narrative and Lecture—rather than relying on generic requests to sound natural. Role variants name and define format-adaptive contribution tendencies without changing the selected Format's participation structure.
+Bundled Formats and Speaker Roles are flat, independently editable catalogs. Format variants name and define their relevant linguistic behavior—including interactional discourse for Conversation, Interview, and Panel Discussion; non-interactive cohesion for Narrative and Lecture; and source-ordered bilingual vocabulary sequences for Vocabulary—rather than relying on generic requests to sound natural. Language Learning directions and Vocabulary formats accept paired native and target-language words or phrases with optional paired example sentences; they preserve source order, omit absent fields, and never invent translations or examples. Target-language and native-language reader roles support separate TTS voice assignment. Role variants name and define format-adaptive contribution tendencies without changing the selected Format's participation structure.
 
 ### FR-5 Podcast script generation
 

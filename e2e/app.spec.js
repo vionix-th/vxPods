@@ -385,6 +385,8 @@ test('podcast template CRUD keeps current episode draft across reload', async ({
     'Panel Discussion — Exploratory',
     'Panel Discussion — Critical',
     'Panel Discussion — Comparative',
+    'Vocabulary — Teach',
+    'Vocabulary — Recall',
     'Briefing',
   ]);
   await panel.getByLabel('Episode direction template').selectOption({ label: 'Author focus' });
@@ -417,6 +419,8 @@ test('podcast template CRUD keeps current episode draft across reload', async ({
     'Skeptic — Evidence Auditor',
     'Skeptic — Scope Critic',
     'Skeptic — Alternative-Hypothesis Tester',
+    'Target-language reader',
+    'Native-language reader',
     'Coach',
   ]);
   await firstSpeaker.getByLabel('Speaker profile').selectOption({ label: 'Expert — Analyst' });

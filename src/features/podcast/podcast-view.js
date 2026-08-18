@@ -111,7 +111,7 @@ export function createPodcastView({ controller, isOnline, subscribeOnline }) {
   // ---------- Step 1: source
   const source = createSourceInput({
     title: 'Add source',
-    help: 'vxPods uses this material as the basis for a spoken script in the selected format.',
+    help: 'vxPods uses this material as the basis for a spoken script in the selected format. Vocabulary lists may pair words or phrases in two languages and include optional paired example sentences; language-learning formats preserve source order.',
   });
 
   // ---------- Step 2: preferences

@@ -40,6 +40,8 @@ const FORMAT_CATALOG = [
   ['format-panel-discussion', 'Panel Discussion — Exploratory'],
   ['format-panel-discussion-critical', 'Panel Discussion — Critical'],
   ['format-panel-discussion-comparative', 'Panel Discussion — Comparative'],
+  ['format-vocabulary-teach', 'Vocabulary — Teach'],
+  ['format-vocabulary-recall', 'Vocabulary — Recall'],
 ];
 
 const PROFILE_CATALOG = [
@@ -58,6 +60,8 @@ const PROFILE_CATALOG = [
   ['profile-skeptic', 'Skeptic — Evidence Auditor', 'Elias'],
   ['profile-skeptic-scope-critic', 'Skeptic — Scope Critic', 'Elias'],
   ['profile-skeptic-alternative-hypothesis-tester', 'Skeptic — Alternative-Hypothesis Tester', 'Elias'],
+  ['profile-target-language-reader', 'Target-language reader', 'Target-language reader'],
+  ['profile-native-language-reader', 'Native-language reader', 'Native-language reader'],
 ];
 
 beforeEach(() => localStorage.clear());
@@ -69,6 +73,8 @@ describe('podcast template store', () => {
       { id: 'direction-focused-exploration', name: 'Focused Exploration' },
       { id: 'direction-critical-examination', name: 'Critical Examination' },
       { id: 'direction-practical-interpretation', name: 'Practical Interpretation' },
+      { id: 'direction-language-learning-teach', name: 'Language Learning — Teach' },
+      { id: 'direction-language-learning-recall', name: 'Language Learning — Recall' },
     ]);
     expect(listFormatTemplates().map(({ id, name }) => [id, name])).toEqual(FORMAT_CATALOG);
     expect(listSpeakerProfiles().map(({ id, label, defaultSpeakerName }) =>
@@ -83,6 +89,10 @@ describe('podcast template store', () => {
     expect(directions['direction-focused-exploration']).toContain('in depth');
     expect(directions['direction-critical-examination']).toContain('plausible alternatives');
     expect(directions['direction-practical-interpretation']).toContain('why');
+    expect(directions['direction-language-learning-teach']).toContain('target-language word or phrase');
+    expect(directions['direction-language-learning-teach']).toContain('Do not invent translations');
+    expect(directions['direction-language-learning-recall']).toContain('meaningful pause');
+    expect(directions['direction-language-learning-recall']).toContain('native-language example sentence only when supplied');
     for (const record of STARTER_EPISODE_DIRECTION_TEMPLATES) {
       expect(record.instructions.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
     }
@@ -181,8 +191,18 @@ describe('podcast template store', () => {
     expect(formats['format-panel-discussion-critical']).toContain('challenge–response');
     expect(formats['format-panel-discussion-comparative']).toContain('comparison dimensions');
 
-    expect(STARTER_FORMAT_TEMPLATES).toHaveLength(15);
-    for (const record of STARTER_FORMAT_TEMPLATES) {
+    for (const id of ['format-vocabulary-teach', 'format-vocabulary-recall']) {
+      expect(formats[id]).toContain('non-interactive');
+      expect(formats[id]).toContain('source order');
+      expect(formats[id]).toContain('Omit unavailable fields rather than inventing them');
+      expect(formats[id]).toContain('Do not add an introduction');
+    }
+    expect(formats['format-vocabulary-teach']).toContain('target-language reader');
+    expect(formats['format-vocabulary-teach']).toContain('native-language reader');
+    expect(formats['format-vocabulary-recall']).toContain('meaningful silent pause');
+
+    expect(STARTER_FORMAT_TEMPLATES).toHaveLength(17);
+    for (const record of STARTER_FORMAT_TEMPLATES.slice(0, 15)) {
       expect(record.instructions).toContain('With one speaker');
       expect(record.instructions).not.toContain('source-grounded');
       expect(record.instructions.length).toBeLessThanOrEqual(TEMPLATE_TEXT_MAX_LENGTH);
@@ -196,7 +216,7 @@ describe('podcast template store', () => {
     const roles = Object.fromEntries(
       STARTER_SPEAKER_PROFILES.map((record) => [record.id, record.role]),
     );
-    expect(STARTER_SPEAKER_PROFILES).toHaveLength(15);
+    expect(STARTER_SPEAKER_PROFILES).toHaveLength(17);
     for (const record of STARTER_SPEAKER_PROFILES) {
       expect(record.role).not.toContain('source-grounded');
       expect(record.role).toContain('only through the participation structure allowed by the selected Format');
@@ -218,6 +238,10 @@ describe('podcast template store', () => {
     expect(roles['profile-skeptic']).toContain('evidential basis');
     expect(roles['profile-skeptic-scope-critic']).toContain('category boundary');
     expect(roles['profile-skeptic-alternative-hypothesis-tester']).toContain('competing explanations');
+    expect(roles['profile-target-language-reader']).toContain('target-language words');
+    expect(roles['profile-target-language-reader']).toContain('Does not translate');
+    expect(roles['profile-native-language-reader']).toContain('native-language equivalents');
+    expect(roles['profile-native-language-reader']).toContain('Does not translate');
   });
 
   it('creates, updates, and deletes formats with unique names', () => {
