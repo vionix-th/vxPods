@@ -15,9 +15,9 @@ export function createSupportReminderController({
     notice?.destroy();
     notice = null;
   }
-  function finish(disable) {
+  async function finish(disable) {
+    await (disable ? store.disable() : store.postpone());
     clear();
-    void (disable ? store.disable() : store.postpone());
     getSupport()?.focus();
   }
   async function evaluate() {

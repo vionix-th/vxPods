@@ -67,6 +67,7 @@ test('opt-out survives reload and manual Support preserves it', async ({ page })
   await seed(page);
   await page.goto('/');
   await page.locator('.support-reminder').getByRole('button', { name: 'Don’t remind me' }).click();
+  await expect(page.locator('.support-reminder')).toHaveCount(0);
   const other = await page.context().newPage();
   await other.goto('/');
   await expect(other.locator('.support-reminder')).toHaveCount(0);
