@@ -103,9 +103,11 @@ function notificationStack() {
  * @param {() => void} [args.onAction]
  * @param {number} [args.timeoutMs]
  * @param {AppError} [args.error]
+ * @param {{label: string, run: () => void}[]} [args.actions]
+ * @param {boolean} [args.lowPriority]
  * @returns {string | null}
  */
-export function notify({ type, title, message, actionLabel, onAction, timeoutMs, error }) {
+export function notify({ type, title, message, actionLabel, onAction, timeoutMs, error, actions, lowPriority = false }) {
   const stack = notificationStack();
   if (!stack) return null;
   const duplicate = [...activeNotifications.values()].find(
@@ -116,8 +118,9 @@ export function notify({ type, title, message, actionLabel, onAction, timeoutMs,
   const id = `notification-${++notificationCounter}`;
   const toast = document.createElement('div');
   toast.id = id;
-  toast.className = `notification notification-${type}`;
+  toast.className = `notification notification-${type}${lowPriority ? " support-reminder" : ""}`;
   toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+  if (lowPriority) toast.setAttribute('aria-label', title);
   toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
 
   const content = document.createElement('div');
@@ -150,12 +153,26 @@ export function notify({ type, title, message, actionLabel, onAction, timeoutMs,
     });
     toast.append(action);
   }
-  toast.append(close);
-  stack.prepend(toast);
+  if (actions) {
+    const controls = document.createElement('div');
+    controls.className = 'notification-actions';
+    for (const { label, run } of actions) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `button ${controls.childElementCount ? 'button-ghost' : 'button-secondary'} button-small`;
+      button.textContent = label;
+      button.addEventListener('click', run);
+      controls.append(button);
+    }
+    toast.append(controls);
+  } else toast.append(close);
+  if (lowPriority) stack.append(toast);
+  else stack.prepend(toast);
 
-  const item = { id, type, title, message, toast, timeout: null };
+  const item = { id, type, title, message, toast, lowPriority, timeout: null };
   activeNotifications.set(id, item);
-  if (type !== 'error') {
+  window.dispatchEvent(new Event('notifications-change'));
+  if (type !== 'error' && timeoutMs !== 0) {
     const schedule = () => {
       item.timeout = window.setTimeout(() => dismissNotification(id), timeoutMs ?? AUTO_CLOSE_MS);
     };
@@ -182,6 +199,7 @@ export function dismissNotification(id) {
   if (item.timeout !== null) window.clearTimeout(item.timeout);
   item.toast.remove();
   activeNotifications.delete(id);
+  window.dispatchEvent(new Event("notifications-change"));
 }
 
 /**
@@ -266,4 +284,8 @@ function normalizeError(error) {
         status: undefined,
         cause: error,
       });
+}
+
+export function hasOperationalNotifications() {
+  return [...activeNotifications.values()].some((item) => !item.lowPriority);
 }

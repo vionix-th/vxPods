@@ -1,12 +1,18 @@
+import { supportReminders } from './support-reminder-policy.js';
 import { icon } from '../components/icon.js';
 import { openDialog } from '../components/dialog.js';
 
 export const SUPPORT_URL = 'https://ko-fi.com/vionixconsulting';
 export const SUPPORT_EMBED_URL = `${SUPPORT_URL}/?hidefeed=true&widget=true&embed=true&preview=true`;
 
-export function openSupportDialog() {
+export function openSupportDialog(returnFocus) {
+  if (document.querySelector('dialog[open]')) return;
+  const opener = returnFocus instanceof HTMLElement ? returnFocus : document.activeElement;
+  void supportReminders.postpone();
+  window.dispatchEvent(new Event('support-dialog-open'));
   const handle = openDialog({
     title: 'Support vxPods',
+    returnFocus: opener,
     className: 'support-dialog',
     render(body, dialog) {
       const fallback = document.createElement('a');
@@ -49,7 +55,7 @@ export function openSupportDialog() {
 export function supportButton(onClick = openSupportDialog) {
   const button = document.createElement('button');
   button.type = 'button';
-  button.className = 'button button-ghost';
+  button.className = 'button button-ghost support-trigger';
   const label = document.createElement('span');
   label.textContent = 'Support';
   button.append(icon('heart'), label);

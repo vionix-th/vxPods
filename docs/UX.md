@@ -341,3 +341,7 @@ Examples:
 - Export choices are WAV, MP3, and JSON.
 - Mobile workflow exposes same actions as desktop.
 - Keyboard, screen-reader smoke test, zoom/reflow, and reduced-motion checks pass.
+
+### Persistent support reminders
+
+The existing notification stack has a separate low-priority support notice with Support, Not now and Don’t remind me actions. Operational notifications take priority; reminders suspend during generation, export, playback, editing and open dialogs, then resume the same session card without claiming another cycle. Keyboard-focused reminder controls remain mounted. The card announces politely without moving focus, has an opaque theme surface, wraps 44px actions and caps at 380px with viewport-bounded scrolling. Support opens the existing native payment dialog only on explicit action; closing returns focus to a visible persistent shell Support control. Clear local data explicitly includes reminder preferences.

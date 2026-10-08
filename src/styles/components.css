@@ -1496,3 +1496,8 @@
 .recovery-card {
   border-top: 4px solid var(--color-brand);
 }
+
+.support-reminder { grid-template-columns: minmax(0, 1fr); width: min(380px, 100%); max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.support-reminder[hidden] { display: none; }
+.notification-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.notification-actions .button { min-height: 44px; }

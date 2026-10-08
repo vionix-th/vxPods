@@ -14,8 +14,10 @@ import { createPodcastView } from '../features/podcast/podcast-view.js';
 import { createModeSwitch } from './routes.js';
 import { openSettings } from '../features/providers/provider-form.js';
 import { aboutButton, publisherIdentity, projectLinks } from './branding.js';
-import { supportButton } from './support.js';
-import { notify } from '../components/error-message.js';
+import { supportButton, openSupportDialog } from './support.js';
+import { supportReminders, SUPPORT_REMINDER_KEY } from './support-reminder-policy.js';
+import { createSupportReminderController } from './support-reminder-controller.js';
+import { notify, dismissNotification, hasOperationalNotifications } from '../components/error-message.js';
 import { saveMode } from '../features/providers/provider-store.js';
 import { createOnlineState } from './online-state.js';
 import { AppError, toAppError } from '../services/errors.js';
@@ -67,6 +69,11 @@ export async function bootstrap(root) {
   async function clearLocalData() {
     const failures = [];
     try {
+      const clearReminders = () => localStorage.removeItem(SUPPORT_REMINDER_KEY);
+      if (navigator.locks) await navigator.locks.request(SUPPORT_REMINDER_KEY, clearReminders);
+      else clearReminders();
+    } catch (error) { failures.push(toAppError(error)); }
+    try {
       clearSettings();
     } catch (error) {
       failures.push(toAppError(error));
@@ -94,14 +101,14 @@ export async function bootstrap(root) {
   }
 
   // Workflows
-  const ttsController = createTtsController();
+  const ttsController = createTtsController({ onUsage: () => { void supportReminders.recordUsage(); } });
   const ttsView = createTtsView({
     controller: ttsController,
     isOnline: onlineState.isOnline,
     subscribeOnline: onlineState.subscribe,
   });
 
-  const podcastController = createPodcastController();
+  const podcastController = createPodcastController({ onUsage: () => { void supportReminders.recordUsage(); } });
   const podcastView = createPodcastView({
     controller: podcastController,
     isOnline: onlineState.isOnline,
@@ -133,6 +140,29 @@ export async function bootstrap(root) {
   });
 
   await podcastView.checkRecovery();
+  const active = new Set(['validating', 'generating', 'cancelling', 'exporting', 'rendering']);
+  const reminders = createSupportReminderController({
+    store: supportReminders,
+    safe: () => document.visibilityState === 'visible' && document.hasFocus() &&
+      !hasOperationalNotifications() && !document.querySelector('dialog[open]') &&
+      !document.activeElement?.matches('input, textarea, select, [contenteditable="true"]') &&
+      !active.has(ttsController.store.get().status) &&
+      !active.has(podcastController.store.get().status) &&
+      !active.has(podcastController.store.get().renderStatus) &&
+      ![...document.querySelectorAll('audio')].some((audio) => !audio.paused && !audio.ended),
+    getSupport: () => [...root.querySelectorAll('.support-trigger')].find((button) => button.getClientRects().length),
+    openSupport: openSupportDialog,
+    show: ({ support, postpone, disable }) => {
+      const id = notify({ type: 'info', title: 'Support reminder',
+        message: 'Finding vxPods useful? Support its upkeep.', timeoutMs: 0, lowPriority: true,
+        actions: [{ label: 'Support', run: support }, { label: 'Not now', run: postpone },
+          { label: 'Don’t remind me', run: disable }],
+      });
+      return { element: document.getElementById(id), destroy: () => dismissNotification(id) };
+    },
+  });
+  ttsController.store.subscribe(reminders.evaluate);
+  podcastController.store.subscribe(reminders.evaluate);
 
   if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     try {

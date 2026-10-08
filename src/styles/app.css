@@ -331,3 +331,7 @@
   .support-dialog .dialog-header { padding-inline: var(--space-4); }
   .support-panel { padding: var(--space-4); }
 }
+
+/* Attribution and mode controls reflow when users enlarge text. */
+.mode-nav, .project-actions { flex-wrap: wrap; }
+.footer-project-links { min-width: 0; max-width: 100%; }

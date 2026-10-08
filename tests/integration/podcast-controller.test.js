@@ -83,15 +83,18 @@ beforeEach(() => {
 describe('podcast script generation', () => {
   it('reviewed mode stops after planning and writes only after explicit generation', async () => {
     const textGeneration = textReturning(validScript);
-    const controller = createPodcastController({ textGeneration });
+    const onUsage = vi.fn();
+    const controller = createPodcastController({ textGeneration, onUsage });
     await controller.generatePlan('source text', prefs, textProvider);
     expect(textGeneration).toHaveBeenCalledTimes(1);
+    expect(onUsage).not.toHaveBeenCalled();
     expect(controller.store.get()).toMatchObject({ status: 'ready', script: null, planStale: false });
     expect(controller.store.get().plan.workingTitle).toBe('Test plan');
 
     await controller.generateScriptFromPlan('source text', prefs, textProvider);
     expect(textGeneration).toHaveBeenCalledTimes(2);
     expect(controller.store.get().script.title).toBe('Test Show');
+    expect(onUsage).toHaveBeenCalledTimes(1);
   });
 
   it('enforces planning-input staleness while excluding voice-only changes', async () => {
@@ -525,7 +528,8 @@ describe('podcast rendering', () => {
   });
 
   it('restores a ready render locally without provider requests', async () => {
-    const controller = createPodcastController({
+    const onUsage = vi.fn();
+    const controller = createPodcastController({ onUsage,
       textGeneration: textReturning(validScript),
       speech: speechOk(),
       decode: fakeDecode,
@@ -534,10 +538,12 @@ describe('podcast rendering', () => {
     await controller.startRender(ttsProvider, ttsModel);
 
     const speech = vi.fn();
-    const restored = createPodcastController({ speech, decode: fakeDecode });
+    const restored = createPodcastController({ speech, decode: fakeDecode, onUsage });
+    const before = onUsage.mock.calls.length;
     await restored.restoreReadyRender();
     expect(restored.store.get()).toMatchObject({ renderStatus: 'ready', script: validScript });
     expect(restored.store.get().output.wav).toBeInstanceOf(Blob);
+    expect(onUsage.mock.calls.length).toBe(before);
     expect(speech).not.toHaveBeenCalled();
   });
 
@@ -585,5 +591,30 @@ describe('podcast rendering', () => {
     await controller.discardRender();
     expect(await loadJob()).toBeNull();
     expect(controller.store.get().renderStatus).toBe('idle');
+  });
+});
+
+describe('confirmed usage outcomes', () => {
+  it('counts script, revision and complete audio once, excluding exports and recovery', async () => {
+    const onUsage = vi.fn();
+    const controller = createPodcastController({ textGeneration: textReturning(validScript), speech: speechOk(), decode: fakeDecode, onUsage });
+    await controller.generateScript('source', prefs, textProvider);
+    expect(onUsage).toHaveBeenCalledTimes(1);
+    await controller.reviseScript('source', prefs, textProvider, 'Make the conclusion clearer');
+    expect(onUsage).toHaveBeenCalledTimes(2);
+    await controller.startRender(ttsProvider, ttsModel);
+    expect(onUsage).toHaveBeenCalledTimes(3);
+    await controller.exportAudio('wav');
+    const restored = createPodcastController({ speech: speechOk(), decode: fakeDecode, onUsage });
+    await restored.restoreReadyRender();
+    await restored.resumeRender(ttsProvider);
+    restored.importScript(validScript);
+    expect(onUsage).toHaveBeenCalledTimes(3);
+  });
+  it('does not count failed text generation', async () => {
+    const onUsage = vi.fn();
+    const controller = createPodcastController({ textGeneration: vi.fn().mockRejectedValue(new Error('offline')), onUsage });
+    await controller.generateScript('source', prefs, textProvider);
+    expect(onUsage).not.toHaveBeenCalled();
   });
 });

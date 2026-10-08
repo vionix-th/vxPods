@@ -542,3 +542,9 @@ Opt-in live provider tests use a git-ignored local target document containing on
 Create ADR under `docs/adr/` for material changes to technology baseline, system boundaries, persistence model, external integrations, runtime dependencies, or public/stored contracts.
 
 ADR states context, decision, consequences, considered alternatives, and data effect.
+
+### Local support-reminder policy
+
+`app/support-reminder-policy.js` owns injected clock/storage/lock dependencies and the version-1 `vxPods.support-reminders` record: bounded count, up to three local usage dates, first-use timestamp, cooldown timestamp and opt-out. App-specific origin-scoped Web Locks serialize writes and presentation claims, with foreground/safety rechecked inside the lock. Invalid records are preserved and automatic reminders disabled. No metadata enters settings backups or provider requests.
+
+Workflow controllers report successful outcomes through explicit optional callbacks supplied by bootstrap. Page-session presentation belongs to `app/support-reminder-controller.js`; the existing notification renderer supplies persistent multi-action notices in a separate low-priority slot. Bootstrap coordinates pending workflow state, native dialogs, playback and editing. Opening the existing Support helper refreshes policy cooldown and clears the transient notice. Clear local data removes the independent metadata alongside settings, draft and recovery records.

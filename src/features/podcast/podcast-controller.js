@@ -66,6 +66,7 @@ const RENDER_TRANSITIONS = {
 
 /**
  * @param {Object} [deps]
+ * @param {() => void} [deps.onUsage]
  * @param {typeof generateText} [deps.textGeneration]
  * @param {typeof createSpeech} [deps.speech]
  * @param {typeof decodeToPcm} [deps.decode]
@@ -275,6 +276,7 @@ export function createPodcastController(deps = {}) {
         scriptStale: false,
         generationPhase: null,
       });
+      deps.onUsage?.();
       return script;
     } catch (err) {
       handleGenerationFailure(err, 'script');
@@ -337,6 +339,7 @@ export function createPodcastController(deps = {}) {
         scriptStale: store.get().renderStatus !== 'idle',
         generationPhase: null,
       });
+      deps.onUsage?.();
       return script;
     } catch (err) {
       handleGenerationFailure(err, 'script');
@@ -485,6 +488,7 @@ export function createPodcastController(deps = {}) {
         validationErrors: [],
         generationPhase: null,
       });
+      deps.onUsage?.();
     } catch (err) {
       handleGenerationFailure(err, 'none');
     } finally {
@@ -713,6 +717,7 @@ export function createPodcastController(deps = {}) {
    * Sequential renderer: one TTS request at a time (R1 default).
    */
   async function renderPendingSegments(ttsProvider, ttsModel) {
+    const alreadyComplete = activeJob.status === 'ready';
     renderController = new AbortController();
     const signal = renderController.signal;
     try {
@@ -726,6 +731,7 @@ export function createPodcastController(deps = {}) {
       activeJob = { ...activeJob, status: 'ready' };
       await jobs.updateJob(activeJob);
       setRenderStatus('ready', { activeSegmentId: null });
+      if (!alreadyComplete) deps.onUsage?.();
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
@@ -801,7 +807,7 @@ export function createPodcastController(deps = {}) {
     }
     assertJobProvider(activeJob, ttsProvider);
     const segment = activeJob.script.segments.find((s) => s.id === segmentId);
-    if (!segment) return;
+    if (!segment || activeJob.segmentStates[segment.id] === 'completed') return;
     setRenderStatus('rendering', { renderError: null });
     renderController = new AbortController();
     try {
@@ -819,6 +825,7 @@ export function createPodcastController(deps = {}) {
         activeJob = { ...activeJob, status: 'ready' };
         await jobs.updateJob(activeJob);
         setRenderStatus('ready', { activeSegmentId: null });
+        deps.onUsage?.();
       } else {
         setRenderStatus('failed', { activeSegmentId: null });
       }

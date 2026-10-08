@@ -20,9 +20,10 @@ let dialogIdCounter = 0;
  * @param {(body: HTMLElement, handle: DialogHandle) => void} args.render
  * @param {string} [args.className]
  * @param {boolean} [args.hideCloseButton]
+ * @param {HTMLElement} [args.returnFocus]
  * @returns {DialogHandle}
  */
-export function openDialog({ title, render, className, hideCloseButton }) {
+export function openDialog({ title, render, className, hideCloseButton, returnFocus }) {
   const dialog = document.createElement('dialog');
   dialog.className = `dialog ${className || ''}`.trim();
   dialog.setAttribute('aria-labelledby', `dialog-title-${++dialogIdCounter}`);
@@ -66,7 +67,7 @@ export function openDialog({ title, render, className, hideCloseButton }) {
 
   /** @type {((result: string | undefined) => void)[]} */
   const closeListeners = [];
-  const previouslyFocused = document.activeElement;
+  const previouslyFocused = returnFocus ?? document.activeElement;
 
   dialog.addEventListener('close', () => {
     for (const listener of closeListeners) listener(dialog.returnValue || undefined);

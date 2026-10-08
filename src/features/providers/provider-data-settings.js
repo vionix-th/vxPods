@@ -75,7 +75,7 @@ export function renderProviderDataSettings(body, options) {
   const dangerHelp = document.createElement('p');
   dangerHelp.className = 'help-text';
   dangerHelp.textContent =
-    'Clear all saved provider configurations, plaintext keys, selections, Podcast templates, advanced prompts, and unfinished work from this browser.';
+    'Clear all saved provider configurations, plaintext keys, selections, Podcast templates, advanced prompts, unfinished work, and support reminder preferences from this browser.';
   const clearButton = document.createElement('button');
   clearButton.type = 'button';
   clearButton.className = 'button button-danger';
@@ -84,7 +84,7 @@ export function renderProviderDataSettings(body, options) {
     const confirmed = await confirmDialog({
       title: 'Clear local data',
       message:
-        'This permanently removes saved provider configurations, plaintext API keys, selections, Podcast templates, advanced prompts, and unfinished work from this browser.',
+        'This permanently removes saved provider configurations, plaintext API keys, selections, Podcast templates, advanced prompts, unfinished work, and support reminder preferences from this browser.',
       confirmLabel: 'Clear local data',
     });
     if (!confirmed || !options.onClearLocalData) return;

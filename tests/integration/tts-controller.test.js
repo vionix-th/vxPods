@@ -38,11 +38,13 @@ describe('tts controller', () => {
   });
 
   it('renders chunks in order and reaches ready', async () => {
+    const onUsage = vi.fn();
     const speech = speechOk();
     const controller = createTtsController({
       speech,
       decode: fakeDecode,
       maxChunkChars: 10,
+      onUsage,
     });
     await controller.generate('one two three four five six seven', settings);
     const state = controller.store.get();
@@ -52,6 +54,10 @@ describe('tts controller', () => {
     const inputs = speech.mock.calls.map((c) => c[0].input);
     expect(inputs.join(' ')).toContain('one');
     expect(inputs.length).toBeGreaterThan(1);
+    expect(onUsage).toHaveBeenCalledTimes(1);
+    await controller.exportAudio('wav');
+    await controller.retryFailed();
+    expect(onUsage).toHaveBeenCalledTimes(1);
   });
 
   it('keeps completed chunks and retries only failed ones', async () => {
@@ -70,12 +76,14 @@ describe('tts controller', () => {
       }
       return Promise.resolve({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
     });
-    const controller = createTtsController({ speech, decode: fakeDecode, maxChunkChars: 5 });
+    const onUsage = vi.fn();
+    const controller = createTtsController({ speech, decode: fakeDecode, maxChunkChars: 5, onUsage });
     await controller.generate('aaaa bbbb cccc', settings);
     let state = controller.store.get();
     expect(state.status).toBe('failed');
     expect(state.chunks[0].status).toBe('completed');
     expect(state.chunks[1].status).toBe('failed');
+    expect(onUsage).not.toHaveBeenCalled();
 
     // fix provider, retry
     speech.mockResolvedValue({ audio: new Uint8Array([1]).buffer, contentType: 'audio/wav', ttsModel });
@@ -85,6 +93,7 @@ describe('tts controller', () => {
     expect(state.status).toBe('ready');
     // only failed chunks re-requested (2 remaining of 3)
     expect(speech.mock.calls.length - callsBefore).toBe(2);
+    expect(onUsage).toHaveBeenCalledTimes(1);
   });
 
   it('cancel stops further requests', async () => {

@@ -35,6 +35,7 @@ const SAMPLE_RATE = 44100;
 
 /**
  * @param {Object} [deps]
+ * @param {() => void} [deps.onUsage]
  * @param {typeof createSpeech} [deps.speech]
  * @param {typeof decodeToPcm} [deps.decode]
  * @param {typeof encodeMp3} [deps.encodeMp3Fn]
@@ -107,6 +108,7 @@ export function createTtsController(deps = {}) {
           settingsLabel: `${settings.provider.name} · ${settings.ttsModel.model} · ${settings.voice}`,
         },
       });
+      deps.onUsage?.();
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
@@ -174,6 +176,7 @@ export function createTtsController(deps = {}) {
           settingsLabel: `${lastSettings.provider.name} · ${lastSettings.ttsModel.model} · ${lastSettings.voice}`,
         },
       });
+      deps.onUsage?.();
     } catch (err) {
       const normalized = toAppError(err);
       if (normalized.kind === 'cancelled') {
