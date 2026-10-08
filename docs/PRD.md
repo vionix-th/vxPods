@@ -279,3 +279,7 @@ R1 is complete when:
 - Explicitly enabled live checks can exercise configured text-generation API/model cases and TTS model/voice cases through both the application request clients and a real browser without committing credentials.
 - Production build succeeds from a clean checkout.
 - Documentation matches shipped behavior.
+
+### Publisher attribution
+
+vxPods presents its product name separately from a “By Vionix Consulting” publisher link. Header and footer expose an accessible About dialog with purpose, publisher, package version, browser/provider data handling, and links to the public `vionix-th/vxPods` source repository, issue tracker, and MIT license. Closing About restores focus to its trigger. Publisher attribution does not change the application palette. Donation controls require a working destination and are outside this attribution step.
