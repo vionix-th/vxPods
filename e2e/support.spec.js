@@ -23,11 +23,15 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeFocused();
     await expect(dialog.locator('iframe')).toHaveAttribute('src', 'https://ko-fi.com/vionixconsulting/?hidefeed=true&widget=true&embed=true&preview=true');
     await expect(dialog.locator('iframe')).toHaveAttribute('referrerpolicy', 'no-referrer');
-    await expect(dialog.getByRole('link', { name: 'Open Ko-fi in new tab' })).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(dialog.getByRole('link', { name: 'Open Ko-fi in new tab' })).toBeHidden();
+    await expect(dialog).not.toContainText('Optional one-time');
+    const header = await dialog.locator('.dialog-header').boundingBox();
+    const panel = await dialog.locator('iframe').boundingBox();
+    expect(panel.y - (header.y + header.height)).toBeLessThanOrEqual(2);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const results = await new AxeBuilder({ page }).include('.support-dialog').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(results.violations).toEqual([]);
-    await page.screenshot({ path: `/tmp/vionix-support-pods-${width}.png` });
+    await page.screenshot({ path: `/tmp/vionix-ux-pods-${width}.png` });
     await page.mouse.click(1, 1);
     await expect(dialog).toBeVisible();
     await page.keyboard.press('Escape');

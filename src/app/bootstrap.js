@@ -150,19 +150,9 @@ export async function bootstrap(root) {
 function buildShell() {
   const fragment = document.createDocumentFragment();
 
-  // Header: vionix.cloud topbar + branding rows
+  // Product identity, publisher credit and secondary project actions.
   const header = document.createElement('header');
   header.className = 'app-header';
-
-  const topbar = document.createElement('div');
-  topbar.className = 'topbar';
-  const topbarInner = document.createElement('div');
-  topbarInner.className = 'topbar-inner';
-  const tagline = document.createElement('p');
-  tagline.className = 'topbar-tagline';
-  tagline.append(publisherLink());
-  topbarInner.append(tagline);
-  topbar.append(topbarInner);
 
   const branding = document.createElement('div');
   branding.className = 'branding';
@@ -179,7 +169,7 @@ function buildShell() {
   const brandProduct = document.createElement('span');
   brandProduct.className = 'product-name';
   brandProduct.textContent = 'vxPods';
-  brandText.append(brandProduct);
+  brandText.append(brandProduct, publisherLink());
   brand.append(logo, brandText);
   const headerActions = document.createElement('div');
   headerActions.className = 'header-actions';
@@ -187,7 +177,7 @@ function buildShell() {
   settingsButton.id = 'settings-button';
   headerActions.append(aboutButton(), supportButton(), settingsButton);
   branding.append(brand, headerActions);
-  header.append(topbar, branding);
+  header.append(branding);
 
   // Hero band
   const hero = document.createElement('section');
@@ -245,7 +235,10 @@ function buildShell() {
 
   const footerLinks = document.createElement('div');
   footerLinks.className = 'footer-project-links';
-  footerLinks.append(aboutButton(), supportButton(), projectLinks());
+  const footerActions = document.createElement('div');
+  footerActions.className = 'project-actions';
+  footerActions.append(aboutButton(), supportButton());
+  footerLinks.append(footerActions, projectLinks());
   bandInner.append(footerBrand, footerLinks);
   band.append(bandInner);
 

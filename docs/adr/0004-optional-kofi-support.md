@@ -8,11 +8,11 @@ vxPods is hosted for free and accepts optional one-time/monthly support through 
 
 ## Decision
 
-Use an app-owned native dialog with a click-loaded official Tip Panel iframe, a persistent external fallback, and a narrow CSP frame origin. Reuse existing dialog lifecycle; transition out of About before opening Support. Send no source text, provider keys or application identity to Ko-fi and suppress referrer data.
+Use an app-owned native dialog with a click-loaded official Tip Panel iframe, a compact app header and flush panel; an external recovery link appears after a ten-second loading delay, and a narrow CSP frame origin. Reuse existing dialog lifecycle; transition out of About before opening Support. Send no source text, provider keys or application identity to Ko-fi and suppress referrer data.
 
 ## Consequences
 
-No extra runtime dependency, backend, persisted-data migration, or privilege model is needed. Third-party form styling and payment availability remain provider-owned. Blocked embeds can use the external link; no frame event confirms a completed donation.
+No extra runtime dependency, backend, persisted-data migration, or privilege model is needed. Third-party form styling and payment availability remain provider-owned. Delayed embeds can use the external recovery link; no frame event confirms a completed donation.
 
 ## Alternatives and rollback
 

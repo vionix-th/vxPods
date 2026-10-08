@@ -4,45 +4,10 @@
   min-height: 100vh;
 }
 
-/* ---------- Header: vionix topbar + branding rows ---------- */
+/* ---------- Product header ---------- */
 .app-header {
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border);
-}
-
-.topbar {
-  background: var(--color-brand);
-  color: var(--color-on-brand);
-  min-height: 40px;
-  display: flex;
-  align-items: center;
-}
-
-.topbar-inner {
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 var(--space-4);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  font-size: 0.85rem;
-}
-
-.topbar a {
-  color: var(--color-on-brand);
-  text-decoration: none;
-}
-
-.topbar a:hover {
-  color: var(--color-on-brand);
-  text-decoration: underline;
-}
-
-.topbar-tagline {
-  margin: 0;
-  font-family: var(--font-compact);
 }
 
 .branding {
@@ -259,10 +224,6 @@
 }
 
 @media (max-width: 767px) {
-  .topbar-tagline {
-    font-size: 0.78rem;
-  }
-
   .brand {
     font-size: 1.2rem;
     white-space: nowrap;
@@ -371,3 +332,8 @@
   color: var(--color-brand-dark);
   justify-self: start;
 }
+
+.brand-text { display: grid; gap: 2px; }
+.brand-text .publisher-link { min-height: 24px; font-size: 0.75rem; font-weight: 400; letter-spacing: 0; text-decoration: none; color: var(--color-text-soft); }
+.brand-text .publisher-link:hover { text-decoration: underline; }
+.project-actions { display: flex; align-items: center; gap: var(--space-2); }
