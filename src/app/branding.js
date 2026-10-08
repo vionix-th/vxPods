@@ -1,5 +1,6 @@
 import packageMetadata from '../../package.json';
 import { openDialog } from '../components/dialog.js';
+import { openSupportDialog, supportButton } from './support.js';
 
 export const VIONIX_URL = 'https://vionix.cloud';
 export const REPOSITORY_URL = 'https://github.com/vionix-th/vxPods';
@@ -39,14 +40,18 @@ export function aboutButton() {
   button.textContent = 'About';
   button.addEventListener('click', () => openDialog({
     title: 'About vxPods',
-    render(body) {
+    render(body, handle) {
       const description = document.createElement('p');
       description.textContent = 'Turn text into speech or a configurable podcast. vxPods is free, open-source software by Vionix Consulting.';
       const privacy = document.createElement('p');
       privacy.textContent = 'Settings and API keys stay in this browser. Generation requests go directly to your selected provider; provider charges may apply.';
       const version = document.createElement('p');
       version.textContent = `App v${packageMetadata.version}`;
-      body.append(description, publisherLink(), privacy, projectLinks(), version);
+      const support = supportButton(() => {
+        handle.onClose(() => queueMicrotask(openSupportDialog));
+        handle.close('support');
+      });
+      body.append(description, publisherLink(), privacy, projectLinks(), version, support);
     },
   }));
   return button;

@@ -218,7 +218,7 @@ Breakpoints follow content needs.
 
 Publisher attribution is independent of application colors. Current app tokens remain below; a later UX pass may revise them without copying the website palette.
 
-Product identity is `vxPods`. A separate “By Vionix Consulting” link opens `https://vionix.cloud` in a new tab. Header and footer provide About; the footer and About provide the exact source repository, issue tracker, and MIT license. About shows package version and explains browser-local storage, direct provider requests, and possible provider charges. External links use `noopener noreferrer`. No donation control appears before its destination is available.
+Product identity is `vxPods`. A separate “By Vionix Consulting” link opens `https://vionix.cloud` in a new tab. Header and footer provide About; the footer and About provide the exact source repository, issue tracker, and MIT license. About shows package version and explains browser-local storage, direct provider requests, and possible provider charges. External links use `noopener noreferrer`. Secondary Support this project buttons appear beside About in the header/footer and inside About. Support uses the current palette, a labelled native dialog, persistent close control, scrollable panel area, and Open Ko-fi in new tab fallback. One-time and monthly support are voluntary. About closes before Support opens; closing Support restores focus to a persistent originating control. Backdrop clicks do not dismiss payment flow. A delayed-loading notice appears after ten seconds until the frame load event; it never reports payment success.
 
 Core tokens:
 

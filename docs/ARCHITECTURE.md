@@ -481,6 +481,8 @@ Provider API keys use plaintext `localStorage`. Controls:
 - Export filenames pass sanitization.
 - Settings exposes provider management; Podcast format, speaker-profile, and advanced-prompt editing; backup/restore; and clear-local-data control.
 
+Optional support is isolated in the app support module. The browser creates the official Ko-fi Tip Panel iframe only after a support action, with no referrer and no application payload. Closing removes the iframe and clears its loading timer. CSP adds only `frame-src 'self' https://ko-fi.com`; no third-party parent-page script, webhook, donor persistence or shared hosted page is required. Provider availability and payment completion are distinct from iframe load events.
+
 ## 14. Accessibility architecture
 
 - Prefer native controls and landmarks.

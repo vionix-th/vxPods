@@ -14,6 +14,7 @@ import { createPodcastView } from '../features/podcast/podcast-view.js';
 import { createModeSwitch } from './routes.js';
 import { openSettings } from '../features/providers/provider-form.js';
 import { aboutButton, publisherLink, projectLinks } from './branding.js';
+import { supportButton } from './support.js';
 import { notify } from '../components/error-message.js';
 import { saveMode } from '../features/providers/provider-store.js';
 import { createOnlineState } from './online-state.js';
@@ -184,7 +185,7 @@ function buildShell() {
   headerActions.className = 'header-actions';
   const settingsButton = createToolButton({ label: 'Open settings', glyph: '⚙' });
   settingsButton.id = 'settings-button';
-  headerActions.append(aboutButton(), settingsButton);
+  headerActions.append(aboutButton(), supportButton(), settingsButton);
   branding.append(brand, headerActions);
   header.append(topbar, branding);
 
@@ -244,7 +245,7 @@ function buildShell() {
 
   const footerLinks = document.createElement('div');
   footerLinks.className = 'footer-project-links';
-  footerLinks.append(aboutButton(), projectLinks());
+  footerLinks.append(aboutButton(), supportButton(), projectLinks());
   bandInner.append(footerBrand, footerLinks);
   band.append(bandInner);
 
