@@ -25,9 +25,12 @@ for (const width of [320, 390, 768, 1440]) {
     await expect(dialog.locator('iframe')).toHaveAttribute('referrerpolicy', 'no-referrer');
     await expect(dialog.getByRole('link', { name: 'Open Ko-fi in new tab' })).toBeHidden();
     await expect(dialog).not.toContainText('Optional one-time');
-    const header = await dialog.locator('.dialog-header').boundingBox();
+    const host = await dialog.locator('.support-panel').boundingBox();
     const panel = await dialog.locator('iframe').boundingBox();
-    expect(panel.y - (header.y + header.height)).toBeLessThanOrEqual(2);
+    expect(panel.y - host.y).toBeGreaterThanOrEqual(16);
+    expect(Math.abs(panel.x - host.x - (host.x + host.width - panel.x - panel.width))).toBeLessThanOrEqual(2);
+    expect(Math.abs(panel.y - host.y - (host.y + host.height - panel.y - panel.height))).toBeLessThanOrEqual(2);
+    expect(panel.height).toBeLessThanOrEqual(600);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const results = await new AxeBuilder({ page }).include('.support-dialog').withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa']).analyze();
     expect(results.violations).toEqual([]);
@@ -55,6 +58,20 @@ test('About transitions to Support without stacked dialogs', async ({ page }) =>
   const support = page.getByRole('dialog', { name: 'Support vxPods' });
   await support.getByRole('button', { name: 'Close dialog' }).click();
   await expect(opener).toBeFocused();
+});
+
+test('pointer project actions restore focus to their shell buttons', async ({ page }) => {
+  await page.route('https://ko-fi.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<p>Payment fixture</p>' }));
+  await page.goto('/');
+  const header = page.locator('.app-header');
+  const about = header.getByRole('button', { name: 'About', exact: true });
+  const support = header.getByRole('button', { name: 'Support this project', exact: true });
+  await about.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close dialog' }).click();
+  await expect(about).toBeFocused();
+  await support.click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Close dialog' }).click();
+  await expect(support).toBeFocused();
 });
 
 test('slow panel retains external fallback and loading notice', async ({ page }) => {

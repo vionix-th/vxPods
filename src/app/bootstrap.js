@@ -13,7 +13,7 @@ import { createPodcastController } from '../features/podcast/podcast-controller.
 import { createPodcastView } from '../features/podcast/podcast-view.js';
 import { createModeSwitch } from './routes.js';
 import { openSettings } from '../features/providers/provider-form.js';
-import { aboutButton, publisherLink, projectLinks } from './branding.js';
+import { aboutButton, publisherIdentity, projectLinks } from './branding.js';
 import { supportButton } from './support.js';
 import { notify } from '../components/error-message.js';
 import { saveMode } from '../features/providers/provider-store.js';
@@ -21,7 +21,6 @@ import { createOnlineState } from './online-state.js';
 import { AppError, toAppError } from '../services/errors.js';
 import { createToolButton } from '../components/tool-button.js';
 
-const LOGO_URL = `${import.meta.env.BASE_URL}assets/img/logo.png`;
 
 /**
  * @param {HTMLElement} root
@@ -156,21 +155,7 @@ function buildShell() {
 
   const branding = document.createElement('div');
   branding.className = 'branding';
-  const brand = document.createElement('div');
-  brand.className = 'brand';
-  const logo = document.createElement('img');
-  logo.src = LOGO_URL;
-  logo.alt = '';
-  logo.width = 36;
-  logo.height = 36;
-  logo.className = 'brand-logo';
-  const brandText = document.createElement('span');
-  brandText.className = 'brand-text';
-  const brandProduct = document.createElement('span');
-  brandProduct.className = 'product-name';
-  brandProduct.textContent = 'vxPods';
-  brandText.append(brandProduct, publisherLink());
-  brand.append(logo, brandText);
+  const brand = publisherIdentity();
   const headerActions = document.createElement('div');
   headerActions.className = 'header-actions';
   const settingsButton = createToolButton({ label: 'Open settings', glyph: '⚙' });
@@ -214,24 +199,7 @@ function buildShell() {
   const bandInner = document.createElement('div');
   bandInner.className = 'footer-band-inner';
 
-  const footerBrand = document.createElement('div');
-  footerBrand.className = 'footer-brand';
-  const footerBrandRow = document.createElement('div');
-  footerBrandRow.className = 'footer-brand-row';
-  const footerLogo = document.createElement('img');
-  footerLogo.src = LOGO_URL;
-  footerLogo.alt = '';
-  footerLogo.width = 32;
-  footerLogo.height = 32;
-  footerLogo.className = 'brand-logo';
-  const sitename = document.createElement('p');
-  sitename.className = 'footer-sitename';
-  const siteProduct = document.createElement('span');
-  siteProduct.className = 'product-name';
-  siteProduct.textContent = 'vxPods';
-  sitename.append(siteProduct);
-  footerBrandRow.append(footerLogo, sitename);
-  footerBrand.append(footerBrandRow, publisherLink());
+  const footerBrand = publisherIdentity('footer-brand');
 
   const footerLinks = document.createElement('div');
   footerLinks.className = 'footer-project-links';

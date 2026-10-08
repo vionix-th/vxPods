@@ -1,13 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 
-for (const width of [390, 768, 1440]) {
+for (const width of [320, 390, 768, 1440]) {
   test(`publisher links and About work at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
-    await expect(page.locator('.brand .product-name')).toHaveText('vxPods');
-    expect(await page.locator('.brand').evaluate((node) => node.closest('a'))).toBeNull();
-    const publisher = page.locator('.app-header').getByRole('link', { name: /By Vionix Consulting/ });
+    await expect(page.locator('.app-header .brand .product-name')).toHaveText('vxPods');
+    await expect(page.locator('.app-header a.brand')).toHaveAttribute('href', 'https://vionix.cloud');
+    await expect.poll(() => page.locator('.app-header .brand-logo').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
+    await expect(page.locator('.app-header .header-actions button svg')).toHaveCount(2);
+    const publisher = page.locator('.app-header').getByRole('link', { name: /by Vionix Consulting/i });
     await expect(publisher).toHaveAttribute('href', 'https://vionix.cloud');
     await expect(publisher).toHaveAttribute('rel', 'noopener noreferrer');
     const trigger = page.locator('.app-header').getByRole('button', { name: 'About', exact: true });
@@ -16,6 +18,9 @@ for (const width of [390, 768, 1440]) {
     await page.keyboard.press('Enter');
     const dialog = page.getByRole('dialog', { name: 'About vxPods' });
     await expect(dialog).toBeVisible();
+    await expect(dialog.locator('.project-resource')).toHaveCount(3);
+    await expect(dialog.locator('.about-footer')).toContainText('App v0.0.0');
+    await expect.poll(() => dialog.locator('.brand-logo').evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
     await expect(dialog.getByRole('link', { name: 'Source code', exact: true })).toHaveAttribute('href', 'https://github.com/vionix-th/vxPods');
     await expect(dialog.getByRole('link', { name: 'Report an issue' })).toHaveAttribute('href', 'https://github.com/vionix-th/vxPods/issues');
     await expect(dialog.getByRole('link', { name: 'MIT license' })).toHaveAttribute('href', 'https://github.com/vionix-th/vxPods/blob/main/LICENSE');

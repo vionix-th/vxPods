@@ -1,3 +1,4 @@
+import { icon } from '../components/icon.js';
 import { openDialog } from '../components/dialog.js';
 
 export const SUPPORT_URL = 'https://ko-fi.com/vionixconsulting';
@@ -36,7 +37,10 @@ export function openSupportDialog() {
         frame.remove();
       });
       feedback.append(status, fallback);
-      body.append(feedback, frame);
+      const panel = document.createElement('div');
+      panel.className = 'support-panel';
+      panel.append(frame);
+      body.append(feedback, panel);
     },
   });
   handle.element.querySelector('.dialog-close').focus();
@@ -46,8 +50,13 @@ export function supportButton(onClick = openSupportDialog) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'button button-ghost';
-  button.textContent = 'Support';
+  const label = document.createElement('span');
+  label.textContent = 'Support';
+  button.append(icon('heart'), label);
   button.setAttribute('aria-label', 'Support this project');
-  button.addEventListener('click', onClick);
+  button.addEventListener('click', (event) => {
+    button.focus();
+    onClick(event);
+  });
   return button;
 }
