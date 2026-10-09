@@ -2,6 +2,7 @@
 
 import { confirmDialog } from '../../components/dialog.js';
 import { textField } from '../../components/fields.js';
+import { icon } from '../../components/icon.js';
 import { createToolButton } from '../../components/tool-button.js';
 import {
   defaultTtsModel,
@@ -204,10 +205,7 @@ export function createTtsModelEditor({ models }) {
     };
 
     const addVoice = textField({ label: 'Add voice', value: '' });
-    const addVoiceButton = document.createElement('button');
-    addVoiceButton.type = 'button';
-    addVoiceButton.className = 'button button-secondary button-small';
-    addVoiceButton.textContent = 'Add voice';
+    const addVoiceButton = createTtsActionButton({ label: 'Add voice', iconName: 'plus' });
     const commitVoice = () => {
       const voice = addVoice.input.value.trim();
       if (!voice || entry.voices.includes(voice)) return;
@@ -223,43 +221,46 @@ export function createTtsModelEditor({ models }) {
       }
     });
 
-    const removeModel = createToolButton({
-      label: 'Remove model',
-      glyph: '×',
-      className: 'tool-button-danger',
-      onClick: async () => {
-        const confirmed = await confirmDialog({
-          title: 'Remove TTS model',
-          message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
-          confirmLabel: 'Remove model',
-        });
-        if (!confirmed) return;
-        entries.splice(selectedIndex, 1);
-        selectedIndex = Math.max(0, selectedIndex - 1);
-        render();
-      },
+    const removeModel = createTtsActionButton({
+      label: 'Remove TTS model',
+      iconName: 'trash',
+      className: 'tts-remove-model',
+    });
+    removeModel.addEventListener('click', async () => {
+      const confirmed = await confirmDialog({
+        title: 'Remove TTS model',
+        message: `Remove “${entry.model || 'this TTS model'}” and its configured voices?`,
+        confirmLabel: 'Remove model',
+      });
+      if (!confirmed) return;
+      entries.splice(selectedIndex, 1);
+      selectedIndex = Math.max(0, selectedIndex - 1);
+      render();
     });
 
-    const restoreVoices = createToolButton({
+    const restoreVoices = createTtsActionButton({
       label: 'Restore known voices',
-      glyph: '↻',
-      onClick: async () => {
-        const confirmed = await confirmDialog({
-          title: 'Restore known model voices',
-          message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
-          confirmLabel: 'Restore voices',
-        });
-        if (!confirmed) return;
-        entry.voices = defaultTtsModel(entry.model.trim()).voices;
-        renderVoices();
-      },
+      iconName: 'restore',
+    });
+    restoreVoices.addEventListener('click', async () => {
+      const confirmed = await confirmDialog({
+        title: 'Restore known model voices',
+        message: `Replace configured voices for ${entry.model || 'this TTS model'} with its known voice list? Unknown models have no known voices.`,
+        confirmLabel: 'Restore voices',
+      });
+      if (!confirmed) return;
+      entry.voices = defaultTtsModel(entry.model.trim()).voices;
+      renderVoices();
     });
 
     const addVoiceRow = document.createElement('div');
     addVoiceRow.className = 'add-voice-row';
     addVoiceRow.append(addVoice.wrapper, addVoiceButton);
+    const modelActions = document.createElement('div');
+    modelActions.className = 'tts-model-actions';
+    modelActions.append(restoreVoices, removeModel);
     renderVoices();
-    detail.append(modelField.wrapper, formatField, pcmFields, voicesHeading, voiceChips, addVoiceRow, restoreVoices, removeModel);
+    detail.append(modelField.wrapper, formatField, pcmFields, voicesHeading, voiceChips, addVoiceRow, modelActions);
   }
 
   const addButton = document.createElement('button');
@@ -287,4 +288,15 @@ export function createTtsModelEditor({ models }) {
       ...(entry.pcm ? { pcm: { ...entry.pcm } } : {}),
     })),
   };
+}
+
+/** Labeled actions for the selected TTS model; icons are decorative. */
+function createTtsActionButton({ label, iconName, className = '' }) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `button button-secondary button-small tts-detail-action ${className}`.trim();
+  const text = document.createElement('span');
+  text.textContent = label;
+  button.append(icon(iconName), text);
+  return button;
 }

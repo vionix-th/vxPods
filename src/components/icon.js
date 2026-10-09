@@ -3,6 +3,9 @@
  */
 
 const ICONS = {
+  plus: 'M12 5v14M5 12h14',
+  restore: 'M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6',
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',
   info: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 11v6M12 7h.01',
   heart: 'M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z',
   message: 'M21 11a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l2.4-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5Z',
@@ -14,7 +17,7 @@ const ICONS = {
 };
 
 /**
- * @param {'github'|'external'|'info'|'heart'|'message'|'license'} name
+ * @param {'github'|'external'|'info'|'heart'|'message'|'license'|'plus'|'restore'|'trash'} name
  * @param {number} [size]
  * @returns {SVGElement}
  */

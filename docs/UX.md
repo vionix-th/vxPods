@@ -177,6 +177,8 @@ Configuration form:
 - “Test generation” and “Test Speech” actions when useful.
 - Save.
 
+The selected TTS model editor uses decorative icons with visible labels for Add voice, Restore known voices, and Remove TTS model. Add voice stays beside its input when space permits. Restore and remove share a wrapping action row beneath the voice controls, separated by a rule; model removal uses restrained danger styling and sits at the trailing edge on wider screens. On narrow screens, actions wrap in reading order and align to the leading edge. These actions retain a 44px minimum height and existing confirmation behavior.
+
 Explain once: “Configurations stay in this browser and requests go directly to the selected provider.”
 
 Script and TTS selectors elsewhere display saved configuration name plus endpoint host; the Script selector also displays its API. Unsupported endpoints report failure without changing saved configuration.
