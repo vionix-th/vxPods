@@ -128,20 +128,20 @@
   padding: var(--space-6) var(--space-4);
 }
 
-/* ---------- Footer: vionix footer band ---------- */
+/* ---------- Footer ---------- */
 .app-footer {
   background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
 }
 
 .footer-band {
-  background: var(--color-brand-band);
-  border-top: 1px solid var(--color-border);
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-6) 0 var(--space-5);
 }
 
 .footer-band-inner {
   max-width: 1080px;
   margin: 0 auto;
+  padding: 0 var(--space-4);
   display: flex;
   align-items: center;
   gap: var(--space-5);
@@ -152,23 +152,38 @@
   max-width: 58ch;
 }
 
-.footer-band p {
-  font-size: 0.9rem;
-  color: var(--color-text-soft);
-  margin: 0;
+.footer-band .project-actions > button {
+  color: var(--color-text);
 }
 
 .footer-copyright {
   max-width: 1080px;
   margin: 0 auto;
-  padding: var(--space-4);
-  font-size: 0.85rem;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
+  font-size: 0.8125rem;
   color: var(--color-text-soft);
-  text-align: center;
 }
 
 .footer-copyright p {
   margin: 0;
+}
+
+.footer-copyright .project-links {
+  gap: var(--space-1) var(--space-5);
+}
+
+.footer-copyright .project-links a {
+  color: var(--color-text);
+}
+
+.footer-copyright .project-links a:hover,
+.footer-band .project-actions > button:hover {
+  color: var(--color-brand-dark);
 }
 
 /* ---------- Responsive ---------- */
@@ -238,6 +253,16 @@
   .footer-band-inner {
     align-items: flex-start;
     flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .footer-copyright {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .footer-copyright .project-links {
+    gap: var(--space-1) var(--space-4);
   }
 
   .notification-stack {
@@ -292,14 +317,6 @@
   align-items: center;
   min-height: var(--control-min);
 }
-.footer-project-links {
-  display: grid;
-  gap: var(--space-2);
-}
-.footer-project-links .project-actions > button {
-  color: var(--color-brand-dark);
-}
-
 .brand-text { display: grid; gap: 2px; }
 .brand-text .publisher-link { line-height: 1.4; font-size: 0.75rem; font-weight: 400; letter-spacing: 0; text-decoration: none; color: var(--color-text-soft); }
 .brand:hover .publisher-link { color: var(--color-brand-dark); }
@@ -334,4 +351,3 @@
 
 /* Attribution and mode controls reflow when users enlarge text. */
 .mode-nav, .project-actions { flex-wrap: wrap; }
-.footer-project-links { min-width: 0; max-width: 100%; }

@@ -221,7 +221,7 @@ function buildShell() {
   const main = document.createElement('main');
   main.id = 'main';
 
-  // Footer: vionix footer band + copyright
+  // Footer: identity and actions above copyright and project resources.
   const footer = document.createElement('footer');
   footer.className = 'app-footer';
   const band = document.createElement('div');
@@ -231,20 +231,17 @@ function buildShell() {
 
   const footerBrand = publisherIdentity('footer-brand');
 
-  const footerLinks = document.createElement('div');
-  footerLinks.className = 'footer-project-links';
   const footerActions = document.createElement('div');
   footerActions.className = 'project-actions';
   footerActions.append(aboutButton(), supportButton());
-  footerLinks.append(footerActions, projectLinks());
-  bandInner.append(footerBrand, footerLinks);
+  bandInner.append(footerBrand, footerActions);
   band.append(bandInner);
 
   const copyright = document.createElement('div');
   copyright.className = 'footer-copyright';
   const copyrightText = document.createElement('p');
   copyrightText.textContent = '© Vionix Consulting · vxPods is MIT licensed.';
-  copyright.append(copyrightText);
+  copyright.append(copyrightText, projectLinks());
 
   footer.append(band, copyright);
 

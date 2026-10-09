@@ -34,8 +34,8 @@ Active workflow
   Progress/result
 
 Footer
-  Brand band: Vionix vxPods sitename
-  Copyright/license line
+  Identity row: Vionix vxPods sitename + About/Support
+  Utility row: copyright/license text + project resources
 ```
 
 Mode changes preserve current input in each mode for current browser session.
@@ -219,6 +219,8 @@ Breakpoints follow content needs.
 Publisher attribution is independent of application colors. Current app tokens remain below; a later UX pass may revise them without copying the website palette.
 
 Product identity is `vxPods`. Publisher credit sits beneath the product name in the header; there is no separate publisher banner. The entire Vionix logo/product/publisher identity is one external link with a 44px minimum target; the logo is centred beside a shared title/subtitle column. Project actions include information/heart icons and retain the 44px control minimum. Footer About/Support actions share one compact row. The complete identity opens `https://vionix.cloud` in a new tab. Header and footer provide About; the footer and About provide the exact source repository, issue tracker, and MIT license. About groups identity, concise purpose, icon-led resource rows and a separate version/Support footer, and explains browser-local storage, direct provider requests, and possible provider charges. External links use `noopener noreferrer`. Secondary Support this project buttons appear beside About in the header/footer and inside About. Support uses the current palette, a labelled native dialog, persistent close control, scrollable panel area, and a compact provider iframe with symmetric responsive margins without repeated introductory copy. About and Support remain bounded modals on mobile, with close controls outside their scrolling bodies. Ko-fi owns its internal card layout; parent CSS controls only the iframe box. Open Ko-fi in new tab appears only during a loading delay. One-time and monthly support are voluntary. About closes before Support opens; closing Support restores focus to a persistent originating control. Backdrop clicks do not dismiss payment flow. A delayed-loading notice appears after ten seconds until the frame load event; it never reports payment success.
+
+The footer uses one neutral surface with two aligned rows separated by a subtle rule. The upper row pairs the linked identity at the left with secondary About/Support controls at the right. The lower row pairs copyright/license text with quieter source, issue, and license links. Both rows align with the main content edges. Below 768px, each row stacks in reading order; resource links wrap as needed without horizontal scrolling. Every footer control retains a visible focus indicator and a 44px minimum target.
 
 Core tokens:
 
