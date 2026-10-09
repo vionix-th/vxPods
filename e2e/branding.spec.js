@@ -86,8 +86,9 @@ for (const width of [320, 390, 720, 768, 910, 1440]) {
     }
     for (const [trigger, title] of [[about, 'About vxPods'], [support, 'Support vxPods']]) {
       await trigger.press('Enter');
-      await expect(page.getByRole('dialog', { name: title })).toBeVisible();
-      await page.keyboard.press('Escape');
+      const dialog = page.getByRole('dialog', { name: title });
+      await expect(dialog).toBeVisible();
+      await dialog.getByRole('button', { name: 'Close dialog' }).press('Enter');
       await expect(page.getByRole('dialog')).toHaveCount(0);
       await expect(trigger).toBeFocused();
     }
