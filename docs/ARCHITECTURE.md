@@ -481,7 +481,7 @@ Provider API keys use plaintext `localStorage`. Controls:
 - Export filenames pass sanitization.
 - Settings exposes provider management; Podcast format, speaker-profile, and advanced-prompt editing; backup/restore; and clear-local-data control.
 
-Optional support is isolated in the app support module. The browser creates the official Ko-fi Tip Panel iframe only after a support action, with no referrer and no application payload. Closing removes the iframe and clears its loading timer. CSP adds only `frame-src 'self' https://ko-fi.com`; no third-party parent-page script, webhook, donor persistence or shared hosted page is required. Provider availability and payment completion are distinct from iframe load events.
+Optional support is isolated in the app support module. `src/app/donation.js` owns public wallet configuration, local QR encoding, the icon combobox, clipboard revision/timer and payment-method tabs. It uses bundled MIT-licensed `qrcode-generator`; the development-only `jsqr` dependency independently decodes rendered browser screenshots. Reuse the existing native-dialog lifecycle and app theme tokens without a hosted QR service, wallet SDK or additional runtime origins. The browser creates the official Ko-fi Tip Panel iframe only after a support action, with no referrer and no application payload. Closing removes the iframe and clears its loading timer. CSP adds only `frame-src 'self' https://ko-fi.com`; no third-party parent-page script, webhook, donor persistence or shared hosted page is required. Provider availability and payment completion are distinct from iframe load events.
 
 ## 14. Accessibility architecture
 

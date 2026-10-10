@@ -1,9 +1,30 @@
 import { supportReminders } from './support-reminder-policy.js';
 import { icon } from '../components/icon.js';
 import { openDialog } from '../components/dialog.js';
+import { donationMethods } from './donation.js';
 
 export const SUPPORT_URL = 'https://ko-fi.com/vionixconsulting';
 export const SUPPORT_EMBED_URL = `${SUPPORT_URL}/?hidefeed=true&widget=true&embed=true&preview=true`;
+
+const donationCopy = {
+  "crypto": "Crypto",
+  "method": "Donation method",
+  "network": "Network",
+  "receivingAddress": "Receiving address",
+  "copyAddress": "Copy address",
+  "copied": "Copied",
+  "copySuccess": "Address copied.",
+  "copyManually": "Copy manually",
+  "copyError": "Could not copy. Select the address and copy it manually.",
+  "showQR": "Show QR code",
+  "hideQR": "Hide QR code",
+  "assets": "{asset}, USDC, USDT and other tokens",
+  "qrLabel": "{network} receiving address QR code",
+  "qrFailed": "QR code unavailable. Copy the address instead."
+};
+function donationText(key, params = {}) {
+  return donationCopy[key].replace(/\{(\w+)\}/g, (_match, name) => params[name]);
+}
 
 export function openSupportDialog(returnFocus) {
   if (document.querySelector('dialog[open]')) return;
@@ -46,7 +67,12 @@ export function openSupportDialog(returnFocus) {
       const panel = document.createElement('div');
       panel.className = 'support-panel';
       panel.append(frame);
-      body.append(feedback, panel);
+      const kofiPanel = document.createElement('div');
+      kofiPanel.className = 'support-kofi';
+      kofiPanel.append(feedback, panel);
+      body.append(kofiPanel);
+      const methods = donationMethods({ body, kofiPanel, id: dialog.element.getAttribute('aria-labelledby'), text: donationText });
+      dialog.onClose(() => methods.dispose());
     },
   });
   handle.element.querySelector('.dialog-close').focus();

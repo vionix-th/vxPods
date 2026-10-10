@@ -1529,3 +1529,69 @@
 .support-reminder[hidden] { display: none; }
 .notification-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .notification-actions .button { min-height: 44px; }
+
+.support-dialog {
+  --donation-panel: var(--color-surface);
+  --donation-text: var(--color-text);
+  --donation-muted: var(--color-text-soft);
+  --donation-border: var(--color-border);
+  --donation-accent: var(--color-brand);
+  --donation-accent-text: var(--color-brand-dark);
+  --donation-accent-soft: var(--color-brand-soft);
+  --donation-accent-hover: var(--color-brand-dark);
+  --donation-raised: var(--color-bg-subtle);
+  --donation-input: var(--color-surface);
+  --donation-on-accent: var(--color-on-brand);
+}
+/* Direct donations use app theme tokens and the approved support-dialog rhythm. */
+.support-dialog .support-methods { display: flex; flex-shrink: 0; gap: 4px; padding: 8px 24px; border-bottom: 1px solid var(--donation-border); background: var(--donation-panel); }
+.support-methods > button { flex: 1; min-height: 44px; padding: 8px 16px; border: 0; border-radius: 7px; color: var(--donation-muted); background: transparent; font: inherit; font-size: 13px; font-weight: 500; }
+.support-methods > button:hover { color: var(--donation-text); background: var(--donation-raised); }
+.support-methods > button[aria-selected="true"] { color: var(--donation-accent-text); background: var(--donation-accent-soft); }
+.support-dialog [hidden] { display: none !important; }
+.support-dialog .support-body, .support-dialog .dialog-body { background: var(--donation-panel); }
+.support-kofi { position: relative; background: #f9f9f9; }
+.crypto-support { display: grid; gap: 16px; padding: 24px; }
+.donation-network-field { display: grid; gap: 8px; min-width: 0; }
+.donation-network-field > label { font-size: 12px; font-weight: 500; }
+.donation-network-trigger { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 10px 12px; border: 1px solid var(--donation-border); border-radius: 7px; color: var(--donation-text); background: var(--donation-input); font: inherit; font-size: 13px; text-align: left; }
+.donation-network-trigger:hover, .donation-network-trigger[aria-expanded="true"] { border-color: var(--donation-accent-text); background: var(--donation-input); }
+.donation-network-icon { display: inline-flex; color: var(--donation-accent-text); }
+.donation-network-value { flex: 1; min-width: 0; }
+.donation-network-trigger > svg { color: var(--donation-muted); }
+.donation-network-menu { position: fixed; inset: auto; margin: 0; padding: 6px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--donation-border); border-radius: 8px; color: var(--donation-text); background: var(--donation-panel); box-shadow: 0 8px 24px #0003; }
+.donation-network-option { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 10px; border-radius: 5px; cursor: pointer; font-size: 13px; }
+.donation-network-option > span { flex: 1; }
+.donation-network-option > svg:first-child { color: var(--donation-muted); }
+.donation-network-option > svg:last-child { visibility: hidden; }
+.donation-network-option[aria-selected="true"] { color: var(--donation-accent-text); }
+.donation-network-option[aria-selected="true"] > svg { color: var(--donation-accent-text); }
+.donation-network-option[aria-selected="true"] > svg:last-child { visibility: visible; }
+.donation-network-option:hover, .donation-network-option.is-active { background: var(--donation-accent-soft); }
+.donation-qr-host { display: grid; place-items: center; }
+.donation-qr { display: block; width: 180px; height: 180px; padding: 0; border: 1px solid var(--donation-border); border-radius: 8px; background: #fff; }
+.donation-qr-toggle { display: none; min-height: 44px; padding: 10px 16px; border: 0; border-radius: 7px; color: var(--donation-muted); background: transparent; font: inherit; font-size: 12px; }
+.donation-qr-toggle:hover { color: var(--donation-accent-text); background: var(--donation-accent-soft); }
+.donation-receiving { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--donation-border); border-radius: 8px; background: var(--donation-raised); }
+.donation-address-details { display: grid; gap: 4px; min-width: 0; }
+.donation-address-label { color: var(--donation-muted); font-size: 12px; }
+.donation-address { display: block; min-width: 0; min-height: 1.65em; margin: 0; padding: 0; border: 0; background: transparent; border-radius: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.65; user-select: all; }
+.donation-copy { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; border: 0; border-radius: 7px; color: var(--donation-on-accent); background: var(--donation-accent); font: inherit; font-size: 12px; font-weight: 600; }
+.donation-copy:hover { background: var(--donation-accent-hover); }
+.donation-copy:disabled { cursor: not-allowed; opacity: .5; }
+.donation-assets { min-height: 1.5em; margin: 0; color: var(--donation-muted); font-size: 12px; line-height: 1.5; }
+.donation-status { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip-path: inset(50%) !important; white-space: nowrap !important; }
+.support-dialog button:focus-visible, .donation-address:focus-visible { outline: 2px solid var(--donation-accent); outline-offset: 3px; }
+@media (max-width: 480px) { .donation-address { min-height: 3.3em; } }
+@media (max-width: 420px), (max-height: 720px) {
+  .donation-qr-toggle { display: inline-flex; justify-self: center; }
+  .crypto-support:not(.qr-expanded) .donation-qr-host { display: none; }
+}
+@media (max-width: 420px) {
+  .support-dialog .support-methods { padding-inline: 16px; }
+  .crypto-support { padding: 16px; }
+  .donation-receiving { padding: 12px; }
+}
+
+.support-dialog .dialog-header { padding: 8px 24px; }
+@media (max-width: 420px) { .support-dialog .dialog-header { padding-inline: 16px; } }
