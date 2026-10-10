@@ -7,6 +7,7 @@ export const SUPPORT_URL = 'https://ko-fi.com/vionixconsulting';
 export const SUPPORT_EMBED_URL = `${SUPPORT_URL}/?hidefeed=true&widget=true&embed=true&preview=true`;
 
 const donationCopy = {
+  "cash": "Cash",
   "crypto": "Crypto",
   "method": "Donation method",
   "network": "Network",

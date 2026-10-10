@@ -1545,7 +1545,7 @@
 }
 /* Direct donations use app theme tokens and the approved support-dialog rhythm. */
 .support-dialog .support-methods { display: flex; flex-shrink: 0; gap: 4px; padding: 8px 24px; border-bottom: 1px solid var(--donation-border); background: var(--donation-panel); }
-.support-methods > button { flex: 1; min-height: 44px; padding: 8px 16px; border: 0; border-radius: 7px; color: var(--donation-muted); background: transparent; font: inherit; font-size: 13px; font-weight: 500; }
+.support-methods > button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 1; min-height: 44px; padding: 8px 16px; border: 0; border-radius: 7px; color: var(--donation-muted); background: transparent; font: inherit; font-size: 13px; font-weight: 500; }
 .support-methods > button:hover { color: var(--donation-text); background: var(--donation-raised); }
 .support-methods > button[aria-selected="true"] { color: var(--donation-accent-text); background: var(--donation-accent-soft); }
 .support-dialog [hidden] { display: none !important; }

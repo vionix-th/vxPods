@@ -12,6 +12,8 @@ function button(children, onClick, className, attributes = {}) {
   return node;
 }
 const donationIcons = {
+  cash: ['M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z', 'M6 12h.01M18 12h.01'],
+  crypto: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18Z', 'm12 7 4 5-4 5-4-5 4-5Z'],
   check: ['m5 12 4 4L19 6'],
   copy: ['M9 9h12v12H9z', 'M15 9V3H3v12h6'],
   bitcoin: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M8 7h6a2.5 2.5 0 0 1 0 5H9h6a2.5 2.5 0 0 1 0 5H8M10 7v10M11 5v2m3-2v2M11 17v2m3-2v2'],
@@ -282,7 +284,7 @@ export function donationMethods({ body, kofiPanel, id, text }) {
   kofiPanel.setAttribute('aria-labelledby', `${id}-kofi-tab`);
   const cryptoPanel = el('div', { id: `${id}-crypto-panel`, role: 'tabpanel', 'aria-labelledby': `${id}-crypto-tab` });
   cryptoPanel.hidden = true;
-  const tabs = ['Ko-fi', text('crypto')].map((name, index) => button(name, () => select(index), 'support-method', {
+  const tabs = [text('cash'), text('crypto')].map((name, index) => button([icon(index ? 'crypto' : 'cash', 16), el('span', {}, name)], () => select(index), 'support-method', {
     id: `${id}-${index ? 'crypto' : 'kofi'}-tab`, role: 'tab',
     'aria-controls': index ? cryptoPanel.id : kofiPanel.id,
     'aria-selected': index === 0, tabindex: index === 0 ? '0' : '-1',

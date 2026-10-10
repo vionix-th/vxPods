@@ -44,6 +44,8 @@ test('ordered network icons and locally decoded QR destinations preserve Ko-fi s
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
   const dialog = await openCrypto(page);
+  await expect(dialog.getByRole('tab')).toHaveText(['Cash', 'Crypto']);
+  expect(await dialog.getByRole('tab').evaluateAll((tabs) => tabs.every((tab) => tab.querySelector('svg')?.getAttribute('aria-hidden') === 'true'))).toBe(true);
   const frame = await dialog.locator('iframe').elementHandle();
   const baseline = await dialog.boundingBox();
   await dialog.getByRole('combobox').click();
