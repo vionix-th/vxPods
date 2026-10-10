@@ -1575,7 +1575,7 @@
 .donation-receiving { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--donation-border); border-radius: 8px; background: var(--donation-raised); }
 .donation-address-details { display: grid; gap: 4px; min-width: 0; }
 .donation-address-label { color: var(--donation-muted); font-size: 12px; }
-.donation-address { display: block; min-width: 0; min-height: 1.65em; margin: 0; padding: 0; border: 0; background: transparent; border-radius: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.65; user-select: all; }
+.donation-address { display: block; min-width: 0; min-height: 1.65em; margin: 0; padding: 0; border: 0; background: transparent; border-radius: 0; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; line-height: 1.65; color: var(--donation-accent-text); font-weight: 400; text-decoration: underline; text-underline-offset: 3px; user-select: all; }
 .donation-copy { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 10px 16px; border: 0; border-radius: 7px; color: var(--donation-on-accent); background: var(--donation-accent); font: inherit; font-size: 12px; font-weight: 600; }
 .donation-copy:hover { background: var(--donation-accent-hover); }
 .donation-copy:disabled { cursor: not-allowed; opacity: .5; }

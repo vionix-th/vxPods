@@ -5,6 +5,17 @@ import AxeBuilder from '@axe-core/playwright';
 const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain'];
 const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy'];
 const addressFor = (index) => addresses[index === 0 ? 0 : index === 2 ? 2 : 1];
+const walletUris = [
+  'bitcoin:bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@1',
+  'solana:7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@8453',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@42161',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@10',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@137',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@56',
+];
+
 async function openCrypto(page) {
   await page.route('https://ko-fi.com/**', (route) => route.fulfill({ contentType: 'text/html', body: '<p>Payment fixture</p>' }));
   await page.goto('/');
@@ -55,7 +66,17 @@ test('ordered network icons and locally decoded QR destinations preserve Ko-fi s
   await expect(dialog.getByRole('combobox')).toHaveAttribute('aria-expanded', 'false');
   for (const [index, name] of networks.entries()) {
     await selectNetwork(dialog, name);
-    await expect(dialog.locator('.donation-address')).toHaveText(addressFor(index));
+    const walletLink = dialog.getByRole('link', { name: addressFor(index), exact: true });
+    await expect(walletLink).toHaveText(addressFor(index));
+    await expect(walletLink).toHaveAttribute('href', walletUris[index]);
+    // Observe native link activation without launching an external wallet in automation.
+    await walletLink.evaluate((node) => node.addEventListener('click', (event) => {
+      event.preventDefault();
+      node.setAttribute('data-activated-uri', node.getAttribute('href'));
+    }, { once: true }));
+    await walletLink.focus();
+    await page.keyboard.press('Enter');
+    await expect(walletLink).toHaveAttribute('data-activated-uri', walletUris[index]);
     await expect(dialog.locator('.donation-network-icon svg')).toHaveCount(1);
     expect(await decodeQR(dialog.locator('.donation-qr'))).toBe(addressFor(index));
     expect(await dialog.boundingBox()).toEqual(baseline);
