@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import jsQR from 'jsqr';
 import AxeBuilder from '@axe-core/playwright';
 
-const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain'];
-const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy'];
-const addressFor = (index) => addresses[index === 0 ? 0 : index === 2 ? 2 : 1];
+const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain', 'Zcash', 'Monero'];
+const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy', 't1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy', '47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd'];
+const addressFor = (index) => [addresses[0], addresses[1], addresses[2], addresses[1], addresses[1], addresses[1], addresses[1], addresses[1], addresses[3], addresses[4]][index];
 const walletUris = [
   'bitcoin:bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@1',
@@ -14,6 +14,8 @@ const walletUris = [
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@10',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@137',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@56',
+  'zcash:t1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy',
+  'monero:47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd',
 ];
 
 async function openCrypto(page) {
@@ -50,7 +52,8 @@ async function decodeQR(qr) {
 }
 
 
-test('ordered network icons and locally decoded QR destinations preserve Ko-fi state', async ({ page }) => {
+test('ordered network icons and locally decoded QR destinations preserve Ko-fi state', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.setViewportSize({ width: 1280, height: 900 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -79,16 +82,20 @@ test('ordered network icons and locally decoded QR destinations preserve Ko-fi s
     await expect(walletLink).toHaveAttribute('data-activated-uri', walletUris[index]);
     await expect(dialog.locator('.donation-network-icon svg')).toHaveCount(1);
     expect(await decodeQR(dialog.locator('.donation-qr'))).toBe(addressFor(index));
+    if (index >= 8) {
+      await dialog.getByRole('button', { name: 'Copy address', exact: true }).click();
+      expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(addressFor(index));
+    }
     expect(await dialog.boundingBox()).toEqual(baseline);
-    const native = index === 0 ? 'BTC' : index === 2 ? 'SOL' : index === 6 ? 'POL' : index === 7 ? 'BNB' : 'ETH';
-    await expect(dialog.locator('.donation-assets')).toHaveText(index === 0 ? native : `${native}, USDC, USDT and other tokens`);
+    const native = ['BTC', 'ETH', 'SOL', 'ETH', 'ETH', 'ETH', 'POL', 'BNB', 'ZEC', 'XMR'][index];
+    await expect(dialog.locator('.donation-assets')).toHaveText(index === 0 || index >= 8 ? native : `${native}, USDC, USDT and other tokens`);
   }
   await expect(dialog.locator('.donation-instruction')).toHaveCount(0);
   await dialog.getByRole('tab').nth(0).click();
   await expect(dialog.locator('iframe')).toBeVisible();
   expect(await frame.evaluate((node) => node.isConnected)).toBe(true);
   await dialog.getByRole('tab').nth(1).click();
-  await expect(dialog.getByRole('combobox')).toContainText('BNB Smart Chain');
+  await expect(dialog.getByRole('combobox')).toContainText('Monero');
   await dialog.locator('.support-close, .dialog-close').click();
   await page.locator('.support-trigger').filter({ visible: true }).first().click();
   await expect(dialog.getByRole('tab').nth(0)).toHaveAttribute('aria-selected', 'true');
@@ -161,7 +168,7 @@ for (const width of [320, 390, 768, 1440]) {
       if (compact) { await expect(toggle).toBeVisible(); await expect(dialog.locator('.donation-qr')).toBeHidden(); }
       else await expect(dialog.locator('.donation-qr')).toBeVisible();
       const baseline = await dialog.boundingBox();
-      for (const name of ['Bitcoin', 'Solana', 'BNB Smart Chain', 'Ethereum Mainnet']) {
+      for (const name of ['Bitcoin', 'Solana', 'BNB Smart Chain', 'Ethereum Mainnet', 'Zcash', 'Monero']) {
         await selectNetwork(dialog, name);
         expect(await dialog.boundingBox()).toEqual(baseline);
       }
@@ -176,7 +183,7 @@ for (const width of [320, 390, 768, 1440]) {
       expect(overflow).toBe(false);
       await dialog.screenshot({ path: `/tmp/vxPods-crypto-${width}-${locale}.png` });
       if (compact) { await toggle.click(); await expect(dialog.locator('.donation-qr')).toBeVisible(); }
-      expect(await decodeQR(dialog.locator('.donation-qr'))).toBe(addresses[1]);
+      expect(await decodeQR(dialog.locator('.donation-qr'))).toBe(addresses[4]);
       if (compact) {
         const copy = dialog.locator('.donation-copy');
         await copy.scrollIntoViewIfNeeded();
@@ -185,7 +192,7 @@ for (const width of [320, 390, 768, 1440]) {
       if (locale === 'th') {
         await expect(dialog.getByRole('tab').nth(1)).toHaveText('คริปโต');
         await expect(dialog.getByRole('button', { name: 'คัดลอกที่อยู่', exact: true })).toBeVisible();
-        await expect(dialog.locator('.donation-assets')).toContainText('โทเคนอื่น');
+        await expect(dialog.locator('.donation-assets')).toHaveText('XMR');
       }
     });
   }

@@ -19,6 +19,8 @@ const donationIcons = {
   bitcoin: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M8 7h6a2.5 2.5 0 0 1 0 5H9h6a2.5 2.5 0 0 1 0 5H8M10 7v10M11 5v2m3-2v2M11 17v2m3-2v2'],
   ethereum: ['m12 2 7 10-7 4-7-4 7-10Z', 'm5 15 7 7 7-7-7 4-7-4Z', 'M12 2v14'],
   solana: ['m6 4-3 4h15l3-4H6Z', 'm3 10 3 4h15l-3-4H3Z', 'm6 16-3 4h15l3-4H6Z'],
+  zcash: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M8 7h8L8 17h8M12 5v2m0 10v2'],
+  monero: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M5 16V9l7 7 7-7v7M5 16h4m6 0h4'],
   chevronDown: ['m6 9 6 6 6-6'],
   base: ['M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Z', 'M3 12h14'],
   arbitrum: ['m12 2 9 5v10l-9 5-9-5V7l9-5Z', 'm8 17 4-10 5 10M14 11l4 8'],
@@ -48,6 +50,8 @@ const donationNetworks = [
   { id: 'optimism', name: 'Optimism', icon: 'optimism', assets: 'ETH, USDC, USDT and other tokens', chainId: 10, address: evmAddress },
   { id: 'polygon', name: 'Polygon PoS', icon: 'polygon', assets: 'POL, USDC, USDT and other tokens', chainId: 137, address: evmAddress },
   { id: 'bnb', name: 'BNB Smart Chain', icon: 'bnb', assets: 'BNB, USDC, USDT and other tokens', chainId: 56, address: evmAddress },
+  { id: 'zcash', name: 'Zcash', icon: 'zcash', assets: 'ZEC', address: 't1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy' },
+  { id: 'monero', name: 'Monero', icon: 'monero', assets: 'XMR', address: '47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd' },
 ];
 
 // Standard wallet payment URIs; amounts remain donor-entered.
@@ -272,7 +276,7 @@ function cryptoSupport(id, text) {
     resetCopyFeedback();
     address.textContent = destination.address;
     address.href = donationWalletUri(destination);
-    assets.textContent = destination.id === 'bitcoin' ? 'BTC' : text('assets', { asset: destination.assets.split(',')[0] });
+    assets.textContent = destination.assets.includes(',') ? text('assets', { asset: destination.assets.split(',')[0] }) : destination.assets;
     qrHost.replaceChildren(addressQRCode(destination.address, text('qrLabel', { network: destination.name })));
   }
   const node = el('div', { class: 'crypto-support' }, network.node,
