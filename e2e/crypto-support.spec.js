@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import jsQR from 'jsqr';
 import AxeBuilder from '@axe-core/playwright';
 
-const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain', 'Zcash Transparent', 'Zcash Shielded', 'Monero'];
-const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy', 't1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy', '47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd', 'u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0'];
-const addressFor = (index) => [addresses[0], addresses[1], addresses[2], addresses[1], addresses[1], addresses[1], addresses[1], addresses[1], addresses[3], addresses[5], addresses[4]][index];
+const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain', 'Zcash Transparent', 'Zcash Shielded', 'TRON', 'Dogecoin', 'Monero'];
+const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy', 't1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy', '47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd', 'u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0', 'TLq3NiF3QkwzcFwhZhvVDUSQ3shzbDf6fQ', 'DLYUL5TuJPvQq71xFxdm337Ti5sZyP5BKk'];
+const addressFor = (index) => [addresses[0], addresses[1], addresses[2], addresses[1], addresses[1], addresses[1], addresses[1], addresses[1], addresses[3], addresses[5], addresses[6], addresses[7], addresses[4]][index];
 const walletUris = [
   'bitcoin:bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@1',
@@ -16,6 +16,8 @@ const walletUris = [
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@56',
   'zcash:t1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy',
   'zcash:u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0',
+  'trust://send?asset=c195&address=TLq3NiF3QkwzcFwhZhvVDUSQ3shzbDf6fQ',
+  'dogecoin:DLYUL5TuJPvQq71xFxdm337Ti5sZyP5BKk',
   'monero:47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd',
 ];
 
@@ -88,8 +90,8 @@ test('ordered network icons and locally decoded QR destinations preserve Ko-fi s
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(addressFor(index));
     }
     expect(await dialog.boundingBox()).toEqual(baseline);
-    const native = ['BTC', 'ETH', 'SOL', 'ETH', 'ETH', 'ETH', 'POL', 'BNB', 'ZEC', 'ZEC', 'XMR'][index];
-    await expect(dialog.locator('.donation-assets')).toHaveText(index === 0 || index >= 8 ? native : `${native}, USDC, USDT and other tokens`);
+    const native = ['BTC', 'ETH', 'SOL', 'ETH', 'ETH', 'ETH', 'POL', 'BNB', 'ZEC', 'ZEC', 'TRX', 'DOGE', 'XMR'][index];
+    await expect(dialog.locator('.donation-assets')).toHaveText(index === 10 ? "TRX, USDT and other tokens" : index === 0 || index >= 8 ? native : `${native}, USDC, USDT and other tokens`);
   }
   await expect(dialog.locator('.donation-instruction')).toHaveCount(0);
   await dialog.getByRole('tab').nth(0).click();
@@ -169,8 +171,10 @@ for (const width of [320, 390, 768, 1440]) {
       if (compact) { await expect(toggle).toBeVisible(); await expect(dialog.locator('.donation-qr')).toBeHidden(); }
       else await expect(dialog.locator('.donation-qr')).toBeVisible();
       const baseline = await dialog.boundingBox();
-      for (const name of ['Bitcoin', 'Solana', 'BNB Smart Chain', 'Ethereum Mainnet', 'Zcash Transparent', 'Monero', 'Zcash Shielded']) {
+      for (const name of ['Bitcoin', 'Solana', 'BNB Smart Chain', 'Ethereum Mainnet', 'Zcash Transparent', 'TRON', 'Dogecoin', 'Monero', 'Zcash Shielded']) {
         await selectNetwork(dialog, name);
+        if (name === 'TRON') await expect(dialog.locator('.donation-assets')).toHaveText('TRX, USDT and other tokens');
+        if (name === 'TRON' || name === 'Dogecoin') await dialog.screenshot({ path: `/tmp/vxPods-crypto-${width}-${locale}-${name.toLowerCase()}.png` });
         expect(await dialog.boundingBox()).toEqual(baseline);
       }
       await dialog.getByRole('combobox').click();

@@ -20,6 +20,7 @@ const donationCopy = {
   "showQR": "Show QR code",
   "hideQR": "Hide QR code",
   "assets": "{asset}, USDC, USDT and other tokens",
+  "tronAssets": "TRX, USDT and other tokens",
   "qrLabel": "{network} receiving address QR code",
   "qrFailed": "QR code unavailable. Copy the address instead."
 };
