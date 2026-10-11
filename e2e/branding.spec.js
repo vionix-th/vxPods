@@ -1,6 +1,31 @@
 import { test, expect } from '@playwright/test';
 import { AxeBuilder } from '@axe-core/playwright';
 
+test('closing About cannot restore focus over the next footer keyboard action', async ({ page }) => {
+  await page.route('https://ko-fi.com/**', route => route.fulfill({ contentType: 'text/html', body: '<p>Support fixture</p>' }));
+  await page.goto('/');
+  const footer = page.getByRole('contentinfo');
+  const about = footer.getByRole('button', { name: 'About', exact: true });
+  const support = footer.getByRole('button', { name: 'Support this project', exact: true });
+  await about.press('Enter');
+  const result = await page.getByRole('dialog', { name: 'About vxPods' }).evaluate(async (dialog) => {
+    // Move to the next control before the browser delivers its queued close event.
+    const closed = new Promise(resolve => dialog.addEventListener('close', () => queueMicrotask(resolve), { once: true }));
+    dialog.querySelector('.dialog-close').click();
+    const removed = !dialog.isConnected;
+    document.querySelector('.app-footer .support-trigger').focus();
+    await closed;
+    return { removed, supportFocused: document.activeElement.matches('.app-footer .support-trigger') };
+  });
+  expect(result).toEqual({ removed: true, supportFocused: true });
+  await page.keyboard.press('Enter');
+  const dialog = page.getByRole('dialog', { name: 'Support vxPods' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close dialog' }).press('Enter');
+  await expect(page.locator('dialog')).toHaveCount(0);
+  await expect(support).toBeFocused();
+});
+
 for (const width of [320, 390, 768, 1440]) {
   test(`publisher links and About work at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });

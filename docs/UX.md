@@ -285,6 +285,7 @@ Application adaptation:
 ### Dialogs
 
 - Labeled title, predictable close action, trapped modal focus, Escape support when safe, and focus restoration.
+- Closing removes the dialog and restores focus before the next interaction; delayed native events must not move focus away from a subsequently selected control.
 - Destructive confirmation dialogs require explicit button choice.
 
 ### Notifications

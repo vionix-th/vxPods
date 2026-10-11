@@ -487,6 +487,7 @@ Optional support is isolated in the app support module. `src/app/donation.js` ow
 
 - Prefer native controls and landmarks.
 - Dialogs use native `<dialog>` when behavior is consistently tested; otherwise one reusable accessible implementation.
+- The shared dialog handle completes removal, focus restoration, and close callbacks synchronously when closed. Queued native close events cannot repeat cleanup or override the next focused control.
 - Every form control has persistent label and programmatic error association.
 - Progress uses textual counts and one restrained live region.
 - Tab-like mode switching follows WAI-ARIA Tabs behavior or uses ordinary links/buttons with simpler semantics.
@@ -523,6 +524,8 @@ End-to-end tests cover:
 - Keyboard-only completion at desktop and mobile viewports.
 
 Tests use fixtures, intercepted requests, and synthetic credentials.
+
+Local and CI browser checks use two Chromium workers, zero retries, and a fresh production build served by their own preview server. An existing local server is never reused. CI rejects focused tests. Failed tests retain an HTML report, traces, and screenshots; GitHub Actions uploads those diagnostics for seven days. Trace and screenshot capture are disabled for opt-in live provider runs because they use real credentials. Use the Node.js 24 release line declared in `.nvmrc` and `npm ci` to reproduce the dependency set. For timing failures, add a deterministic regression that exercises the event ordering rather than fixed delays.
 
 Opt-in live provider tests use a git-ignored local target document containing one or more provider roots and dedicated test keys. Each target defines independent text-generation cases—API route, model, and input—and speech cases using the same model, voice, response-format, and PCM metadata contract as application settings. The client layer verifies the production adapters. Chromium independently verifies browser CORS, text response shape, MP3 decoding, or raw PCM frame validity. The aggregate runner executes both layers even if one fails and returns failure if either layer fails. Live tests are excluded from normal test commands, perform billable provider requests only through an explicit command, and must not print API keys.
 

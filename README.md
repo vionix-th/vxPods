@@ -26,7 +26,7 @@ Do not use the application on an untrusted or shared browser profile with creden
 
 ## Requirements
 
-- Node.js (current LTS recommended)
+- Node.js 24 (see `.nvmrc`; matches GitHub Actions)
 - npm
 - A supported modern browser: Chrome, Edge, Firefox, or Safari
 - An API key and an OpenAI-compatible provider endpoint for generation
@@ -36,7 +36,7 @@ Do not use the application on an untrusted or shared browser profile with creden
 Install dependencies and start the Vite development server:
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
@@ -53,6 +53,20 @@ Run the test suites:
 npm test
 npm run test:e2e
 ```
+
+Reproduce the deployment quality checks with Node.js 24 and the locked dependencies:
+
+```sh
+nvm use
+npm ci
+npx playwright install chromium
+npm run lint
+npm test
+CI=1 npm run test:e2e -- --project=chromium
+VITE_BASE_PATH=/vxPods/ npm run build
+```
+
+Browser tests always build the current checkout and start a fresh preview server on port 4173. Stop any existing server on that port first. Local and CI runs use two workers and no retries. For an intermittent failure, repeat the affected test with `--repeat-each=20`. Inspect `playwright-report/` and retained traces/screenshots in `test-results/`; failed GitHub runs upload these as a `playwright-failure-*` artifact retained for seven days.
 
 ### Live provider diagnostics
 

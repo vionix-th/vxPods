@@ -68,14 +68,19 @@ export function openDialog({ title, render, className, hideCloseButton, returnFo
   /** @type {((result: string | undefined) => void)[]} */
   const closeListeners = [];
   const previouslyFocused = returnFocus ?? document.activeElement;
+  let finalized = false;
 
-  dialog.addEventListener('close', () => {
-    for (const listener of closeListeners) listener(dialog.returnValue || undefined);
+  function finalizeClose() {
+    if (finalized) return;
+    finalized = true;
+    dialog.remove();
     if (previouslyFocused instanceof HTMLElement) {
       previouslyFocused.focus();
     }
-    dialog.remove();
-  });
+    for (const listener of closeListeners) listener(dialog.returnValue || undefined);
+  }
+
+  dialog.addEventListener('close', finalizeClose);
   dialog.addEventListener('cancel', (event) => {
     // Native Escape: allow, and treat as dismiss.
     event.preventDefault();
@@ -86,11 +91,15 @@ export function openDialog({ title, render, className, hideCloseButton, returnFo
    * @param {string} [result]
    */
   function close(result) {
+    if (finalized) return;
     if (typeof result === 'string') {
       dialog.close(result);
     } else {
       dialog.close();
     }
+    // Native close events are queued. Finish now so a later event cannot steal
+    // focus from the next control or modal, and notify close listeners only once.
+    finalizeClose();
   }
 
   /**
