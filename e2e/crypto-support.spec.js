@@ -2,23 +2,23 @@ import { test, expect } from '@playwright/test';
 import jsQR from 'jsqr';
 import AxeBuilder from '@axe-core/playwright';
 
-const networks = ['Bitcoin', 'Ethereum Mainnet', 'Solana', 'Base', 'Arbitrum One', 'Optimism', 'Polygon PoS', 'BNB Smart Chain', 'Zcash Transparent', 'Zcash Shielded', 'TRON', 'Dogecoin', 'Monero'];
+const networks = ['Bitcoin', 'Ethereum Mainnet', 'Arbitrum One', 'Base', 'BNB Smart Chain', 'Dogecoin', 'Monero', 'Optimism', 'Polygon PoS', 'Solana', 'TRON', 'Zcash Shielded', 'Zcash Transparent'];
 const addresses = ['bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz', '0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2', '7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy', 't1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy', '47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd', 'u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0', 'TLq3NiF3QkwzcFwhZhvVDUSQ3shzbDf6fQ', 'DLYUL5TuJPvQq71xFxdm337Ti5sZyP5BKk'];
-const addressFor = (index) => [addresses[0], addresses[1], addresses[2], addresses[1], addresses[1], addresses[1], addresses[1], addresses[1], addresses[3], addresses[5], addresses[6], addresses[7], addresses[4]][index];
+const addressFor = (index) => [addresses[0], addresses[1], addresses[1], addresses[1], addresses[1], addresses[7], addresses[4], addresses[1], addresses[1], addresses[2], addresses[6], addresses[5], addresses[3]][index];
 const walletUris = [
   'bitcoin:bc1qesd92qv7h3mlh4qqs4grz3e32phvxj6spwkcyz',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@1',
-  'solana:7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy',
-  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@8453',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@42161',
-  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@10',
-  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@137',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@8453',
   'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@56',
-  'zcash:t1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy',
-  'zcash:u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0',
-  'trust://send?asset=c195&address=TLq3NiF3QkwzcFwhZhvVDUSQ3shzbDf6fQ',
   'dogecoin:DLYUL5TuJPvQq71xFxdm337Ti5sZyP5BKk',
   'monero:47XCwRMTyEvav4QMqeh8ChaLg4Ubt7ASSWvyW9BG8vB19wXUS4E7C1qWkFnyzFFoTcf8AAmrUDG11EE2B6GFgFAWArkriQd',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@10',
+  'ethereum:0x0D4aAc6d3C5DF6D162F121992eBD441728B143a2@137',
+  'solana:7oLWWpSrEG6aDKVZDAyuAjF3kDKEgAmnG3Q7JAb9uUXy',
+  'trust://send?asset=c195&address=TLq3NiF3QkwzcFwhZhvVDUSQ3shzbDf6fQ',
+  'zcash:u1093sjwd5aleadm0j8jfzu0l7krkmv82yjrpk5j86j0vrkmy3eppkcv6e930qukvdy4p6nc8u0ttlwh6qu5gce84wht06xpzjzcqdwev0',
+  'zcash:t1ffcdEs6WUZsK4iTpSg3fYM3STmZ8rfXjy',
 ];
 
 async function openCrypto(page) {
@@ -85,20 +85,20 @@ test('ordered network icons and locally decoded QR destinations preserve Ko-fi s
     await expect(walletLink).toHaveAttribute('data-activated-uri', walletUris[index]);
     await expect(dialog.locator('.donation-network-icon svg')).toHaveCount(1);
     expect(await decodeQR(dialog.locator('.donation-qr'))).toBe(addressFor(index));
-    if (index >= 8) {
+    if (['TRON', 'Dogecoin', 'Monero', 'Zcash Shielded', 'Zcash Transparent'].includes(name)) {
       await dialog.getByRole('button', { name: 'Copy address', exact: true }).click();
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(addressFor(index));
     }
     expect(await dialog.boundingBox()).toEqual(baseline);
-    const native = ['BTC', 'ETH', 'SOL', 'ETH', 'ETH', 'ETH', 'POL', 'BNB', 'ZEC', 'ZEC', 'TRX', 'DOGE', 'XMR'][index];
-    await expect(dialog.locator('.donation-assets')).toHaveText(index === 10 ? "TRX, USDT and other tokens" : index === 0 || index >= 8 ? native : `${native}, USDC, USDT and other tokens`);
+    const native = ['BTC', 'ETH', 'ETH', 'ETH', 'BNB', 'DOGE', 'XMR', 'ETH', 'POL', 'SOL', 'TRX', 'ZEC', 'ZEC'][index];
+    await expect(dialog.locator('.donation-assets')).toHaveText(name === 'TRON' ? "TRX, USDT and other tokens" : ['Bitcoin', 'Dogecoin', 'Monero', 'Zcash Shielded', 'Zcash Transparent'].includes(name) ? native : `${native}, USDC, USDT and other tokens`);
   }
   await expect(dialog.locator('.donation-instruction')).toHaveCount(0);
   await dialog.getByRole('tab').nth(0).click();
   await expect(dialog.locator('iframe')).toBeVisible();
   expect(await frame.evaluate((node) => node.isConnected)).toBe(true);
   await dialog.getByRole('tab').nth(1).click();
-  await expect(dialog.getByRole('combobox')).toContainText('Monero');
+  await expect(dialog.getByRole('combobox')).toContainText('Zcash Transparent');
   await dialog.locator('.support-close, .dialog-close').click();
   await page.locator('.support-trigger').filter({ visible: true }).first().click();
   await expect(dialog.getByRole('tab').nth(0)).toHaveAttribute('aria-selected', 'true');
@@ -145,6 +145,9 @@ test('keyboard choices, cancellation and stale clipboard completion preserve des
   await page.keyboard.press('Escape');
   await expect(dialog).toBeVisible();
   await expect(network).toContainText('Ethereum Mainnet');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await expect(network).toContainText('Zcash Transparent');
   await page.keyboard.type('sol');
   await page.keyboard.press('Enter');
   await expect(network).toContainText('Solana');
